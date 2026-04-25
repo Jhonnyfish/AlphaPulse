@@ -47,7 +47,14 @@ func (s *TencentService) FetchQuote(ctx context.Context, code string) (models.Qu
 		return models.Quote{}, err
 	}
 
-	return parseTencentQuote(code, string(body))
+	quote, err := parseTencentQuote(code, string(body))
+	if err != nil {
+		return models.Quote{}, err
+	}
+	if err := quote.Validate(); err != nil {
+		return models.Quote{}, fmt.Errorf("tencent data validation failed: %w", err)
+	}
+	return quote, nil
 }
 
 func tencentSymbol(code string) string {
