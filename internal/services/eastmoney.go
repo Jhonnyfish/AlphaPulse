@@ -25,7 +25,7 @@ func NewEastMoneyService(timeout time.Duration) *EastMoneyService {
 
 func (s *EastMoneyService) FetchKline(ctx context.Context, code string, days int) ([]models.KlinePoint, error) {
 	params := url.Values{}
-	params.Set("secid", eastMoneySecID(code))
+	params.Set("secid", EastMoneySecID(code))
 	params.Set("klt", "101")
 	params.Set("fqt", "1")
 	params.Set("lmt", strconv.Itoa(days))
@@ -210,13 +210,6 @@ func (s *EastMoneyService) getJSON(ctx context.Context, endpoint string, params 
 	}
 
 	return nil
-}
-
-func eastMoneySecID(code string) string {
-	if strings.HasPrefix(code, "6") || strings.HasPrefix(code, "9") {
-		return "1." + code
-	}
-	return "0." + code
 }
 
 func parseKlinePoint(parts []string) (models.KlinePoint, error) {

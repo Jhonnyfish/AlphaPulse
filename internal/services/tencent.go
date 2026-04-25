@@ -23,7 +23,7 @@ func NewTencentService(timeout time.Duration) *TencentService {
 }
 
 func (s *TencentService) FetchQuote(ctx context.Context, code string) (models.Quote, error) {
-	symbol := tencentSymbol(code)
+	symbol := TencentSymbol(code)
 	requestURL := fmt.Sprintf("https://qt.gtimg.cn/q=%s", symbol)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
@@ -55,13 +55,6 @@ func (s *TencentService) FetchQuote(ctx context.Context, code string) (models.Qu
 		return models.Quote{}, fmt.Errorf("tencent data validation failed: %w", err)
 	}
 	return quote, nil
-}
-
-func tencentSymbol(code string) string {
-	if strings.HasPrefix(code, "6") || strings.HasPrefix(code, "9") {
-		return "sh" + code
-	}
-	return "sz" + code
 }
 
 func parseTencentQuote(code, payload string) (models.Quote, error) {

@@ -42,6 +42,10 @@ func (h *MarketHandler) Quote(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_CODE", "code is required")
 		return
 	}
+	if err := services.ValidateStockCode(code); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_CODE_FORMAT", err.Error())
+		return
+	}
 
 	if cached, ok := h.quoteCache.Get(code); ok {
 		c.JSON(http.StatusOK, cached)
@@ -62,6 +66,10 @@ func (h *MarketHandler) Kline(c *gin.Context) {
 	code := strings.TrimSpace(c.Query("code"))
 	if code == "" {
 		writeError(c, http.StatusBadRequest, "INVALID_CODE", "code is required")
+		return
+	}
+	if err := services.ValidateStockCode(code); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_CODE_FORMAT", err.Error())
 		return
 	}
 

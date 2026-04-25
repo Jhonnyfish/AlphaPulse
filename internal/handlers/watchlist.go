@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"alphapulse/internal/models"
+	"alphapulse/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
@@ -74,6 +75,10 @@ func (h *WatchlistHandler) Add(c *gin.Context) {
 			writeError(c, http.StatusBadRequest, "INVALID_CODE", "code is required")
 			return
 		}
+		if strings.Contains(err.Error(), "must be exactly 6 digits") {
+			writeError(c, http.StatusBadRequest, "INVALID_CODE_FORMAT", err.Error())
+			return
+		}
 		writeError(c, http.StatusInternalServerError, "WATCHLIST_ADD_FAILED", "failed to save watchlist item")
 		return
 	}
@@ -129,6 +134,9 @@ func (h *WatchlistHandler) BatchAdd(c *gin.Context) {
 		if _, ok := seen[cleaned]; ok {
 			continue
 		}
+		if err := services.ValidateStockCode(cleaned); err != nil {
+			continue // skip invalid codes silently in batch mode
+		}
 		seen[cleaned] = struct{}{}
 
 		tag, err := tx.Exec(
@@ -157,6 +165,9 @@ func (h *WatchlistHandler) upsertWatchlistItem(ctx context.Context, req addWatch
 	code := cleanCode(req.Code)
 	if code == "" {
 		return models.WatchlistItem{}, errors.New("code is required")
+	}
+	if err := services.ValidateStockCode(code); err != nil {
+		return models.WatchlistItem{}, err
 	}
 
 	groupName := strings.TrimSpace(req.GroupName)

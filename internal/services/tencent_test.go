@@ -54,26 +54,6 @@ func TestParseTencentQuoteMissingFields(t *testing.T) {
 	}
 }
 
-func TestTencentSymbol(t *testing.T) {
-	tests := []struct {
-		code     string
-		expected string
-	}{
-		{"600519", "sh600519"}, // 上海主板
-		{"900901", "sh900901"}, // 上海B股
-		{"000001", "sz000001"}, // 深圳主板
-		{"300750", "sz300750"}, // 创业板
-		{"002594", "sz002594"}, // 中小板
-	}
-
-	for _, tt := range tests {
-		got := tencentSymbol(tt.code)
-		if got != tt.expected {
-			t.Errorf("tencentSymbol(%s) = %s, want %s", tt.code, got, tt.expected)
-		}
-	}
-}
-
 func TestFetchQuoteIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
