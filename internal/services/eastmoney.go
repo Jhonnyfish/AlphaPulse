@@ -12,10 +12,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	apperrors "alphapulse/internal/errors"
 	"alphapulse/internal/models"
+	"go.uber.org/zap"
 )
 
 type EastMoneyService struct {
@@ -408,10 +410,10 @@ func (s *EastMoneyService) FetchStockAnnouncements(ctx context.Context, code str
 	var response struct {
 		Data struct {
 			List []struct {
-				Title       string `json:"title"`
-				NoticeDate  string `json:"notice_date"`
-				ArtCode     string `json:"art_code"`
-				Columns     []struct {
+				Title      string `json:"title"`
+				NoticeDate string `json:"notice_date"`
+				ArtCode    string `json:"art_code"`
+				Columns    []struct {
 					ShortName string `json:"column_name"`
 				} `json:"columns"`
 			} `json:"list"`
@@ -429,12 +431,172 @@ func (s *EastMoneyService) FetchStockAnnouncements(ctx context.Context, code str
 		}
 		items = append(items, models.Announcement{
 			Title:       title,
+			Date:        normalizeEastMoneyDate(item.NoticeDate),
 			URL:         buildAnnouncementURL(item.ArtCode),
+			ArtCode:     strings.TrimSpace(item.ArtCode),
+			Source:      "eastmoney",
 			PublishedAt: parseEastMoneyTime(item.NoticeDate),
 		})
 	}
 
 	return items, nil
+}
+
+func (s *EastMoneyService) FetchDragonTiger(ctx context.Context) ([]models.DragonTigerItem, error) {
+	startDate := time.Now().AddDate(0, 0, -3).Format("2006-01-02")
+	items, err := s.fetchDragonTigerBoard(ctx, dragonTigerBoardFilter{
+		startDate:  startDate,
+		exactDate:  "",
+		withDetail: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(items) == 0 {
+		return []models.DragonTigerItem{}, nil
+	}
+
+	latestDate := ""
+	for _, item := range items {
+		if item.TradeDate > latestDate {
+			latestDate = item.TradeDate
+		}
+	}
+	if latestDate == "" {
+		return items, nil
+	}
+
+	filtered := make([]models.DragonTigerItem, 0, len(items))
+	for _, item := range items {
+		if item.TradeDate == latestDate {
+			filtered = append(filtered, item)
+		}
+	}
+
+	sortDragonTigerItems(filtered)
+	return filtered, nil
+}
+
+func (s *EastMoneyService) FetchDragonTigerHistory(ctx context.Context, days int) (*models.DragonTigerHistoryResponse, error) {
+	if days <= 0 {
+		days = 5
+	}
+
+	type stockAgg struct {
+		name  string
+		total float64
+		dates map[string]struct{}
+	}
+	type instAgg struct {
+		total float64
+		dates map[string]struct{}
+	}
+
+	dates := make([]string, 0, days)
+	summaries := make([]models.DailySummary, 0, days)
+	recurring := make(map[string]*stockAgg)
+	institutions := make(map[string]*instAgg)
+
+	for offset := 0; offset < days; offset++ {
+		date := time.Now().AddDate(0, 0, -offset).Format("2006-01-02")
+		items, err := s.fetchDragonTigerBoard(ctx, dragonTigerBoardFilter{
+			exactDate:  date,
+			withDetail: true,
+		})
+		if err != nil {
+			zap.L().Error("fetch dragon tiger history failed", zap.Error(err), zap.String("date", date))
+			return nil, err
+		}
+		if len(items) == 0 {
+			continue
+		}
+
+		sortDragonTigerItems(items)
+		dates = append(dates, date)
+		summaries = append(summaries, buildDragonTigerDailySummary(date, items))
+
+		for _, item := range items {
+			agg, ok := recurring[item.Code]
+			if !ok {
+				agg = &stockAgg{name: item.Name, dates: make(map[string]struct{})}
+				recurring[item.Code] = agg
+			}
+			agg.name = item.Name
+			agg.total += item.NetBuy
+			agg.dates[date] = struct{}{}
+
+			for _, dept := range item.Departments {
+				name := strings.TrimSpace(dept.Name)
+				if name == "" {
+					continue
+				}
+				inst, ok := institutions[name]
+				if !ok {
+					inst = &instAgg{dates: make(map[string]struct{})}
+					institutions[name] = inst
+				}
+				inst.total += dept.Net
+				inst.dates[date] = struct{}{}
+			}
+		}
+	}
+
+	recurringStocks := make([]models.RecurringStock, 0, len(recurring))
+	for code, agg := range recurring {
+		recurringStocks = append(recurringStocks, models.RecurringStock{
+			Code:        code,
+			Name:        agg.name,
+			Appearances: len(agg.dates),
+			TotalNet:    agg.total,
+			Dates:       mapKeysSortedDesc(agg.dates),
+		})
+	}
+	sort.Slice(recurringStocks, func(i, j int) bool {
+		if recurringStocks[i].Appearances != recurringStocks[j].Appearances {
+			return recurringStocks[i].Appearances > recurringStocks[j].Appearances
+		}
+		if recurringStocks[i].TotalNet != recurringStocks[j].TotalNet {
+			return recurringStocks[i].TotalNet > recurringStocks[j].TotalNet
+		}
+		return recurringStocks[i].Code < recurringStocks[j].Code
+	})
+
+	institutionStats := make([]models.InstitutionStat, 0, len(institutions))
+	for name, agg := range institutions {
+		institutionStats = append(institutionStats, models.InstitutionStat{
+			Name:        name,
+			Appearances: len(agg.dates),
+			TotalNet:    agg.total,
+			Dates:       mapKeysSortedDesc(agg.dates),
+		})
+	}
+	sort.Slice(institutionStats, func(i, j int) bool {
+		if institutionStats[i].Appearances != institutionStats[j].Appearances {
+			return institutionStats[i].Appearances > institutionStats[j].Appearances
+		}
+		if institutionStats[i].TotalNet != institutionStats[j].TotalNet {
+			return institutionStats[i].TotalNet > institutionStats[j].TotalNet
+		}
+		return institutionStats[i].Name < institutionStats[j].Name
+	})
+
+	return &models.DragonTigerHistoryResponse{
+		OK:               true,
+		Dates:            dates,
+		DailySummary:     summaries,
+		InstitutionStats: institutionStats,
+		RecurringStocks:  recurringStocks,
+		Cached:           false,
+	}, nil
+}
+
+func (s *EastMoneyService) FetchInstitutionTracker(ctx context.Context, days int) ([]models.InstitutionStat, error) {
+	history, err := s.FetchDragonTigerHistory(ctx, days)
+	if err != nil {
+		return nil, err
+	}
+	return history.InstitutionStats, nil
 }
 
 // FetchTopMovers fetches top gaining and losing A-share stocks.
@@ -456,7 +618,7 @@ func (s *EastMoneyService) FetchTopMovers(ctx context.Context, sort string, limi
 		params.Set("po", "0") // ascending for losers
 	}
 	params.Set("fs", "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048") // A-share stocks
-	params.Set("fields", "f2,f3,f4,f5,f6,f7,f12,f14") // price, change%, change, volume, amount, amplitude, code, name
+	params.Set("fields", "f2,f3,f4,f5,f6,f7,f12,f14")                     // price, change%, change, volume, amount, amplitude, code, name
 
 	var response struct {
 		Data struct {
@@ -1139,6 +1301,258 @@ func (s *EastMoneyService) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+type dragonTigerBoardFilter struct {
+	startDate  string
+	exactDate  string
+	withDetail bool
+}
+
+func (s *EastMoneyService) fetchDragonTigerBoard(ctx context.Context, filter dragonTigerBoardFilter) ([]models.DragonTigerItem, error) {
+	params := url.Values{}
+	params.Set("sortColumns", "SECURITY_CODE")
+	params.Set("sortTypes", "1")
+	params.Set("pageSize", "50")
+	params.Set("pageNumber", "1")
+	params.Set("reportName", "RPT_DAILYBILLBOARD_DETAILSNEW")
+	params.Set("columns", "ALL")
+	params.Set("source", "WEB")
+	params.Set("client", "WEB")
+	params.Set("filter", buildDragonTigerFilter(filter.startDate, filter.exactDate))
+
+	var response struct {
+		Result struct {
+			Data []struct {
+				Code         string   `json:"SECURITY_CODE"`
+				Name         string   `json:"SECURITY_NAME_ABBR"`
+				Close        float64  `json:"CLOSE_PRICE"`
+				ChangePct    float64  `json:"CHANGE_RATE"`
+				NetBuyAmt    *float64 `json:"BILLBOARD_NET_AMT"`
+				NetBuyAmount *float64 `json:"NET_BUY_AMT"`
+				BuyAmt       *float64 `json:"BILLBOARD_BUY_AMT"`
+				SellAmt      *float64 `json:"BILLBOARD_SELL_AMT"`
+				Reason       string   `json:"EXPLANATION"`
+				ReasonAlt    string   `json:"EXPLAIN"`
+				TradeDate    string   `json:"TRADE_DATE"`
+			} `json:"data"`
+		} `json:"result"`
+	}
+	if err := s.getJSON(ctx, "https://datacenter-web.eastmoney.com/api/data/v1/get", params, &response); err != nil {
+		return nil, err
+	}
+
+	items := make([]models.DragonTigerItem, 0, len(response.Result.Data))
+	for _, row := range response.Result.Data {
+		code := strings.TrimSpace(row.Code)
+		name := strings.TrimSpace(row.Name)
+		tradeDate := normalizeEastMoneyDate(row.TradeDate)
+		if code == "" || name == "" || tradeDate == "" {
+			continue
+		}
+		if filter.exactDate != "" && tradeDate != filter.exactDate {
+			continue
+		}
+
+		item := models.DragonTigerItem{
+			Code:      code,
+			Name:      name,
+			Close:     row.Close,
+			ChangePct: row.ChangePct,
+			NetBuy:    firstFloat(row.NetBuyAmt, row.NetBuyAmount),
+			BuyTotal:  firstFloat(row.BuyAmt),
+			SellTotal: firstFloat(row.SellAmt),
+			Reason:    firstString(row.Reason, row.ReasonAlt),
+			TradeDate: tradeDate,
+		}
+		items = append(items, item)
+	}
+
+	if filter.withDetail && len(items) > 0 {
+		s.attachDragonTigerDepartments(ctx, items)
+	}
+
+	return items, nil
+}
+
+func (s *EastMoneyService) attachDragonTigerDepartments(ctx context.Context, items []models.DragonTigerItem) {
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 6)
+
+	for idx := range items {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			departments, err := s.fetchDragonTigerDepartments(ctx, items[i].Code, items[i].TradeDate)
+			if err != nil {
+				zap.L().Error("fetch dragon tiger departments failed",
+					zap.Error(err),
+					zap.String("code", items[i].Code),
+					zap.String("date", items[i].TradeDate))
+				return
+			}
+			items[i].Departments = departments
+		}(idx)
+	}
+
+	wg.Wait()
+}
+
+func (s *EastMoneyService) fetchDragonTigerDepartments(ctx context.Context, code, tradeDate string) ([]models.DepartmentDetail, error) {
+	buyRows, err := s.fetchDragonTigerDepartmentRows(ctx, code, tradeDate, "RPT_BILLBOARD_DAILYDETAILSBUY", "buy")
+	if err != nil {
+		return nil, err
+	}
+	sellRows, err := s.fetchDragonTigerDepartmentRows(ctx, code, tradeDate, "RPT_BILLBOARD_DAILYDETAILSSELL", "sell")
+	if err != nil {
+		return nil, err
+	}
+
+	departments := make([]models.DepartmentDetail, 0, len(buyRows)+len(sellRows))
+	departments = append(departments, buyRows...)
+	departments = append(departments, sellRows...)
+	return departments, nil
+}
+
+func (s *EastMoneyService) fetchDragonTigerDepartmentRows(ctx context.Context, code, tradeDate, reportName, side string) ([]models.DepartmentDetail, error) {
+	params := url.Values{}
+	params.Set("sortColumns", "BUY")
+	params.Set("sortTypes", "-1")
+	params.Set("pageSize", "20")
+	params.Set("pageNumber", "1")
+	params.Set("reportName", reportName)
+	params.Set("columns", "ALL")
+	params.Set("source", "WEB")
+	params.Set("client", "WEB")
+	params.Set("filter", fmt.Sprintf("(SECURITY_CODE=\"%s\")(TRADE_DATE>='%s')(TRADE_DATE<='%s')", code, tradeDate, tradeDate))
+
+	var response struct {
+		Result struct {
+			Data []struct {
+				Name       string   `json:"OPERATEDEPT_NAME"`
+				BuyAmt     *float64 `json:"BUY"`
+				BuyAmount  *float64 `json:"BUY_AMT"`
+				SellAmt    *float64 `json:"SELL"`
+				SellAmount *float64 `json:"SELL_AMT"`
+				NetAmt     *float64 `json:"NET"`
+				NetAmount  *float64 `json:"NET_AMT"`
+			} `json:"data"`
+		} `json:"result"`
+	}
+	if err := s.getJSON(ctx, "https://datacenter-web.eastmoney.com/api/data/v1/get", params, &response); err != nil {
+		return nil, err
+	}
+
+	departments := make([]models.DepartmentDetail, 0, len(response.Result.Data))
+	for _, row := range response.Result.Data {
+		name := strings.TrimSpace(row.Name)
+		if name == "" {
+			continue
+		}
+		buy := firstFloat(row.BuyAmt, row.BuyAmount)
+		sell := firstFloat(row.SellAmt, row.SellAmount)
+		net := firstFloat(row.NetAmt, row.NetAmount)
+		if net == 0 {
+			net = buy - sell
+		}
+		departments = append(departments, models.DepartmentDetail{
+			Name: name,
+			Buy:  buy,
+			Sell: sell,
+			Net:  net,
+			Side: side,
+		})
+	}
+
+	sort.Slice(departments, func(i, j int) bool {
+		if departments[i].Net != departments[j].Net {
+			return departments[i].Net > departments[j].Net
+		}
+		return departments[i].Name < departments[j].Name
+	})
+	return departments, nil
+}
+
+func buildDragonTigerFilter(startDate, exactDate string) string {
+	if exactDate != "" {
+		return fmt.Sprintf("(TRADE_DATE>='%s')(TRADE_DATE<='%s')", exactDate, exactDate)
+	}
+	if startDate == "" {
+		startDate = time.Now().AddDate(0, 0, -3).Format("2006-01-02")
+	}
+	return fmt.Sprintf("(TRADE_DATE>='%s')", startDate)
+}
+
+func buildDragonTigerDailySummary(date string, items []models.DragonTigerItem) models.DailySummary {
+	summary := models.DailySummary{
+		Date:       date,
+		Count:      len(items),
+		TopBuyers:  make([]models.StockBrief, 0, 5),
+		TopSellers: make([]models.StockBrief, 0, 5),
+	}
+
+	buyers := make([]models.StockBrief, 0, len(items))
+	sellers := make([]models.StockBrief, 0, len(items))
+	for _, item := range items {
+		if item.NetBuy >= 0 {
+			summary.TotalNetBuy += item.NetBuy
+			buyers = append(buyers, models.StockBrief{Code: item.Code, Name: item.Name, NetBuy: item.NetBuy})
+		} else {
+			summary.TotalNetSell += math.Abs(item.NetBuy)
+			sellers = append(sellers, models.StockBrief{Code: item.Code, Name: item.Name, NetBuy: item.NetBuy})
+		}
+	}
+
+	sort.Slice(buyers, func(i, j int) bool { return buyers[i].NetBuy > buyers[j].NetBuy })
+	sort.Slice(sellers, func(i, j int) bool { return sellers[i].NetBuy < sellers[j].NetBuy })
+	if len(buyers) > 5 {
+		buyers = buyers[:5]
+	}
+	if len(sellers) > 5 {
+		sellers = sellers[:5]
+	}
+	summary.TopBuyers = buyers
+	summary.TopSellers = sellers
+	return summary
+}
+
+func sortDragonTigerItems(items []models.DragonTigerItem) {
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].NetBuy != items[j].NetBuy {
+			return items[i].NetBuy > items[j].NetBuy
+		}
+		return items[i].Code < items[j].Code
+	})
+}
+
+func mapKeysSortedDesc(values map[string]struct{}) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] > keys[j] })
+	return keys
+}
+
+func firstFloat(values ...*float64) float64 {
+	for _, value := range values {
+		if value != nil {
+			return *value
+		}
+	}
+	return 0
+}
+
+func firstString(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
 func (s *EastMoneyService) getBody(ctx context.Context, endpoint string, params url.Values) ([]byte, error) {
 	requestURL := endpoint
 	if encoded := params.Encode(); encoded != "" {
@@ -1244,6 +1658,19 @@ func parseEastMoneyTime(value string) time.Time {
 		}
 	}
 	return time.Time{}
+}
+
+func normalizeEastMoneyDate(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) >= len("2006-01-02") {
+		if parsed, err := time.Parse("2006-01-02", value[:10]); err == nil {
+			return parsed.Format("2006-01-02")
+		}
+	}
+	if parsed := parseEastMoneyTime(value); !parsed.IsZero() {
+		return parsed.Format("2006-01-02")
+	}
+	return ""
 }
 
 func parseMoneyFlowValue(value string) float64 {

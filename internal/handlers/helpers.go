@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -41,4 +42,16 @@ func randomString(length int) (string, error) {
 func hashToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
+}
+
+// parseJSONArray decodes a JSON byte slice into a string slice.
+func parseJSONArray(data []byte) []string {
+	if len(data) == 0 {
+		return []string{}
+	}
+	var tags []string
+	if err := json.Unmarshal(data, &tags); err != nil {
+		return []string{}
+	}
+	return tags
 }

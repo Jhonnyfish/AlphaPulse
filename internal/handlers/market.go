@@ -27,6 +27,7 @@ type MarketHandler struct {
 	sectorsCache        *cache.Cache[[]models.Sector]
 	overviewCache       *cache.Cache[models.MarketOverview]
 	newsCache           *cache.Cache[[]models.NewsItem]
+	announcementsCache  *cache.Cache[[]models.Announcement]
 	searchCache         *cache.Cache[[]models.SearchSuggestion]
 	topMoversCache      *cache.Cache[[]models.TopMover]
 	trendsCache         *cache.Cache[models.MarketTrends]
@@ -46,6 +47,7 @@ func NewMarketHandler(eastMoney *services.EastMoneyService, tencent *services.Te
 		sectorsCache:        cache.New[[]models.Sector](),
 		overviewCache:       cache.New[models.MarketOverview](),
 		newsCache:           cache.New[[]models.NewsItem](),
+		announcementsCache:  cache.New[[]models.Announcement](),
 		searchCache:         cache.New[[]models.SearchSuggestion](),
 		topMoversCache:      cache.New[[]models.TopMover](),
 		trendsCache:         cache.New[models.MarketTrends](),
@@ -176,6 +178,53 @@ func (h *MarketHandler) News(c *gin.Context) {
 	h.newsCache.Set(cacheKey, items, 60*time.Second)
 
 	c.JSON(http.StatusOK, items)
+}
+
+func (h *MarketHandler) Announcements(c *gin.Context) {
+	code := strings.TrimSpace(c.Query("code"))
+	if code == "" {
+		writeError(c, http.StatusBadRequest, "INVALID_CODE", "code is required")
+		return
+	}
+	if err := services.ValidateStockCode(code); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_CODE_FORMAT", err.Error())
+		return
+	}
+
+	limit := 10
+	if rawLimit := strings.TrimSpace(c.Query("limit")); rawLimit != "" {
+		parsedLimit, err := strconv.Atoi(rawLimit)
+		if err != nil || parsedLimit < 1 || parsedLimit > 50 {
+			writeError(c, http.StatusBadRequest, "INVALID_LIMIT", "limit must be between 1 and 50")
+			return
+		}
+		limit = parsedLimit
+	}
+
+	cacheKey := fmt.Sprintf("announcements:%s:%d", code, limit)
+	if cached, ok := h.announcementsCache.Get(cacheKey); ok {
+		c.JSON(http.StatusOK, gin.H{
+			"code":   services.StockCode6(code),
+			"items":  cached,
+			"source": "eastmoney",
+			"cached": true,
+		})
+		return
+	}
+
+	items, err := h.eastMoney.FetchStockAnnouncements(c.Request.Context(), code, limit)
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "ANNOUNCEMENTS_FETCH_FAILED", "failed to fetch announcements")
+		return
+	}
+
+	h.announcementsCache.Set(cacheKey, items, 5*time.Minute)
+	c.JSON(http.StatusOK, gin.H{
+		"code":   services.StockCode6(code),
+		"items":  items,
+		"source": "eastmoney",
+		"cached": false,
+	})
 }
 
 func (h *MarketHandler) Search(c *gin.Context) {
@@ -368,8 +417,8 @@ func (h *MarketHandler) Trends(c *gin.Context) {
 	wlCodes := h.loadWatchlistCodes(ctx)
 
 	type result struct {
-		index   []models.TrendStock
-		stocks  []models.TrendStock
+		index  []models.TrendStock
+		stocks []models.TrendStock
 	}
 
 	var mu sync.Mutex
@@ -712,21 +761,21 @@ func (h *MarketHandler) MarketBreadth(c *gin.Context) {
 func (h *MarketHandler) MarketSentiment(c *gin.Context) {
 	if cached, ok := h.sentimentCache.Get("sentiment"); ok {
 		c.JSON(http.StatusOK, gin.H{
-			"ok":                cached.OK,
-			"fear_greed_index":  cached.FearGreedIndex,
-			"fear_greed_label":  cached.FearGreedLabel,
-			"up_count":          cached.UpCount,
-			"down_count":        cached.DownCount,
-			"flat_count":        cached.FlatCount,
-			"total_count":       cached.TotalCount,
-			"limit_up":          cached.LimitUp,
-			"limit_down":        cached.LimitDown,
-			"volume_today":      cached.VolumeToday,
-			"volume_avg_5d":     cached.VolumeAvg5D,
-			"sector_volumes":    cached.SectorVolumes,
-			"temperature":       cached.Temperature,
-			"server_time":       cached.ServerTime,
-			"cached":            true,
+			"ok":               cached.OK,
+			"fear_greed_index": cached.FearGreedIndex,
+			"fear_greed_label": cached.FearGreedLabel,
+			"up_count":         cached.UpCount,
+			"down_count":       cached.DownCount,
+			"flat_count":       cached.FlatCount,
+			"total_count":      cached.TotalCount,
+			"limit_up":         cached.LimitUp,
+			"limit_down":       cached.LimitDown,
+			"volume_today":     cached.VolumeToday,
+			"volume_avg_5d":    cached.VolumeAvg5D,
+			"sector_volumes":   cached.SectorVolumes,
+			"temperature":      cached.Temperature,
+			"server_time":      cached.ServerTime,
+			"cached":           true,
 		})
 		return
 	}
@@ -748,6 +797,7 @@ func (h *MarketHandler) CacheStats() map[string]cache.Sizer {
 		"sectors":         h.sectorsCache,
 		"overview":        h.overviewCache,
 		"news":            h.newsCache,
+		"announcements":   h.announcementsCache,
 		"search":          h.searchCache,
 		"top_movers":      h.topMoversCache,
 		"trends":          h.trendsCache,

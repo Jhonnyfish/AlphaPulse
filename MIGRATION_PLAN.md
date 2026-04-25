@@ -28,7 +28,7 @@
 - [x] GET /api/market-breadth — 市场宽度（涨跌家数）
 - [x] GET /api/market-sentiment — 市场情绪
 
-### 模块 4: 选股分析 (待迁移)
+### 模块 4: 选股分析 (已完成 ✅)
 - [x] GET /api/candidates — AI 候选股
 - [x] GET /api/screener — 选股器
 - [x] GET /analyze — 8维度综合分析详情
@@ -67,26 +67,26 @@
 - [x] POST /api/strategies/{id}/deactivate — 停用策略
 - [ ] GET /api/candidates?strategy_id=xxx — 策略选股
 
-### 模块 9: 自定义预警 (待迁移)
-- [ ] GET /api/custom-alerts — 预警列表
-- [ ] POST /api/custom-alerts — 创建预警
-- [ ] DELETE /api/custom-alerts/{id} — 删除预警
-- [ ] GET /api/custom-alerts/check — 检查预警
+### 模块 9: 自定义预警 (已完成 ✅)
+- [x] GET /api/custom-alerts — 预警列表
+- [x] POST /api/custom-alerts — 创建预警
+- [x] DELETE /api/custom-alerts/{id} — 删除预警
+- [x] GET /api/custom-alerts/check — 检查预警
 
-### 模块 10: 股票笔记 (待迁移)
-- [ ] GET /api/stock-notes/{code} — 获取笔记
-- [ ] POST /api/stock-notes — 添加笔记
-- [ ] PUT /api/stock-notes/{id} — 更新笔记
-- [ ] DELETE /api/stock-notes/{id} — 删除笔记
-- [ ] GET /api/stock-notes/tags/all — 所有标签
+### 模块 10: 股票笔记 (已完成 ✅)
+- [x] GET /api/stock-notes/{code} — 获取笔记
+- [x] POST /api/stock-notes — 添加笔记
+- [x] PUT /api/stock-notes/{id} — 更新笔记
+- [x] DELETE /api/stock-notes/{id} — 删除笔记
+- [x] GET /api/stock-notes/tags/all — 所有标签
 
-### 模块 11: 龙虎榜/机构 (待迁移)
-- [ ] GET /api/dragon-tiger — 龙虎榜
-- [ ] GET /api/dragon-tiger-history — 龙虎榜历史
-- [ ] GET /api/institution-tracker — 机构追踪
+### 模块 11: 龙虎榜/机构 (已完成 ✅)
+- [x] GET /api/dragon-tiger — 龙虎榜
+- [x] GET /api/dragon-tiger-history — 龙虎榜历史
+- [x] GET /api/institution-tracker — 机构追踪
 
-### 模块 12: 热门概念 (待迁移)
-- [ ] GET /api/hot-concepts — 热门概念
+### 模块 12: 热门概念 (已完成 ✅)
+- [x] GET /api/hot-concepts — 热门概念
 - [ ] GET /api/hot-concepts/{code}/stocks — 概念成分股
 - [ ] GET /api/watchlist-concept-overlap — 自选股概念重叠
 
@@ -94,8 +94,8 @@
 - [ ] GET /flow — 资金流向页面
 - [ ] GET /stockinfo — 个股详情（含资金流向）
 
-### 模块 14: 公告数据 (待迁移)
-- [ ] GET /announcements — 公告列表
+### 模块 14: 公告数据 (已完成 ✅)
+- [x] GET /announcements — 公告列表
 
 ### 模块 15: 板块轮动 (待迁移)
 - [ ] GET /api/sector-rotation — 板块轮动

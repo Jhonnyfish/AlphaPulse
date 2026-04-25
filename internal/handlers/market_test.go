@@ -21,6 +21,7 @@ func setupTestRouter(h *MarketHandler) *gin.Engine {
 	r.GET("/market/sectors", h.Sectors)
 	r.GET("/market/overview", h.Overview)
 	r.GET("/market/news", h.News)
+	r.GET("/announcements", h.Announcements)
 	return r
 }
 
@@ -154,5 +155,90 @@ func TestQuoteCacheHit(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &quote)
 	if quote.Price != 1850.00 {
 		t.Errorf("expected cached price 1850.00, got %.2f", quote.Price)
+	}
+}
+
+func TestAnnouncementsMissingCode(t *testing.T) {
+	h := NewMarketHandler(nil, nil, nil)
+	r := setupTestRouter(h)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/announcements", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["code"] != "INVALID_CODE" {
+		t.Errorf("expected INVALID_CODE, got %v", resp["code"])
+	}
+}
+
+func TestAnnouncementsInvalidLimit(t *testing.T) {
+	h := NewMarketHandler(nil, nil, nil)
+	r := setupTestRouter(h)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/announcements?code=600519&limit=0", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["code"] != "INVALID_LIMIT" {
+		t.Errorf("expected INVALID_LIMIT, got %v", resp["code"])
+	}
+}
+
+func TestAnnouncementsCacheHit(t *testing.T) {
+	h := NewMarketHandler(nil, nil, nil)
+	r := setupTestRouter(h)
+
+	cacheKey := "announcements:600519:2"
+	h.announcementsCache.Set(cacheKey, []models.Announcement{
+		{
+			Title:   "2026年一季度业绩预增公告",
+			Date:    "2026-04-25",
+			URL:     "https://data.eastmoney.com/notices/detail/AN202604250001.html",
+			ArtCode: "AN202604250001",
+			Source:  "eastmoney",
+		},
+	}, 5*time.Second)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/announcements?code=600519&limit=2", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp struct {
+		Code   string                `json:"code"`
+		Items  []models.Announcement `json:"items"`
+		Source string                `json:"source"`
+		Cached bool                  `json:"cached"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+
+	if resp.Code != "600519" {
+		t.Errorf("expected code 600519, got %s", resp.Code)
+	}
+	if len(resp.Items) != 1 || resp.Items[0].ArtCode != "AN202604250001" {
+		t.Errorf("unexpected items: %+v", resp.Items)
+	}
+	if resp.Source != "eastmoney" {
+		t.Errorf("expected source eastmoney, got %s", resp.Source)
+	}
+	if !resp.Cached {
+		t.Error("expected cached=true")
 	}
 }

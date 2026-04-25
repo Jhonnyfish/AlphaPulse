@@ -44,7 +44,10 @@ type SectorCompareResult struct {
 // Announcement represents a stock announcement
 type Announcement struct {
 	Title       string    `json:"title"`
+	Date        string    `json:"date"`
 	URL         string    `json:"url"`
+	ArtCode     string    `json:"art_code"`
+	Source      string    `json:"source"`
 	PublishedAt time.Time `json:"published_at"`
 }
 
@@ -120,43 +123,43 @@ type VolatilityAnalysis struct {
 }
 
 type MoneyFlowAnalysis struct {
-	TodayMainNet            float64 `json:"today_main_net"`
-	TodayMainDirection      string  `json:"today_main_direction"`
-	TodayHugeNet            float64 `json:"today_huge_net"`
-	TodayBigNet             float64 `json:"today_big_net"`
-	InstitutionVsHotMoney   string  `json:"institution_vs_hotmoney"`
-	MainConsecutiveDays     int     `json:"main_consecutive_days"`
+	TodayMainNet             float64 `json:"today_main_net"`
+	TodayMainDirection       string  `json:"today_main_direction"`
+	TodayHugeNet             float64 `json:"today_huge_net"`
+	TodayBigNet              float64 `json:"today_big_net"`
+	InstitutionVsHotMoney    string  `json:"institution_vs_hotmoney"`
+	MainConsecutiveDays      int     `json:"main_consecutive_days"`
 	MainConsecutiveDirection string  `json:"main_consecutive_direction"`
-	RetailBehavior          string  `json:"retail_behavior"`
-	Verdict                 string  `json:"verdict"`
+	RetailBehavior           string  `json:"retail_behavior"`
+	Verdict                  string  `json:"verdict"`
 }
 
 type TechnicalAnalysis struct {
-	MA5           float64   `json:"ma5"`
-	MA10          float64   `json:"ma10"`
-	MA20          float64   `json:"ma20"`
-	MA60          float64   `json:"ma60"`
-	MAArrangement string    `json:"ma_arrangement"`
-	MACD_DIF      float64   `json:"macd_dif"`
-	MACD_DEA      float64   `json:"macd_dea"`
-	MACD_Hist     float64   `json:"macd_hist"`
-	MACD_Signal   string    `json:"macd_signal"`
+	MA5            float64   `json:"ma5"`
+	MA10           float64   `json:"ma10"`
+	MA20           float64   `json:"ma20"`
+	MA60           float64   `json:"ma60"`
+	MAArrangement  string    `json:"ma_arrangement"`
+	MACD_DIF       float64   `json:"macd_dif"`
+	MACD_DEA       float64   `json:"macd_dea"`
+	MACD_Hist      float64   `json:"macd_hist"`
+	MACD_Signal    string    `json:"macd_signal"`
 	MACD_HistLast3 []float64 `json:"macd_hist_last3"`
-	MACD_HistTrend string   `json:"macd_hist_trend"`
-	KDJ_K         float64   `json:"kdj_k"`
-	KDJ_D         float64   `json:"kdj_d"`
-	KDJ_J         float64   `json:"kdj_j"`
-	KDJ_Signal    string    `json:"kdj_signal"`
-	OBV_5D        []float64 `json:"obv_5d"`
-	OBV_Trend     string    `json:"obv_trend"`
-	RSI_14        float64   `json:"rsi_14"`
-	RSI_Level     string    `json:"rsi_level"`
-	BollUpper     float64   `json:"boll_upper"`
-	BollMid       float64   `json:"boll_mid"`
-	BollLower     float64   `json:"boll_lower"`
-	BollBandwidth float64   `json:"boll_bandwidth"`
-	BollPosition  string    `json:"boll_position"`
-	Verdict       string    `json:"verdict"`
+	MACD_HistTrend string    `json:"macd_hist_trend"`
+	KDJ_K          float64   `json:"kdj_k"`
+	KDJ_D          float64   `json:"kdj_d"`
+	KDJ_J          float64   `json:"kdj_j"`
+	KDJ_Signal     string    `json:"kdj_signal"`
+	OBV_5D         []float64 `json:"obv_5d"`
+	OBV_Trend      string    `json:"obv_trend"`
+	RSI_14         float64   `json:"rsi_14"`
+	RSI_Level      string    `json:"rsi_level"`
+	BollUpper      float64   `json:"boll_upper"`
+	BollMid        float64   `json:"boll_mid"`
+	BollLower      float64   `json:"boll_lower"`
+	BollBandwidth  float64   `json:"boll_bandwidth"`
+	BollPosition   string    `json:"boll_position"`
+	Verdict        string    `json:"verdict"`
 }
 
 type SectorAnalysis struct {

@@ -56,6 +56,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(db, cfg)
 	watchlistHandler := handlers.NewWatchlistHandler(db)
 	marketHandler := handlers.NewMarketHandler(eastMoneyService, tencentService, db)
+	dragonTigerHandler := handlers.NewDragonTigerHandler(eastMoneyService)
 	candidatesHandler := handlers.NewCandidatesHandler(alpha300Service, db)
 	screenerHandler := handlers.NewScreenerHandler(alpha300Service, db)
 	scoreHistoryHandler := handlers.NewScoreHistoryHandler(db)
@@ -67,6 +68,7 @@ func main() {
 	tradingJournalHandler := handlers.NewTradingJournalHandler(db)
 	strategiesHandler := handlers.NewStrategiesHandler(db)
 	customAlertsHandler := handlers.NewCustomAlertsHandler(db, tencentService)
+	stockNotesHandler := handlers.NewStockNotesHandler(db)
 	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats())
 
 	router := gin.New()
@@ -119,6 +121,14 @@ func main() {
 	marketGroup.GET("/hot-concepts", marketHandler.HotConcepts)
 	marketGroup.GET("/breadth", marketHandler.MarketBreadth)
 	marketGroup.GET("/sentiment", marketHandler.MarketSentiment)
+
+	api.GET("/announcements", marketHandler.Announcements)
+
+	dragonTigerGroup := api.Group("/dragon-tiger")
+	dragonTigerGroup.Use(authMiddleware)
+	dragonTigerGroup.GET("", dragonTigerHandler.GetDragonTiger)
+	api.GET("/dragon-tiger-history", authMiddleware, dragonTigerHandler.GetHistory)
+	api.GET("/institution-tracker", authMiddleware, dragonTigerHandler.GetInstitutionTracker)
 
 	candidatesGroup := api.Group("/candidates")
 	candidatesGroup.Use(authMiddleware)
@@ -185,6 +195,14 @@ func main() {
 	customAlertsGroup.POST("", customAlertsHandler.Create)
 	customAlertsGroup.DELETE("/:id", customAlertsHandler.Delete)
 	customAlertsGroup.GET("/check", customAlertsHandler.Check)
+
+	stockNotesGroup := api.Group("/stock-notes")
+	stockNotesGroup.Use(authMiddleware)
+	stockNotesGroup.GET("/tags/all", stockNotesHandler.AllTags)
+	stockNotesGroup.GET("/:code", stockNotesHandler.GetNotes)
+	stockNotesGroup.POST("", stockNotesHandler.CreateNote)
+	stockNotesGroup.PUT("/:id", stockNotesHandler.UpdateNote)
+	stockNotesGroup.DELETE("/:id", stockNotesHandler.DeleteNote)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
