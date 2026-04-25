@@ -193,6 +193,29 @@ func (s *EastMoneyService) FetchNews(ctx context.Context, limit int) ([]models.N
 	return items, nil
 }
 
+func (s *EastMoneyService) HealthCheck(ctx context.Context) error {
+	// Lightweight check: fetch a single stock overview to verify API is responsive
+	params := url.Values{}
+	params.Set("fltt", "2")
+	params.Set("fields", "f12,f14")
+	params.Set("secids", "1.000001") // Shanghai Composite Index
+
+	var response struct {
+		Data struct {
+			Diff []struct {
+				Code string `json:"f12"`
+			} `json:"diff"`
+		} `json:"data"`
+	}
+	if err := s.getJSON(ctx, "https://push2.eastmoney.com/api/qt/ulist.np/get", params, &response); err != nil {
+		return err
+	}
+	if len(response.Data.Diff) == 0 {
+		return fmt.Errorf("eastmoney returned empty data")
+	}
+	return nil
+}
+
 func (s *EastMoneyService) getJSON(ctx context.Context, endpoint string, params url.Values, target interface{}) error {
 	requestURL := endpoint
 	if encoded := params.Encode(); encoded != "" {

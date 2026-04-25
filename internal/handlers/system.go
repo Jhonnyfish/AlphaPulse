@@ -52,14 +52,80 @@ func (h *SystemHandler) Info(c *gin.Context) {
 		dbStatus = "error"
 	}
 
-	cacheInfo := make(map[string]int, len(h.cacheMap))
+	// Database connection pool statistics
+	stats := h.db.Stat()
+	poolStats := gin.H{
+		"status":              dbStatus,
+		"total_conns":         stats.TotalConns(),
+		"acquired_conns":      stats.AcquiredConns(),
+		"idle_conns":          stats.IdleConns(),
+		"constructing_conns":  stats.ConstructingConns(),
+		"acquire_count":       stats.AcquireCount(),
+		"acquire_duration_ms": stats.AcquireDuration().Milliseconds(),
+	}
+
+	// Cache statistics with hit rates
+	cacheInfo := gin.H{}
 	for name, value := range h.cacheMap {
-		cacheInfo[name] = value.Len()
+		entry := gin.H{"size": value.Len()}
+		if cs, ok := value.(cache.CacheStater); ok {
+			s := cs.Stats()
+			entry["hits"] = s.Hits
+			entry["misses"] = s.Misses
+			entry["hit_rate"] = s.HitRate()
+		}
+		cacheInfo[name] = entry
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"db":      dbStatus,
+		"db":      poolStats,
 		"cache":   cacheInfo,
 		"version": h.version,
+		"uptime":  time.Since(h.started).Round(time.Second).String(),
 	})
+}
+
+// DataSourceHealth checks whether external data sources (Tencent, EastMoney) are reachable.
+func (h *SystemHandler) DataSourceHealth(eastMoneyCheck, tencentCheck func(context.Context) error) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
+		type sourceStatus struct {
+			Status  string `json:"status"`
+			Latency string `json:"latency,omitempty"`
+			Error   string `json:"error,omitempty"`
+		}
+
+		checkSource := func(name string, checkFn func(context.Context) error) sourceStatus {
+			start := time.Now()
+			err := checkFn(ctx)
+			latency := time.Since(start).Round(time.Millisecond)
+			if err != nil {
+				return sourceStatus{
+					Status:  "error",
+					Latency: latency.String(),
+					Error:   err.Error(),
+				}
+			}
+			return sourceStatus{
+				Status:  "ok",
+				Latency: latency.String(),
+			}
+		}
+
+		eastMoney := checkSource("eastmoney", eastMoneyCheck)
+		tencent := checkSource("tencent", tencentCheck)
+
+		overall := "ok"
+		if eastMoney.Status != "ok" || tencent.Status != "ok" {
+			overall = "degraded"
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":    overall,
+			"eastmoney": eastMoney,
+			"tencent":   tencent,
+		})
+	}
 }

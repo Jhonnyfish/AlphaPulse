@@ -94,6 +94,37 @@ func parseTencentQuote(code, payload string) (models.Quote, error) {
 	}, nil
 }
 
+func (s *TencentService) HealthCheck(ctx context.Context) error {
+	// Lightweight check: fetch Shanghai Composite Index quote
+	symbol := "sh000001"
+	requestURL := fmt.Sprintf("https://qt.gtimg.cn/q=%s", symbol)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("User-Agent", "AlphaPulse/1.0")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= http.StatusBadRequest {
+		return fmt.Errorf("tencent health check failed: %s", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if len(body) == 0 {
+		return fmt.Errorf("tencent returned empty response")
+	}
+	return nil
+}
+
 func fieldValue(fields []string, index int) string {
 	if index < 0 || index >= len(fields) {
 		return ""

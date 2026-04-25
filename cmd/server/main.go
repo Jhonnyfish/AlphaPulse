@@ -67,6 +67,12 @@ func main() {
 
 	router.GET("/health", systemHandler.Health)
 	router.GET("/api/system/info", systemHandler.Info)
+	router.GET("/api/system/datasources",
+		systemHandler.DataSourceHealth(
+			eastMoneyService.HealthCheck,
+			tencentService.HealthCheck,
+		),
+	)
 
 	api := router.Group("/api")
 	authGroup := api.Group("/auth")

@@ -11,8 +11,14 @@ type entry[T any] struct {
 	expiresAt time.Time
 }
 
+// Sizer returns the number of active (non-expired) entries.
 type Sizer interface {
 	Len() int
+}
+
+// CacheStater provides cache hit/miss statistics.
+type CacheStater interface {
+	Stats() CacheStats
 }
 
 // CacheStats holds hit/miss counters for a cache instance.
