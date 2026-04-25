@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -188,6 +190,188 @@ func (s *EastMoneyService) FetchNews(ctx context.Context, limit int) ([]models.N
 			Source:      item.Source,
 			URL:         item.URL,
 			PublishedAt: parseEastMoneyTime(item.ShowTime),
+		})
+	}
+
+	return items, nil
+}
+
+func (s *EastMoneyService) FetchMoneyFlow(ctx context.Context, code string, days int) ([]models.MoneyFlowDay, error) {
+	if days <= 0 {
+		days = 10
+	}
+
+	params := url.Values{}
+	params.Set("secid", EastMoneySecID(code))
+	params.Set("klt", "101")
+	params.Set("lmt", strconv.Itoa(days))
+	params.Set("fields1", "f1,f2,f3,f7")
+	params.Set("fields2", "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61")
+
+	var response struct {
+		Data struct {
+			Klines []string `json:"klines"`
+		} `json:"data"`
+	}
+	if err := s.getJSON(ctx, "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get", params, &response); err != nil {
+		return nil, err
+	}
+
+	flows := make([]models.MoneyFlowDay, 0, len(response.Data.Klines))
+	for _, line := range response.Data.Klines {
+		parts := strings.Split(line, ",")
+		if len(parts) < 11 {
+			continue
+		}
+		flows = append(flows, models.MoneyFlowDay{
+			Date:         parts[0],
+			MainNet:      parseMoneyFlowValue(parts[1]),
+			SmallNet:     parseMoneyFlowValue(parts[2]),
+			MiddleNet:    parseMoneyFlowValue(parts[3]),
+			BigNet:       parseMoneyFlowValue(parts[4]),
+			HugeNet:      parseMoneyFlowValue(parts[5]),
+			MainNetPct:   parseFloatString(parts[6]),
+			SmallNetPct:  parseFloatString(parts[7]),
+			MiddleNetPct: parseFloatString(parts[8]),
+			BigNetPct:    parseFloatString(parts[9]),
+			HugeNetPct:   parseFloatString(parts[10]),
+		})
+	}
+
+	return flows, nil
+}
+
+func (s *EastMoneyService) FetchStockSectors(ctx context.Context, code string) ([]models.StockSector, error) {
+	params := url.Values{}
+	params.Set("reportName", "RPT_F10_CORETHEME_BOARDTYPE")
+	params.Set("columns", "BOARD_NAME,NEW_BOARD_CODE")
+	params.Set("filter", fmt.Sprintf(`(SECUCODE="%s")`, eastMoneySecuCode(code)))
+	params.Set("pageNumber", "1")
+	params.Set("pageSize", "20")
+	params.Set("sortTypes", "1")
+	params.Set("sortColumns", "BOARD_RANK")
+	params.Set("source", "WEB")
+	params.Set("client", "WEB")
+
+	var response struct {
+		Result struct {
+			Data []struct {
+				Name string `json:"BOARD_NAME"`
+				Code string `json:"NEW_BOARD_CODE"`
+			} `json:"data"`
+		} `json:"result"`
+	}
+	if err := s.getJSON(ctx, "https://datacenter-web.eastmoney.com/api/data/v1/get", params, &response); err != nil {
+		return nil, err
+	}
+
+	sectors := make([]models.StockSector, 0, len(response.Result.Data))
+	for _, item := range response.Result.Data {
+		name := strings.TrimSpace(item.Name)
+		if name == "" {
+			continue
+		}
+		sectors = append(sectors, models.StockSector{
+			Name: name,
+			Code: strings.TrimSpace(item.Code),
+		})
+	}
+	return sectors, nil
+}
+
+func (s *EastMoneyService) FetchStockNews(ctx context.Context, code string, limit int) ([]models.NewsItem, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+
+	params := url.Values{}
+	params.Set("cb", "jQuery112409538187255818151_1710000000000")
+	params.Set("keyword", code)
+	params.Set("type", "cmsArticleWebOld")
+	params.Set("pageIndex", "1")
+	params.Set("pageSize", strconv.Itoa(limit))
+
+	body, err := s.getBody(ctx, "https://search-api-web.eastmoney.com/search/jsonp", params)
+	if err != nil {
+		return nil, err
+	}
+
+	payload, err := parseJSONP(body)
+	if err != nil {
+		return nil, err
+	}
+
+	var response struct {
+		Result struct {
+			CMSArticleWebOld []struct {
+				Title       string `json:"title"`
+				Content     string `json:"content"`
+				Source      string `json:"mediaName"`
+				URL         string `json:"url"`
+				PublishTime string `json:"date"`
+			} `json:"cmsArticleWebOld"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(payload, &response); err != nil {
+		return nil, err
+	}
+
+	items := make([]models.NewsItem, 0, len(response.Result.CMSArticleWebOld))
+	for _, item := range response.Result.CMSArticleWebOld {
+		title := strings.TrimSpace(stripHTML(item.Title))
+		if title == "" {
+			continue
+		}
+		items = append(items, models.NewsItem{
+			Code:        code,
+			Title:       title,
+			Summary:     strings.TrimSpace(stripHTML(item.Content)),
+			Source:      strings.TrimSpace(item.Source),
+			URL:         strings.TrimSpace(item.URL),
+			PublishedAt: parseEastMoneyTime(item.PublishTime),
+		})
+	}
+
+	return items, nil
+}
+
+func (s *EastMoneyService) FetchStockAnnouncements(ctx context.Context, code string, limit int) ([]models.Announcement, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+
+	params := url.Values{}
+	params.Set("page_size", strconv.Itoa(limit))
+	params.Set("page_index", "1")
+	params.Set("ann_type", "A")
+	params.Set("stock_list", code)
+
+	var response struct {
+		Data struct {
+			List []struct {
+				Title       string `json:"title"`
+				NoticeDate  string `json:"notice_date"`
+				ArtCode     string `json:"art_code"`
+				Columns     []struct {
+					ShortName string `json:"column_name"`
+				} `json:"columns"`
+			} `json:"list"`
+		} `json:"data"`
+	}
+	if err := s.getJSON(ctx, "https://np-anotice-stock.eastmoney.com/api/security/ann", params, &response); err != nil {
+		return nil, err
+	}
+
+	items := make([]models.Announcement, 0, len(response.Data.List))
+	for _, item := range response.Data.List {
+		title := strings.TrimSpace(item.Title)
+		if title == "" {
+			continue
+		}
+		items = append(items, models.Announcement{
+			Title:       title,
+			URL:         buildAnnouncementURL(item.ArtCode),
+			PublishedAt: parseEastMoneyTime(item.NoticeDate),
 		})
 	}
 
@@ -847,6 +1031,32 @@ func (s *EastMoneyService) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+func (s *EastMoneyService) getBody(ctx context.Context, endpoint string, params url.Values) ([]byte, error) {
+	requestURL := endpoint
+	if encoded := params.Encode(); encoded != "" {
+		requestURL = requestURL + "?" + encoded
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "AlphaPulse/1.0")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= http.StatusBadRequest {
+		return nil, fmt.Errorf("eastmoney request failed: %s", resp.Status)
+	}
+
+	return io.ReadAll(resp.Body)
+}
+
 func (s *EastMoneyService) getJSON(ctx context.Context, endpoint string, params url.Values, target interface{}) error {
 	requestURL := endpoint
 	if encoded := params.Encode(); encoded != "" {
@@ -926,4 +1136,47 @@ func parseEastMoneyTime(value string) time.Time {
 		}
 	}
 	return time.Time{}
+}
+
+func parseMoneyFlowValue(value string) float64 {
+	return parseFloatString(value) / 10000
+}
+
+func parseFloatString(value string) float64 {
+	parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+	if err != nil {
+		return 0
+	}
+	return parsed
+}
+
+func eastMoneySecuCode(code string) string {
+	if IsShanghai(code) {
+		return code + ".SH"
+	}
+	return code + ".SZ"
+}
+
+func parseJSONP(body []byte) ([]byte, error) {
+	text := strings.TrimSpace(string(body))
+	start := strings.IndexByte(text, '(')
+	end := strings.LastIndexByte(text, ')')
+	if start < 0 || end <= start {
+		return nil, fmt.Errorf("invalid jsonp payload")
+	}
+	return []byte(strings.TrimSpace(text[start+1 : end])), nil
+}
+
+var htmlTagPattern = regexp.MustCompile(`<[^>]+>`)
+
+func stripHTML(value string) string {
+	return htmlTagPattern.ReplaceAllString(value, "")
+}
+
+func buildAnnouncementURL(artCode string) string {
+	artCode = strings.TrimSpace(artCode)
+	if artCode == "" {
+		return ""
+	}
+	return "https://data.eastmoney.com/notices/detail/" + artCode + ".html"
 }

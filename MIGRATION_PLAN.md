@@ -31,7 +31,7 @@
 ### 模块 4: 选股分析 (待迁移)
 - [x] GET /api/candidates — AI 候选股
 - [x] GET /api/screener — 选股器
-- [ ] GET /analyze — 个股分析详情
+- [x] GET /analyze — 8维度综合分析详情
 - [x] GET /api/score-history/{code} — 评分历史
 - [x] GET /api/pattern-scanner — 形态扫描
 - [ ] GET /api/multi-trend — 多周期趋势

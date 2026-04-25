@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -85,6 +86,25 @@ func parseTencentQuote(code, payload string) (models.Quote, error) {
 	changePercent, _ := strconv.ParseFloat(fieldValue(fields, 32), 64)
 	high, _ := strconv.ParseFloat(fieldValue(fields, 33), 64)
 	low, _ := strconv.ParseFloat(fieldValue(fields, 34), 64)
+	volume := parseFloatField(fields, 36, 6)
+	turnover := parseFloatField(fields, 38)
+	pe := parseFloatField(fields, 39)
+	pb := parseFloatField(fields, 60, 46)
+	totalMV := parseFloatField(fields, 45, 44)
+	amplitude := parseFloatField(fields, 43)
+	outerVol := parseFloatField(fields, 7)
+	innerVol := parseFloatField(fields, 8)
+	limitUp := parseFloatField(fields, 47)
+	limitDown := parseFloatField(fields, 48)
+
+	if limitUp <= 0 || limitDown <= 0 || limitDown >= limitUp {
+		limitUp, limitDown = deriveLimitPrices(code, fieldValue(fields, 1), prevClose)
+	}
+
+	updatedAt := strings.TrimSpace(fieldValue(fields, 65))
+	if updatedAt == "" {
+		updatedAt = fieldValue(fields, 30)
+	}
 
 	return models.Quote{
 		Code:          code,
@@ -96,7 +116,17 @@ func parseTencentQuote(code, payload string) (models.Quote, error) {
 		Low:           low,
 		Change:        change,
 		ChangePercent: changePercent,
-		UpdatedAt:     fieldValue(fields, 30),
+		Volume:        volume,
+		Turnover:      turnover,
+		PE:            pe,
+		PB:            pb,
+		TotalMV:       totalMV,
+		Amplitude:     amplitude,
+		LimitUp:       limitUp,
+		LimitDown:     limitDown,
+		OuterVol:      outerVol,
+		InnerVol:      innerVol,
+		UpdatedAt:     updatedAt,
 	}, nil
 }
 
@@ -219,4 +249,39 @@ func fieldValue(fields []string, index int) string {
 		return ""
 	}
 	return fields[index]
+}
+
+func parseFloatField(fields []string, indices ...int) float64 {
+	for _, index := range indices {
+		value := strings.TrimSpace(fieldValue(fields, index))
+		if value == "" {
+			continue
+		}
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err == nil {
+			return parsed
+		}
+	}
+	return 0
+}
+
+func deriveLimitPrices(code, name string, prevClose float64) (float64, float64) {
+	if prevClose <= 0 {
+		return 0, 0
+	}
+
+	ratio := 0.10
+	if strings.Contains(strings.ToUpper(name), "ST") || strings.Contains(name, "退") {
+		ratio = 0.05
+	} else if strings.HasPrefix(code, "300") || strings.HasPrefix(code, "301") || strings.HasPrefix(code, "688") {
+		ratio = 0.20
+	} else if strings.HasPrefix(code, "8") || strings.HasPrefix(code, "430") || strings.HasPrefix(code, "83") || strings.HasPrefix(code, "87") {
+		ratio = 0.30
+	}
+
+	return roundTencentPrice(prevClose * (1 + ratio)), roundTencentPrice(prevClose * (1 - ratio))
+}
+
+func roundTencentPrice(v float64) float64 {
+	return math.Round(v*100) / 100
 }

@@ -74,6 +74,21 @@ func EastMoneySecID(code string) string {
 	return "0." + code
 }
 
+// NormalizeCode strips whitespace and any prefix like sh/sz, returning the 6-digit code.
+func NormalizeCode(code string) string {
+	code = strings.TrimSpace(code)
+	code = strings.TrimPrefix(code, "sh")
+	code = strings.TrimPrefix(code, "sz")
+	code = strings.TrimPrefix(code, "SH")
+	code = strings.TrimPrefix(code, "SZ")
+	return code
+}
+
+// StockCode6 returns the 6-digit code (alias for NormalizeCode for clarity).
+func StockCode6(code string) string {
+	return NormalizeCode(code)
+}
+
 // TencentSymbol converts a stock code to Tencent's symbol format.
 // Shanghai: "shCODE", Shenzhen: "szCODE"
 func TencentSymbol(code string) string {

@@ -12,6 +12,16 @@ type Quote struct {
 	Low           float64 `json:"low"`
 	Change        float64 `json:"change"`
 	ChangePercent float64 `json:"change_percent"`
+	Volume        float64 `json:"volume"`
+	Turnover      float64 `json:"turnover"`
+	PE            float64 `json:"pe"`
+	PB            float64 `json:"pb"`
+	TotalMV       float64 `json:"total_mv"`
+	Amplitude     float64 `json:"amplitude"`
+	LimitUp       float64 `json:"limit_up"`
+	LimitDown     float64 `json:"limit_down"`
+	OuterVol      float64 `json:"outer_vol"`
+	InnerVol      float64 `json:"inner_vol"`
 	UpdatedAt     string  `json:"updated_at"`
 }
 
