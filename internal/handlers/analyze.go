@@ -230,3 +230,148 @@ func (h *AnalyzeHandler) fetchAnnouncements(ctx context.Context, code string) ([
 	h.announcementsCache.Set(code, anns, 300*time.Second)
 	return anns, nil
 }
+
+// ---- StockInfo endpoint ----
+
+// StockInfoResponse is the response for GET /stockinfo.
+type StockInfoResponse struct {
+	Code          string                `json:"code"`
+	Name          string                `json:"name,omitempty"`
+	Quote         *models.Quote         `json:"quote,omitempty"`
+	Flow          []models.MoneyFlowDay `json:"flow,omitempty"`
+	News          []models.NewsItem     `json:"news,omitempty"`
+	Announcements []models.Announcement `json:"announcements,omitempty"`
+	Sectors       []models.StockSector  `json:"sectors,omitempty"`
+	Cached        bool                  `json:"cached"`
+	CacheDetail   map[string]bool       `json:"cache_detail"`
+	Errors        map[string]string     `json:"errors,omitempty"`
+}
+
+// StockInfo returns comprehensive information for a single stock.
+func (h *AnalyzeHandler) StockInfo(c *gin.Context) {
+	codeParam := strings.TrimSpace(c.Query("code"))
+	if codeParam == "" {
+		writeError(c, http.StatusBadRequest, "INVALID_CODE", "code is required")
+		return
+	}
+
+	if err := services.ValidateStockCode(codeParam); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_CODE_FORMAT", err.Error())
+		return
+	}
+
+	code := services.NormalizeCode(codeParam)
+	ctx := c.Request.Context()
+	errs := make(map[string]string)
+	cacheDetail := make(map[string]bool)
+
+	// Fetch all concurrently
+	var (
+		quote         *models.Quote
+		flows         []models.MoneyFlowDay
+		news          []models.NewsItem
+		announcements []models.Announcement
+		sectors       []models.StockSector
+		quoteName     string
+	)
+
+	var wg sync.WaitGroup
+
+	// Quote
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		q, err := h.fetchQuote(ctx, code)
+		if err != nil {
+			errs["quote"] = err.Error()
+			cacheDetail["quote"] = false
+			return
+		}
+		quote = &q
+		quoteName = q.Name
+		cacheDetail["quote"] = true // if we got here without error, it was fetched (possibly from cache)
+	}()
+
+	// Flow (5 days)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		f, err := h.fetchFlow(ctx, code)
+		if err != nil {
+			errs["flow"] = err.Error()
+			cacheDetail["flow"] = false
+			return
+		}
+		flows = f
+		cacheDetail["flow"] = true
+	}()
+
+	// News (10 items)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		n, err := h.fetchNews(ctx, code)
+		if err != nil {
+			errs["news"] = err.Error()
+			cacheDetail["news"] = false
+			return
+		}
+		news = n
+		cacheDetail["news"] = true
+	}()
+
+	// Announcements (10 items)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		a, err := h.fetchAnnouncements(ctx, code)
+		if err != nil {
+			errs["announcements"] = err.Error()
+			cacheDetail["announcements"] = false
+			return
+		}
+		announcements = a
+		cacheDetail["announcements"] = true
+	}()
+
+	// Sectors
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		s, err := h.fetchSectors(ctx, code)
+		if err != nil {
+			errs["sectors"] = err.Error()
+			cacheDetail["sectors"] = false
+			return
+		}
+		sectors = s
+		cacheDetail["sectors"] = true
+	}()
+
+	wg.Wait()
+
+	allCached := true
+	for _, v := range cacheDetail {
+		if !v {
+			allCached = false
+			break
+		}
+	}
+
+	resp := StockInfoResponse{
+		Code:          services.StockCode6(code),
+		Name:          quoteName,
+		Quote:         quote,
+		Flow:          flows,
+		News:          news,
+		Announcements: announcements,
+		Sectors:       sectors,
+		Cached:        allCached,
+		CacheDetail:   cacheDetail,
+	}
+	if len(errs) > 0 {
+		resp.Errors = errs
+	}
+
+	c.JSON(http.StatusOK, resp)
+}

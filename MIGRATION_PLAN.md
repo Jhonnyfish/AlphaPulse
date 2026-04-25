@@ -87,12 +87,12 @@
 
 ### 模块 12: 热门概念 (已完成 ✅)
 - [x] GET /api/hot-concepts — 热门概念
-- [ ] GET /api/hot-concepts/{code}/stocks — 概念成分股
-- [ ] GET /api/watchlist-concept-overlap — 自选股概念重叠
+- [x] GET /api/hot-concepts/{code}/stocks — 概念成分股
+- [x] GET /api/watchlist-concept-overlap — 自选股概念重叠
 
 ### 模块 13: 资金流向 (已完成 ✅)
 - [x] GET /flow — 资金流向
-- [ ] GET /stockinfo — 个股详情（含资金流向）
+- [x] GET /stockinfo — 个股详情（含资金流向）
 
 ### 模块 14: 公告数据 (已完成 ✅)
 - [x] GET /announcements — 公告列表
@@ -115,12 +115,12 @@
 - [x] POST /api/investment-plans — 创建计划
 - [x] DELETE /api/investment-plans/{code} — 删除计划
 
-### 模块 18: 信号系统 (待迁移)
-- [ ] GET /api/signal-calendar — 信号日历
-- [ ] GET /api/signal-history — 信号历史
-- [ ] GET /api/anomalies — 异常检测
-- [ ] GET /api/alerts — 系统告警
-- [ ] GET /api/activity-log — 活动日志
+### 模块 18: 信号系统 (已完成 ✅)
+- [x] GET /api/signal-calendar — 信号日历
+- [x] GET /api/signal-history — 信号历史
+- [x] GET /api/anomalies — 异常检测
+- [x] GET /api/alerts — 系统告警
+- [x] GET /api/activity-log — 活动日志
 
 ### 模块 19: 自选股分析 (已完成 ✅)
 - [x] GET /api/watchlist-heatmap — 热力图数据
@@ -132,9 +132,9 @@
 - [x] DELETE /api/watchlist-groups/{id} — 删除分组
 - [x] POST /api/watchlist-groups/assign — 分配分组
 
-### 模块 20: 回测系统 (待迁移)
-- [ ] GET /backtest — 回测页面
-- [ ] GET /api/backtest-compare — 回测对比
+### 模块 20: 回测系统 (已完成 ✅)
+- [x] GET /backtest — 回测页面
+- [x] GET /api/backtest-compare — 回测对比
 
 ### 模块 21: 系统管理 (部分完成 ✅)
 - [x] GET /health — 健康检查

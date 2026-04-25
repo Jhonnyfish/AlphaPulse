@@ -77,6 +77,7 @@ func main() {
 	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats())
 	signalHandler := handlers.NewSignalHandler(alpha300Service, tencentService, eastMoneyService, logger.L())
 	reportsHandler := handlers.NewReportsHandler(db, tencentService, eastMoneyService, analyzeHandler, watchlistHandler, logger.L())
+	alertsHandler := handlers.NewAlertsHandler(db, analyzeHandler, logger.L())
 
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -279,6 +280,12 @@ func main() {
 	api.GET("/daily-report/list", authMiddleware, reportsHandler.DailyReportList)
 	api.POST("/daily-report/generate", authMiddleware, reportsHandler.DailyReportGenerate)
 	api.GET("/daily-brief", authMiddleware, reportsHandler.DailyBrief)
+
+	// Smart alerts (Module 22)
+	api.GET("/alerts", authMiddleware, alertsHandler.Alerts)
+
+	// Stock info (comprehensive single stock data)
+	api.GET("/stockinfo", authMiddleware, analyzeHandler.StockInfo)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
