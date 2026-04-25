@@ -5,6 +5,8 @@ import LoginPage from '@/pages/LoginPage';
 import WatchlistPage from '@/pages/WatchlistPage';
 import MarketPage from '@/pages/MarketPage';
 import KlinePage from '@/pages/KlinePage';
+import SectorsPage from '@/pages/SectorsPage';
+import NewsPage from '@/pages/NewsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, loading } = useAuth();
@@ -53,19 +55,10 @@ export default function App() {
         <Route path="/watchlist" element={<WatchlistPage />} />
         <Route path="/market" element={<MarketPage />} />
         <Route path="/kline" element={<KlinePage />} />
-        <Route path="/sectors" element={<PlaceholderPage title="板块" />} />
-        <Route path="/news" element={<PlaceholderPage title="资讯" />} />
+        <Route path="/sectors" element={<SectorsPage />} />
+        <Route path="/news" element={<NewsPage />} />
       </Route>
       <Route path="*" element={<Navigate to={token ? '/watchlist' : '/login'} replace />} />
     </Routes>
-  );
-}
-
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div>
-      <h1 className="text-xl font-bold mb-4">{title}</h1>
-      <p style={{ color: 'var(--color-text-muted)' }}>即将上线...</p>
-    </div>
   );
 }
