@@ -50,13 +50,13 @@
 - [x] GET /api/portfolio/analytics — 组合分析
 - [x] GET /api/portfolio-risk — 风险分析
 
-### 模块 7: 交易日志 (待迁移)
-- [ ] GET /api/trading-journal — 交易记录
-- [ ] POST /api/trading-journal — 添加交易
-- [ ] DELETE /api/trading-journal/{id} — 删除交易
-- [ ] GET /api/trading-journal/stats — 交易统计
-- [ ] GET /api/trading-journal/calendar — 交易日历
-- [ ] GET /api/trade-strategy-eval — 策略评估
+### 模块 7: 交易日志 (已完成 ✅)
+- [x] GET /api/trading-journal — 交易记录
+- [x] POST /api/trading-journal — 添加交易
+- [x] DELETE /api/trading-journal/{id} — 删除交易
+- [x] GET /api/trading-journal/stats — 交易统计
+- [x] GET /api/trading-journal/calendar — 交易日历
+- [x] GET /api/trade-strategy-eval — 策略评估
 
 ### 模块 8: 自定义策略 (待迁移)
 - [ ] GET /api/strategies — 策略列表
