@@ -3,6 +3,7 @@ package models
 import (
 	"fmt"
 	"math"
+	"strings"
 )
 
 // Validate checks that quote data is within reasonable bounds.
@@ -62,6 +63,53 @@ func (k KlinePoint) Validate() error {
 	}
 	if k.High > 0 && k.Low > 0 && k.High < k.Low {
 		return fmt.Errorf("kline validation: high %.4f < low %.4f", k.High, k.Low)
+	}
+	return nil
+}
+
+// Validate checks that sector data is within reasonable bounds.
+func (s Sector) Validate() error {
+	s.Code = strings.TrimSpace(s.Code)
+	s.Name = strings.TrimSpace(s.Name)
+	if s.Code == "" {
+		return fmt.Errorf("sector validation: code is empty")
+	}
+	if s.Name == "" {
+		return fmt.Errorf("sector validation: name is empty for code %s", s.Code)
+	}
+	if s.Price < 0 {
+		return fmt.Errorf("sector validation: price %.4f is negative for %s", s.Price, s.Code)
+	}
+	if math.Abs(s.ChangePercent) > 22.0 {
+		return fmt.Errorf("sector validation: change_percent %.2f%% exceeds ±22%% for %s", s.ChangePercent, s.Code)
+	}
+	return nil
+}
+
+// Validate checks that overview index data is within reasonable bounds.
+func (o OverviewIndex) Validate() error {
+	o.Code = strings.TrimSpace(o.Code)
+	o.Name = strings.TrimSpace(o.Name)
+	if o.Code == "" {
+		return fmt.Errorf("overview index validation: code is empty")
+	}
+	if o.Name == "" {
+		return fmt.Errorf("overview index validation: name is empty for code %s", o.Code)
+	}
+	if o.Price < 0 {
+		return fmt.Errorf("overview index validation: price %.4f is negative for %s", o.Price, o.Code)
+	}
+	if math.Abs(o.ChangePercent) > 22.0 {
+		return fmt.Errorf("overview index validation: change_percent %.2f%% exceeds ±22%% for %s", o.ChangePercent, o.Code)
+	}
+	if o.AdvanceCount < 0 {
+		return fmt.Errorf("overview index validation: advance_count %d is negative for %s", o.AdvanceCount, o.Code)
+	}
+	if o.DeclineCount < 0 {
+		return fmt.Errorf("overview index validation: decline_count %d is negative for %s", o.DeclineCount, o.Code)
+	}
+	if o.FlatCount < 0 {
+		return fmt.Errorf("overview index validation: flat_count %d is negative for %s", o.FlatCount, o.Code)
 	}
 	return nil
 }

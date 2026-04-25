@@ -50,6 +50,9 @@ func (s *EastMoneyService) FetchKline(ctx context.Context, code string, days int
 		if err != nil {
 			continue
 		}
+		if err := point.Validate(); err != nil {
+			continue
+		}
 		points = append(points, point)
 	}
 
@@ -80,13 +83,17 @@ func (s *EastMoneyService) FetchSectors(ctx context.Context) ([]models.Sector, e
 
 	sectors := make([]models.Sector, 0, len(response.Data.Diff))
 	for _, item := range response.Data.Diff {
-		sectors = append(sectors, models.Sector{
+		sector := models.Sector{
 			Code:          item.Code,
 			Name:          item.Name,
 			Price:         item.Price,
 			Change:        item.Change,
 			ChangePercent: item.ChangePercent,
-		})
+		}
+		if err := sector.Validate(); err != nil {
+			continue
+		}
+		sectors = append(sectors, sector)
 	}
 
 	return sectors, nil
@@ -120,7 +127,7 @@ func (s *EastMoneyService) FetchOverview(ctx context.Context) (models.MarketOver
 		UpdatedAt: time.Now(),
 	}
 	for index, item := range response.Data.Diff {
-		overview.Indices = append(overview.Indices, models.OverviewIndex{
+		oi := models.OverviewIndex{
 			Code:          item.Code,
 			Name:          item.Name,
 			Price:         item.Price,
@@ -129,7 +136,11 @@ func (s *EastMoneyService) FetchOverview(ctx context.Context) (models.MarketOver
 			AdvanceCount:  item.AdvanceCount,
 			DeclineCount:  item.DeclineCount,
 			FlatCount:     item.FlatCount,
-		})
+		}
+		if err := oi.Validate(); err != nil {
+			continue
+		}
+		overview.Indices = append(overview.Indices, oi)
 		if index == 0 {
 			overview.AdvanceCount = item.AdvanceCount
 			overview.DeclineCount = item.DeclineCount
