@@ -63,6 +63,7 @@ func main() {
 	analyzeHandler := handlers.NewAnalyzeHandler(eastMoneyService, tencentService)
 	trendHandler := handlers.NewTrendHandler(eastMoneyService, tencentService, db)
 	compareHandler := handlers.NewCompareHandler(eastMoneyService, tencentService)
+	portfolioHandler := handlers.NewPortfolioHandler(tencentService, eastMoneyService, db)
 	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats())
 
 	router := gin.New()
@@ -145,6 +146,15 @@ func main() {
 	compareGroup.Use(authMiddleware)
 	compareGroup.GET("/sector", compareHandler.SectorCompare)
 	compareGroup.GET("/backtest", compareHandler.BacktestCompare)
+
+	portfolioGroup := api.Group("/portfolio")
+	portfolioGroup.Use(authMiddleware)
+	portfolioGroup.GET("", portfolioHandler.List)
+	portfolioGroup.POST("", portfolioHandler.Add)
+	portfolioGroup.PUT("/:id", portfolioHandler.Update)
+	portfolioGroup.DELETE("/:id", portfolioHandler.Delete)
+	portfolioGroup.GET("/analytics", portfolioHandler.Analytics)
+	portfolioGroup.GET("/risk", portfolioHandler.Risk)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
