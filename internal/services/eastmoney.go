@@ -1301,6 +1301,101 @@ func (s *EastMoneyService) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// FetchSectorRotation fetches sector rotation data with breadth, net flow, and strength scores.
+func (s *EastMoneyService) FetchSectorRotation(ctx context.Context) ([]models.SectorRotationItem, error) {
+	params := url.Values{}
+	params.Set("pn", "1")
+	params.Set("pz", "50")
+	params.Set("po", "1")
+	params.Set("np", "1")
+	params.Set("fltt", "2")
+	params.Set("inft", "2")
+	params.Set("fid", "f3")
+	params.Set("fs", "m:90+t:2")
+	params.Set("fields", "f2,f3,f12,f14,f62,f104,f105")
+
+	var response struct {
+		Data struct {
+			Diff []struct {
+				Price      float64 `json:"f2"`
+				ChangePct  float64 `json:"f3"`
+				Code       string  `json:"f12"`
+				Name       string  `json:"f14"`
+				NetFlow    float64 `json:"f62"`
+				RisingCount int    `json:"f104"`
+				FallingCount int   `json:"f105"`
+			} `json:"diff"`
+		} `json:"data"`
+	}
+	if err := s.getJSON(ctx, "https://push2.eastmoney.com/api/qt/clist/get", params, &response); err != nil {
+		return nil, err
+	}
+
+	// First pass: find max absolute flow for normalization
+	maxAbsFlow := 1.0
+	type rawSector struct {
+		Code         string
+		Name         string
+		ChangePct    float64
+		Price        float64
+		RisingCount  int
+		FallingCount int
+		BreadthRatio float64
+		NetFlow      float64
+	}
+	rawSectors := make([]rawSector, 0, len(response.Data.Diff))
+	for _, row := range response.Data.Diff {
+		total := row.RisingCount + row.FallingCount
+		breadth := 0.5
+		if total > 0 {
+			breadth = float64(row.RisingCount) / float64(total)
+		}
+		if math.Abs(row.NetFlow) > maxAbsFlow {
+			maxAbsFlow = math.Abs(row.NetFlow)
+		}
+		rawSectors = append(rawSectors, rawSector{
+			Code:         row.Code,
+			Name:         row.Name,
+			ChangePct:    row.ChangePct,
+			Price:        row.Price,
+			RisingCount:  row.RisingCount,
+			FallingCount: row.FallingCount,
+			BreadthRatio: math.Round(breadth*10000) / 10000,
+			NetFlow:      row.NetFlow,
+		})
+	}
+
+	// Second pass: compute strength scores
+	items := make([]models.SectorRotationItem, 0, len(rawSectors))
+	for _, s := range rawSectors {
+		flowNormalized := 5.0
+		if maxAbsFlow > 0 {
+			flowNormalized = s.NetFlow/maxAbsFlow*5 + 5
+		}
+		strengthScore := math.Round((s.ChangePct*0.4+s.BreadthRatio*10*0.3+flowNormalized*0.3)*100) / 100
+		items = append(items, models.SectorRotationItem{
+			Code:            s.Code,
+			Name:            s.Name,
+			ChangePct:       s.ChangePct,
+			Price:           s.Price,
+			RisingCount:     s.RisingCount,
+			FallingCount:    s.FallingCount,
+			BreadthRatio:    s.BreadthRatio,
+			NetFlow:         s.NetFlow,
+			StrengthScore:   strengthScore,
+			WatchlistMatch:  false,
+			WatchlistStocks: []string{},
+		})
+	}
+
+	// Sort by strength score descending
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].StrengthScore > items[j].StrengthScore
+	})
+
+	return items, nil
+}
+
 type dragonTigerBoardFilter struct {
 	startDate  string
 	exactDate  string

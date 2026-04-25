@@ -224,3 +224,47 @@ type HotConcept struct {
 	FallCount  int     `json:"fall_count"`
 	LeaderStock string `json:"leader_stock"`
 }
+
+// SectorRotationItem represents a sector in the rotation analysis
+type SectorRotationItem struct {
+	Code           string   `json:"code"`
+	Name           string   `json:"name"`
+	ChangePct      float64  `json:"change_pct"`
+	Price          float64  `json:"price"`
+	RisingCount    int      `json:"rising_count"`
+	FallingCount   int      `json:"falling_count"`
+	BreadthRatio   float64  `json:"breadth_ratio"`
+	NetFlow        float64  `json:"net_flow"`
+	StrengthScore  float64  `json:"strength_score"`
+	WatchlistMatch bool     `json:"watchlist_match"`
+	WatchlistStocks []string `json:"watchlist_stocks"`
+}
+
+// SectorRotationSummary is the summary for sector rotation analysis
+type SectorRotationSummary struct {
+	AvgBreadth   float64 `json:"avg_breadth"`
+	TotalNetFlow float64 `json:"total_net_flow"`
+	StrongCount  int     `json:"strong_count"`
+	WeakCount    int     `json:"weak_count"`
+}
+
+// SectorRotationResponse is the full response for /api/sector-rotation
+type SectorRotationResponse struct {
+	OK      bool                   `json:"ok"`
+	Sectors []SectorRotationItem   `json:"sectors"`
+	Summary SectorRotationSummary  `json:"summary"`
+	Cached  bool                   `json:"cached,omitempty"`
+}
+
+// SectorRotationSnapshot represents a historical snapshot of sector rotation
+type SectorRotationSnapshot struct {
+	Timestamp string               `json:"timestamp"`
+	Sectors   []SectorRotationItem `json:"sectors"`
+}
+
+// SectorRotationHistoryResponse is the full response for /api/sector-rotation-history
+type SectorRotationHistoryResponse struct {
+	OK        bool                      `json:"ok"`
+	Snapshots []SectorRotationSnapshot  `json:"snapshots"`
+	Total     int                       `json:"total"`
+}

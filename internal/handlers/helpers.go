@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"strings"
 
+	apperrors "alphapulse/internal/errors"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -19,6 +21,13 @@ func writeError(c *gin.Context, status int, code, message string) {
 	c.JSON(status, errorResponse{
 		Error: message,
 		Code:  code,
+	})
+}
+
+// writeAppError writes a unified AppError as a JSON response.
+func writeAppError(c *gin.Context, err *apperrors.AppError) {
+	c.JSON(err.Code, gin.H{
+		"error": err.Message,
 	})
 }
 

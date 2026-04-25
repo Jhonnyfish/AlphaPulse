@@ -90,16 +90,16 @@
 - [ ] GET /api/hot-concepts/{code}/stocks — 概念成分股
 - [ ] GET /api/watchlist-concept-overlap — 自选股概念重叠
 
-### 模块 13: 资金流向 (待迁移)
-- [ ] GET /flow — 资金流向页面
+### 模块 13: 资金流向 (已完成 ✅)
+- [x] GET /flow — 资金流向
 - [ ] GET /stockinfo — 个股详情（含资金流向）
 
 ### 模块 14: 公告数据 (已完成 ✅)
 - [x] GET /announcements — 公告列表
 
-### 模块 15: 板块轮动 (待迁移)
-- [ ] GET /api/sector-rotation — 板块轮动
-- [ ] GET /api/sector-rotation-history — 轮动历史
+### 模块 15: 板块轮动 (已完成 ✅)
+- [x] GET /api/sector-rotation — 板块轮动
+- [x] GET /api/sector-rotation-history — 轮动历史
 
 ### 模块 16: 报告系统 (待迁移)
 - [ ] GET /reports — 报告列表

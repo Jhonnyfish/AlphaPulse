@@ -14,6 +14,7 @@ import (
 	"alphapulse/internal/config"
 	"alphapulse/internal/database"
 	"alphapulse/internal/handlers"
+	"alphapulse/internal/logger"
 	"alphapulse/internal/middleware"
 	"alphapulse/internal/services"
 
@@ -69,6 +70,8 @@ func main() {
 	strategiesHandler := handlers.NewStrategiesHandler(db)
 	customAlertsHandler := handlers.NewCustomAlertsHandler(db, tencentService)
 	stockNotesHandler := handlers.NewStockNotesHandler(db)
+	fundFlowHandler := handlers.NewFundFlowHandler(eastMoneyService, logger.L())
+	sectorRotationHandler := handlers.NewSectorRotationHandler(eastMoneyService, db, logger.L())
 	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats())
 
 	router := gin.New()
@@ -203,6 +206,21 @@ func main() {
 	stockNotesGroup.POST("", stockNotesHandler.CreateNote)
 	stockNotesGroup.PUT("/:id", stockNotesHandler.UpdateNote)
 	stockNotesGroup.DELETE("/:id", stockNotesHandler.DeleteNote)
+
+	fundFlowGroup := api.Group("/fund-flow")
+	fundFlowGroup.Use(authMiddleware)
+	fundFlowGroup.GET("/flow", fundFlowHandler.Flow)
+
+	// Compat route: Python /flow → Go fund flow
+	router.GET("/flow", authMiddleware, fundFlowHandler.Flow)
+
+	sectorRotationGroup := api.Group("/sector-rotation")
+	sectorRotationGroup.Use(authMiddleware)
+	sectorRotationGroup.GET("", sectorRotationHandler.Rotation)
+	sectorRotationGroup.GET("/history", sectorRotationHandler.RotationHistory)
+
+	// Compat route: Python /api/sector-rotation-history
+	api.GET("/sector-rotation-history", authMiddleware, sectorRotationHandler.RotationHistory)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
