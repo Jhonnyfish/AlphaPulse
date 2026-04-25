@@ -133,8 +133,8 @@ export interface NewsItem {
 
 export const marketApi = {
   quote: (code: string) => api.get<Quote>('/market/quote', { params: { code } }),
-  kline: (code: string, period?: string) =>
-    api.get<KlinePoint[]>('/market/kline', { params: { code, period } }),
+  kline: (code: string, days?: number) =>
+    api.get<KlinePoint[]>('/market/kline', { params: { code, days } }),
   sectors: () => api.get<Sector[]>('/market/sectors'),
   overview: () => api.get<MarketOverview>('/market/overview'),
   news: () => api.get<NewsItem[]>('/market/news'),

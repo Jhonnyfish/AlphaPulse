@@ -1,10 +1,11 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { BarChart3, Star, TrendingUp, Newspaper, LogOut, Activity } from 'lucide-react';
+import { BarChart3, Star, TrendingUp, Newspaper, LogOut, Activity, CandlestickChart } from 'lucide-react';
 
 const navItems = [
   { to: '/watchlist', label: '自选股', icon: Star },
   { to: '/market', label: '行情', icon: TrendingUp },
+  { to: '/kline', label: 'K线', icon: CandlestickChart },
   { to: '/sectors', label: '板块', icon: BarChart3 },
   { to: '/news', label: '资讯', icon: Newspaper },
 ];

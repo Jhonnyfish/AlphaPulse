@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { watchlistApi, marketApi, type WatchlistItem, type Quote } from '@/lib/api';
 import { Plus, Trash2, Search, RefreshCw } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function WatchlistPage() {
   const [items, setItems] = useState<WatchlistItem[]>([]);
@@ -180,7 +181,11 @@ export default function WatchlistPage() {
                   <tr key={item.id}
                     className="hover:bg-[var(--color-bg-hover)] transition-colors border-t"
                     style={{ borderColor: 'var(--color-border)' }}>
-                    <td className="px-4 py-3 font-mono">{item.code}</td>
+                    <td className="px-4 py-3 font-mono">
+                      <Link to={`/kline?code=${item.code}`} className="hover:underline" style={{ color: 'var(--color-accent)' }}>
+                        {item.code}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3" style={{ color: 'var(--color-text-secondary)' }}>
                       {q?.name || item.name || '—'}
                     </td>
