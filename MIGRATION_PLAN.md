@@ -122,15 +122,15 @@
 - [ ] GET /api/alerts — 系统告警
 - [ ] GET /api/activity-log — 活动日志
 
-### 模块 19: 自选股分析 (待迁移)
-- [ ] GET /api/watchlist-heatmap — 热力图数据
-- [ ] GET /api/watchlist-sectors — 板块分布
-- [ ] GET /api/watchlist-ranking — 排名
-- [ ] GET /api/watchlist-groups — 分组
-- [ ] POST /api/watchlist-groups — 创建分组
-- [ ] PUT /api/watchlist-groups/{id} — 更新分组
-- [ ] DELETE /api/watchlist-groups/{id} — 删除分组
-- [ ] POST /api/watchlist-groups/assign — 分配分组
+### 模块 19: 自选股分析 (已完成 ✅)
+- [x] GET /api/watchlist-heatmap — 热力图数据
+- [x] GET /api/watchlist-sectors — 板块分布
+- [x] GET /api/watchlist-ranking — 排名
+- [x] GET /api/watchlist-groups — 分组
+- [x] POST /api/watchlist-groups — 创建分组
+- [x] PUT /api/watchlist-groups/{id} — 更新分组
+- [x] DELETE /api/watchlist-groups/{id} — 删除分组
+- [x] POST /api/watchlist-groups/assign — 分配分组
 
 ### 模块 20: 回测系统 (待迁移)
 - [ ] GET /backtest — 回测页面
@@ -166,7 +166,7 @@
 7. 模块 11: 龙虎榜/机构
 8. 模块 12: 热门概念
 9. 模块 15: 板块轮动
-10. 模块 19: 自选股分析
+10. ~~模块 19: 自选股分析~~ ✅
 
 ### P2 — 后续迁移（进阶功能）
 11. 模块 5: 股票对比
