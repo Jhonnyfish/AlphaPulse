@@ -89,15 +89,21 @@ export default function MarketPage() {
           {/* Details grid */}
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: '开盘', value: quote.open },
-              { label: '昨收', value: quote.prev_close },
-              { label: '最高', value: quote.high },
-              { label: '最低', value: quote.low },
-            ].map(({ label, value }) => (
+              { label: '开盘', value: quote.open.toFixed(2) },
+              { label: '昨收', value: quote.prev_close.toFixed(2) },
+              { label: '最高', value: quote.high.toFixed(2) },
+              { label: '最低', value: quote.low.toFixed(2) },
+              { label: '振幅', value: quote.prev_close > 0
+                ? `${(((quote.high - quote.low) / quote.prev_close) * 100).toFixed(2)}%`
+                : '—',
+                highlight: true },
+              { label: '涨跌额', value: `${quote.change >= 0 ? '+' : ''}${quote.change.toFixed(2)}`,
+                highlight: true },
+            ].map(({ label, value, highlight }) => (
               <div key={label} className="flex justify-between px-3 py-2 rounded-lg"
-                style={{ background: 'var(--color-bg-card)' }}>
+                style={{ background: highlight ? 'rgba(59,130,246,0.08)' : 'var(--color-bg-card)' }}>
                 <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{label}</span>
-                <span className="text-sm font-mono">{value.toFixed(2)}</span>
+                <span className={`text-sm font-mono ${highlight ? 'font-medium' : ''}`}>{value}</span>
               </div>
             ))}
           </div>
