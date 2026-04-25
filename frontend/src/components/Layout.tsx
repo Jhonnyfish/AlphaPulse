@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { BarChart3, Star, TrendingUp, Newspaper, LogOut, Activity, CandlestickChart, LayoutDashboard, Menu, X, GitCompareArrows } from 'lucide-react';
+import { BarChart3, Star, TrendingUp, Newspaper, LogOut, Activity, CandlestickChart, LayoutDashboard, Menu, X, GitCompareArrows, Settings } from 'lucide-react';
 
 const navItems = [
   { to: '/dashboard', label: '总览', icon: LayoutDashboard },
@@ -11,6 +11,7 @@ const navItems = [
   { to: '/sectors', label: '板块', icon: BarChart3 },
   { to: '/compare', label: '对比', icon: GitCompareArrows },
   { to: '/news', label: '资讯', icon: Newspaper },
+  { to: '/settings', label: '设置', icon: Settings },
 ];
 
 export default function Layout() {

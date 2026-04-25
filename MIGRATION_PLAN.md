@@ -65,7 +65,7 @@
 - [x] DELETE /api/strategies/{id} — 删除策略
 - [x] POST /api/strategies/{id}/activate — 激活策略
 - [x] POST /api/strategies/{id}/deactivate — 停用策略
-- [ ] GET /api/candidates?strategy_id=xxx — 策略选股
+- [x] GET /api/candidates?strategy_id=xxx — 策略选股
 
 ### 模块 9: 自定义预警 (已完成 ✅)
 - [x] GET /api/custom-alerts — 预警列表
@@ -136,19 +136,19 @@
 - [x] GET /backtest — 回测页面
 - [x] GET /api/backtest-compare — 回测对比
 
-### 模块 21: 系统管理 (部分完成 ✅)
+### 模块 21: 系统管理 (已完成 ✅)
 - [x] GET /health — 健康检查
 - [x] GET /api/info — 系统信息
 - [x] GET /api/system-status — 系统状态
 - [x] GET /api/status — 服务状态
-- [ ] GET /api/docs — API 文档
+- [x] GET /api/docs — API 文档
 - [x] GET /api/slow-queries — 慢查询
 - [x] GET /api/performance-stats — 性能统计
 - [x] POST /api/cache/clear — 清除缓存
 - [x] GET /api/activity-log — 活动日志
 
-### 模块 22: 设置页面 (待迁移)
-- [ ] GET /settings — 设置页面
+### 模块 22: 设置页面 (已完成 ✅)
+- [x] GET /settings — 设置页面
 
 ---
 

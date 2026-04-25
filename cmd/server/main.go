@@ -78,6 +78,7 @@ func main() {
 	signalHandler := handlers.NewSignalHandler(alpha300Service, tencentService, eastMoneyService, logger.L())
 	reportsHandler := handlers.NewReportsHandler(db, tencentService, eastMoneyService, analyzeHandler, watchlistHandler, logger.L())
 	alertsHandler := handlers.NewAlertsHandler(db, analyzeHandler, logger.L())
+	docsHandler := handlers.NewDocsHandler()
 
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -241,6 +242,7 @@ func main() {
 	api.GET("/activity-log", authMiddleware, systemHandler.ActivityLog)
 	api.GET("/slow-queries", authMiddleware, systemHandler.SlowQueries)
 	api.GET("/performance-stats", authMiddleware, systemHandler.PerformanceStats)
+	api.GET("/docs", docsHandler.Docs)
 
 	// Watchlist analysis (Module 19)
 	wlAnalysisGroup := api.Group("/watchlist-analysis")

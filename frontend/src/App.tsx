@@ -9,6 +9,7 @@ import KlinePage from '@/pages/KlinePage';
 import SectorsPage from '@/pages/SectorsPage';
 import ComparePage from '@/pages/ComparePage';
 import NewsPage from '@/pages/NewsPage';
+import SettingsPage from '@/pages/SettingsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, loading } = useAuth();
@@ -61,6 +62,7 @@ export default function App() {
         <Route path="/sectors" element={<SectorsPage />} />
         <Route path="/compare" element={<ComparePage />} />
         <Route path="/news" element={<NewsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
     </Routes>
