@@ -19,32 +19,40 @@ import (
 )
 
 type MarketHandler struct {
-	eastMoney      *services.EastMoneyService
-	tencent        *services.TencentService
-	db             *pgxpool.Pool
-	quoteCache     *cache.Cache[models.Quote]
-	klineCache     *cache.Cache[[]models.KlinePoint]
-	sectorsCache   *cache.Cache[[]models.Sector]
-	overviewCache  *cache.Cache[models.MarketOverview]
-	newsCache      *cache.Cache[[]models.NewsItem]
-	searchCache    *cache.Cache[[]models.SearchSuggestion]
-	topMoversCache *cache.Cache[[]models.TopMover]
-	trendsCache    *cache.Cache[models.MarketTrends]
+	eastMoney           *services.EastMoneyService
+	tencent             *services.TencentService
+	db                  *pgxpool.Pool
+	quoteCache          *cache.Cache[models.Quote]
+	klineCache          *cache.Cache[[]models.KlinePoint]
+	sectorsCache        *cache.Cache[[]models.Sector]
+	overviewCache       *cache.Cache[models.MarketOverview]
+	newsCache           *cache.Cache[[]models.NewsItem]
+	searchCache         *cache.Cache[[]models.SearchSuggestion]
+	topMoversCache      *cache.Cache[[]models.TopMover]
+	trendsCache         *cache.Cache[models.MarketTrends]
+	marketOverviewCache *cache.Cache[models.MarketOverviewResponse]
+	hotConceptsCache    *cache.Cache[[]models.HotConcept]
+	breadthCache        *cache.Cache[models.MarketBreadthDetail]
+	sentimentCache      *cache.Cache[models.MarketSentimentResponse]
 }
 
 func NewMarketHandler(eastMoney *services.EastMoneyService, tencent *services.TencentService, db *pgxpool.Pool) *MarketHandler {
 	return &MarketHandler{
-		eastMoney:      eastMoney,
-		tencent:        tencent,
-		db:             db,
-		quoteCache:     cache.New[models.Quote](),
-		klineCache:     cache.New[[]models.KlinePoint](),
-		sectorsCache:   cache.New[[]models.Sector](),
-		overviewCache:  cache.New[models.MarketOverview](),
-		newsCache:      cache.New[[]models.NewsItem](),
-		searchCache:    cache.New[[]models.SearchSuggestion](),
-		topMoversCache: cache.New[[]models.TopMover](),
-		trendsCache:    cache.New[models.MarketTrends](),
+		eastMoney:           eastMoney,
+		tencent:             tencent,
+		db:                  db,
+		quoteCache:          cache.New[models.Quote](),
+		klineCache:          cache.New[[]models.KlinePoint](),
+		sectorsCache:        cache.New[[]models.Sector](),
+		overviewCache:       cache.New[models.MarketOverview](),
+		newsCache:           cache.New[[]models.NewsItem](),
+		searchCache:         cache.New[[]models.SearchSuggestion](),
+		topMoversCache:      cache.New[[]models.TopMover](),
+		trendsCache:         cache.New[models.MarketTrends](),
+		marketOverviewCache: cache.New[models.MarketOverviewResponse](),
+		hotConceptsCache:    cache.New[[]models.HotConcept](),
+		breadthCache:        cache.New[models.MarketBreadthDetail](),
+		sentimentCache:      cache.New[models.MarketSentimentResponse](),
 	}
 }
 
@@ -594,15 +602,158 @@ func portfolioChange(stocks []models.TrendStock, period int) *float64 {
 	return &r
 }
 
+// MarketOverview handles GET /api/market-overview
+// Returns major index quotes (from Tencent) + market breadth (from EastMoney).
+func (h *MarketHandler) MarketOverview(c *gin.Context) {
+	if cached, ok := h.marketOverviewCache.Get("market_overview"); ok {
+		c.JSON(http.StatusOK, cached)
+		return
+	}
+
+	// Define the 6 major indices (same as Python version)
+	indices := [][2]string{
+		{"sh000001", "上证指数"},
+		{"sz399001", "深证成指"},
+		{"sz399006", "创业板指"},
+		{"sh000688", "科创50"},
+		{"sh000300", "沪深300"},
+		{"sh000905", "中证500"},
+	}
+
+	type indexResult struct {
+		quotes []models.IndexQuote
+		err    error
+	}
+	type breadthResult struct {
+		breadth models.MarketBreadth
+		err     error
+	}
+
+	idxCh := make(chan indexResult, 1)
+	brCh := make(chan breadthResult, 1)
+
+	go func() {
+		quotes, err := h.tencent.FetchIndexQuotes(c.Request.Context(), indices)
+		idxCh <- indexResult{quotes: quotes, err: err}
+	}()
+	go func() {
+		breadth, err := h.eastMoney.FetchMarketBreadth(c.Request.Context())
+		brCh <- breadthResult{breadth: breadth, err: err}
+	}()
+
+	ir := <-idxCh
+	br := <-brCh
+
+	var indexQuotes []models.IndexQuote
+	if ir.err != nil {
+		indexQuotes = []models.IndexQuote{}
+	} else {
+		indexQuotes = ir.quotes
+	}
+
+	breadth := br.breadth
+	if br.err != nil {
+		breadth = models.MarketBreadth{
+			UpCount: 0, DownCount: 0, FlatCount: 0,
+			Sentiment: "中性", SentimentRatio: 50,
+		}
+	}
+
+	resp := models.MarketOverviewResponse{
+		OK:      true,
+		Indices: indexQuotes,
+		Market:  breadth,
+	}
+	h.marketOverviewCache.Set("market_overview", resp, 30*time.Second)
+	c.JSON(http.StatusOK, resp)
+}
+
+// HotConcepts handles GET /api/hot-concepts
+// Returns top 30 hot concept sectors from EastMoney.
+func (h *MarketHandler) HotConcepts(c *gin.Context) {
+	if cached, ok := h.hotConceptsCache.Get("hot_concepts"); ok {
+		c.JSON(http.StatusOK, gin.H{"ok": true, "concepts": cached})
+		return
+	}
+
+	concepts, err := h.eastMoney.FetchHotConcepts(c.Request.Context())
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "HOT_CONCEPTS_FETCH_FAILED", "failed to fetch hot concepts")
+		return
+	}
+	if concepts == nil {
+		concepts = []models.HotConcept{}
+	}
+
+	h.hotConceptsCache.Set("hot_concepts", concepts, 5*time.Minute)
+	c.JSON(http.StatusOK, gin.H{"ok": true, "concepts": concepts})
+}
+
+// MarketBreadth handles GET /api/market-breadth
+// Returns advance/decline counts, limit-up/down, AD ratio, breadth thrust, volume stats.
+func (h *MarketHandler) MarketBreadth(c *gin.Context) {
+	if cached, ok := h.breadthCache.Get("breadth"); ok {
+		c.JSON(http.StatusOK, gin.H{"ok": true, "data": cached, "cached": true})
+		return
+	}
+
+	breadth, err := h.eastMoney.FetchMarketBreadthDetail(c.Request.Context())
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "BREADTH_FETCH_FAILED", "failed to fetch market breadth data")
+		return
+	}
+
+	h.breadthCache.Set("breadth", breadth, 5*time.Minute)
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": breadth, "cached": false})
+}
+
+// MarketSentiment handles GET /api/market-sentiment
+// Returns fear/greed index, up/down/flat counts, sector volumes, and market temperature.
+func (h *MarketHandler) MarketSentiment(c *gin.Context) {
+	if cached, ok := h.sentimentCache.Get("sentiment"); ok {
+		c.JSON(http.StatusOK, gin.H{
+			"ok":                cached.OK,
+			"fear_greed_index":  cached.FearGreedIndex,
+			"fear_greed_label":  cached.FearGreedLabel,
+			"up_count":          cached.UpCount,
+			"down_count":        cached.DownCount,
+			"flat_count":        cached.FlatCount,
+			"total_count":       cached.TotalCount,
+			"limit_up":          cached.LimitUp,
+			"limit_down":        cached.LimitDown,
+			"volume_today":      cached.VolumeToday,
+			"volume_avg_5d":     cached.VolumeAvg5D,
+			"sector_volumes":    cached.SectorVolumes,
+			"temperature":       cached.Temperature,
+			"server_time":       cached.ServerTime,
+			"cached":            true,
+		})
+		return
+	}
+
+	data, err := h.eastMoney.FetchMarketSentimentData(c.Request.Context())
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "SENTIMENT_FETCH_FAILED", "failed to fetch market sentiment data")
+		return
+	}
+
+	h.sentimentCache.Set("sentiment", data, 5*time.Minute)
+	c.JSON(http.StatusOK, data)
+}
+
 func (h *MarketHandler) CacheStats() map[string]cache.Sizer {
 	return map[string]cache.Sizer{
-		"quote":      h.quoteCache,
-		"kline":      h.klineCache,
-		"sectors":    h.sectorsCache,
-		"overview":   h.overviewCache,
-		"news":       h.newsCache,
-		"search":     h.searchCache,
-		"top_movers": h.topMoversCache,
-		"trends":     h.trendsCache,
+		"quote":           h.quoteCache,
+		"kline":           h.klineCache,
+		"sectors":         h.sectorsCache,
+		"overview":        h.overviewCache,
+		"news":            h.newsCache,
+		"search":          h.searchCache,
+		"top_movers":      h.topMoversCache,
+		"trends":          h.trendsCache,
+		"market_overview": h.marketOverviewCache,
+		"hot_concepts":    h.hotConceptsCache,
+		"breadth":         h.breadthCache,
+		"sentiment":       h.sentimentCache,
 	}
 }

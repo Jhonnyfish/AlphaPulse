@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -299,6 +300,528 @@ func (s *EastMoneyService) SearchStocks(ctx context.Context, query string, limit
 	}
 
 	return suggestions, nil
+}
+
+// FetchHotConcepts fetches top 30 hot concept sectors from EastMoney.
+func (s *EastMoneyService) FetchHotConcepts(ctx context.Context) ([]models.HotConcept, error) {
+	params := url.Values{}
+	params.Set("fid", "f3")
+	params.Set("po", "1")
+	params.Set("pz", "30")
+	params.Set("pn", "1")
+	params.Set("np", "1")
+	params.Set("fltt", "2")
+	params.Set("invt", "2")
+	params.Set("fs", "m:90+t:3")
+	params.Set("fields", "f2,f3,f4,f12,f14,f104,f105,f128")
+
+	// Use json.RawMessage for diff since EastMoney can return either a map or array
+	var response struct {
+		Data struct {
+			Diff json.RawMessage `json:"diff"`
+		} `json:"data"`
+	}
+	if err := s.getJSON(ctx, "https://push2.eastmoney.com/api/qt/clist/get", params, &response); err != nil {
+		return nil, err
+	}
+
+	type conceptFields struct {
+		Code        string  `json:"f12"`
+		Name        string  `json:"f14"`
+		Price       float64 `json:"f2"`
+		ChangePct   float64 `json:"f3"`
+		Change      float64 `json:"f4"`
+		RiseCount   int     `json:"f104"`
+		FallCount   int     `json:"f105"`
+		LeaderStock string  `json:"f128"`
+	}
+
+	var items []conceptFields
+	// Try parsing as array first
+	if err := json.Unmarshal(response.Data.Diff, &items); err != nil || len(items) == 0 {
+		// Try parsing as map
+		var m map[string]conceptFields
+		if err := json.Unmarshal(response.Data.Diff, &m); err == nil {
+			for _, v := range m {
+				items = append(items, v)
+			}
+		}
+	}
+
+	concepts := make([]models.HotConcept, 0, len(items))
+	for _, item := range items {
+		concepts = append(concepts, models.HotConcept{
+			Code:        item.Code,
+			Name:        item.Name,
+			Price:       item.Price,
+			ChangePct:   item.ChangePct,
+			Change:      item.Change,
+			RiseCount:   item.RiseCount,
+			FallCount:   item.FallCount,
+			LeaderStock: strings.TrimSpace(item.LeaderStock),
+		})
+	}
+	return concepts, nil
+}
+
+// FetchMarketBreadth fetches market-wide advance/decline/flat counts from EastMoney.
+func (s *EastMoneyService) FetchMarketBreadth(ctx context.Context) (models.MarketBreadth, error) {
+	params := url.Values{}
+	params.Set("pn", "1")
+	params.Set("pz", "1")
+	params.Set("po", "1")
+	params.Set("np", "1")
+	params.Set("fltt", "2")
+	params.Set("invt", "2")
+	params.Set("fid", "f3")
+	params.Set("fs", "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23")
+	params.Set("fields", "f104,f105,f106")
+
+	// Use json.RawMessage for diff since EastMoney can return either a map or array
+	var response struct {
+		Data struct {
+			Diff json.RawMessage `json:"diff"`
+		} `json:"data"`
+	}
+	if err := s.getJSON(ctx, "https://push2.eastmoney.com/api/qt/clist/get", params, &response); err != nil {
+		return models.MarketBreadth{}, err
+	}
+
+	type breadthFields struct {
+		UpCount   int `json:"f104"`
+		DownCount int `json:"f105"`
+		FlatCount int `json:"f106"`
+	}
+
+	var upCount, downCount, flatCount int
+	// Try parsing as array first
+	var arr []breadthFields
+	if err := json.Unmarshal(response.Data.Diff, &arr); err == nil && len(arr) > 0 {
+		for _, item := range arr {
+			upCount += item.UpCount
+			downCount += item.DownCount
+			flatCount += item.FlatCount
+		}
+	} else {
+		// Try parsing as map
+		var m map[string]breadthFields
+		if err := json.Unmarshal(response.Data.Diff, &m); err == nil {
+			for _, item := range m {
+				upCount += item.UpCount
+				downCount += item.DownCount
+				flatCount += item.FlatCount
+			}
+		}
+	}
+
+	total := upCount + downCount + flatCount
+	var ratio float64
+	var sentiment string
+	if total > 0 {
+		ratio = float64(upCount) / float64(total)
+	} else {
+		ratio = 0.5
+	}
+	switch {
+	case ratio >= 0.75:
+		sentiment = "极度贪婪"
+	case ratio >= 0.58:
+		sentiment = "贪婪"
+	case ratio >= 0.42:
+		sentiment = "中性"
+	case ratio >= 0.25:
+		sentiment = "恐惧"
+	default:
+		sentiment = "极度恐惧"
+	}
+
+	return models.MarketBreadth{
+		UpCount:        upCount,
+		DownCount:      downCount,
+		FlatCount:      flatCount,
+		LimitUp:        0,
+		LimitDown:      0,
+		Sentiment:      sentiment,
+		SentimentRatio: math.Round(ratio*1000) / 10,
+	}, nil
+}
+
+// ZDFenBuResponse represents the EastMoney 涨跌分布 API response
+type ZDFenBuResponse struct {
+	Data struct {
+		SZJS  int `json:"szjs"` // 上涨家数
+		XDJS  int `json:"xdjs"` // 下跌家数
+		PGJS  int `json:"pgjs"` // 平盘家数
+		ZJS   int `json:"zjs"`  // 炸板家数
+		DJS   int `json:"djs"`  // 跌停家数
+		Fenbu []struct {
+			ZDF string `json:"zdf"` // 涨跌幅范围
+			JS  int    `json:"js"`  // 家数
+		} `json:"fenbu"`
+	} `json:"data"`
+}
+
+// QKListResponse represents the EastMoney 涨停/跌停 API response
+type QKListResponse struct {
+	Data struct {
+		ZTCount int `json:"ztCount"` // 涨停家数
+		DTCount int `json:"dtCount"` // 跌停家数
+		ZT      int `json:"zt"`
+		DT      int `json:"dt"`
+	} `json:"data"`
+}
+
+// SectorFlowResponse represents the EastMoney sector fund flow API response
+type SectorFlowResponse struct {
+	Data struct {
+		Total int `json:"total"`
+		Diff  []struct {
+			F14 string  `json:"f14"` // sector name
+			F62 int64   `json:"f62"` // net fund flow
+			F3  float64 `json:"f3"`  // change pct
+		} `json:"diff"`
+	} `json:"data"`
+}
+
+// FetchZDFenBu fetches advance/decline/flat distribution from EastMoney
+func (s *EastMoneyService) FetchZDFenBu(ctx context.Context) (upCount, downCount, flatCount int, distribution []models.BreadthDistributionItem, err error) {
+	var resp ZDFenBuResponse
+	if err = s.getJSON(ctx, "http://push2ex.eastmoney.com/getTopicZDFenBu",
+		url.Values{
+			"ut":      {"7eea3edcaed734bea9004f1ac72e3b0a"},
+			"dession": {"0922e092-2040-4a5f-82f4-b4df49f55b67"},
+		}, &resp); err != nil {
+		return
+	}
+
+	d := resp.Data
+	upCount = d.SZJS + d.ZJS
+	downCount = d.XDJS + d.DJS
+	flatCount = d.PGJS
+
+	// Fallback: if all zero, don't try alternate fields
+	for _, item := range d.Fenbu {
+		distribution = append(distribution, models.BreadthDistributionItem{
+			Range: item.ZDF,
+			Count: item.JS,
+		})
+	}
+	return
+}
+
+// FetchLimitUpDown fetches limit-up and limit-down counts from EastMoney
+func (s *EastMoneyService) FetchLimitUpDown(ctx context.Context) (limitUp, limitDown int, err error) {
+	var resp QKListResponse
+	if err = s.getJSON(ctx, "http://push2ex.eastmoney.com/getTopicQKList",
+		url.Values{
+			"ut": {"7eea3edcaed734bea9004f1ac72e3b0a"},
+		}, &resp); err != nil {
+		return
+	}
+
+	limitUp = resp.Data.ZTCount
+	if limitUp == 0 {
+		limitUp = resp.Data.ZT
+	}
+	limitDown = resp.Data.DTCount
+	if limitDown == 0 {
+		limitDown = resp.Data.DT
+	}
+	return
+}
+
+// FetchSectorVolumes fetches sector fund flow data for volume breakdown
+func (s *EastMoneyService) FetchSectorVolumes(ctx context.Context) (sectors []models.SectorVolume, volumeToday int64, err error) {
+	params := url.Values{}
+	params.Set("pn", "1")
+	params.Set("pz", "10")
+	params.Set("po", "1")
+	params.Set("np", "1")
+	params.Set("ut", "bd1d9ddb04089700cf9c27f6f7426281")
+	params.Set("fltt", "2")
+	params.Set("invt", "2")
+	params.Set("fid", "f62")
+	params.Set("fs", "m:90+t:2")
+	params.Set("fields", "f12,f14,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124")
+
+	var resp SectorFlowResponse
+	if err = s.getJSON(ctx, "https://push2.eastmoney.com/api/qt/clist/get", params, &resp); err != nil {
+		return
+	}
+
+	volumeToday = int64(resp.Data.Total)
+	sectors = make([]models.SectorVolume, 0, len(resp.Data.Diff))
+	for _, item := range resp.Data.Diff {
+		sectors = append(sectors, models.SectorVolume{
+			Name:      item.F14,
+			Volume:    absInt64(item.F62),
+			ChangePct: item.F3,
+		})
+	}
+	return
+}
+
+// FetchMarketBreadthDetail fetches comprehensive market breadth data matching the Python /api/market-breadth
+func (s *EastMoneyService) FetchMarketBreadthDetail(ctx context.Context) (models.MarketBreadthDetail, error) {
+	type zdResult struct {
+		up, down, flat int
+		distribution   []models.BreadthDistributionItem
+		err            error
+	}
+	type qkResult struct {
+		limitUp, limitDown int
+		err                error
+	}
+	type volResult struct {
+		sectors     []models.SectorVolume
+		volumeToday int64
+		err         error
+	}
+
+	zdCh := make(chan zdResult, 1)
+	qkCh := make(chan qkResult, 1)
+	volCh := make(chan volResult, 1)
+
+	go func() {
+		up, down, flat, dist, err := s.FetchZDFenBu(ctx)
+		zdCh <- zdResult{up, down, flat, dist, err}
+	}()
+	go func() {
+		lu, ld, err := s.FetchLimitUpDown(ctx)
+		qkCh <- qkResult{lu, ld, err}
+	}()
+	go func() {
+		sectors, vol, err := s.FetchSectorVolumes(ctx)
+		volCh <- volResult{sectors, vol, err}
+	}()
+
+	zr := <-zdCh
+	qr := <-qkCh
+	vr := <-volCh
+
+	// Use best-effort: if one fails, use zeros
+	upCount, downCount, flatCount := 0, 0, 0
+	var distribution []models.BreadthDistributionItem
+	if zr.err == nil {
+		upCount, downCount, flatCount = zr.up, zr.down, zr.flat
+		distribution = zr.distribution
+	}
+
+	limitUp, limitDown := 0, 0
+	if qr.err == nil {
+		limitUp, limitDown = qr.limitUp, qr.limitDown
+	}
+
+	var volumeStats models.VolumeStats
+	var sectors []models.SectorVolume
+	if vr.err == nil {
+		sectors = vr.sectors
+		for _, sv := range sectors {
+			if sv.ChangePct > 0 {
+				volumeStats.UpVolume += sv.Volume
+			} else if sv.ChangePct < 0 {
+				volumeStats.DownVolume += sv.Volume
+			} else {
+				volumeStats.FlatVolume += sv.Volume
+			}
+		}
+	}
+
+	total := upCount + downCount + flatCount
+	adRatio := 0.0
+	if downCount > 0 {
+		adRatio = round2(float64(upCount) / float64(downCount))
+	} else if upCount > 0 {
+		adRatio = 99.0
+	}
+
+	breadthThrust := 0.0
+	if upCount+downCount > 0 {
+		breadthThrust = round4(float64(upCount) / float64(upCount+downCount))
+	}
+
+	limitRatio := 0.0
+	if limitDown > 0 {
+		limitRatio = round2(float64(limitUp) / float64(limitDown))
+	} else if limitUp > 0 {
+		limitRatio = 99.0
+	}
+
+	return models.MarketBreadthDetail{
+		Advancing:     upCount,
+		Declining:     downCount,
+		Flat:          flatCount,
+		LimitUp:       limitUp,
+		LimitDown:     limitDown,
+		ADRatio:       adRatio,
+		BreadthThrust: breadthThrust,
+		LimitRatio:    limitRatio,
+		Total:         total,
+		VolumeStats:   volumeStats,
+		Distribution:  distribution,
+		Timestamp:     time.Now().In(marketTZ).Format(time.RFC3339),
+	}, nil
+}
+
+// FetchMarketSentimentData fetches data needed for market sentiment calculation
+func (s *EastMoneyService) FetchMarketSentimentData(ctx context.Context) (models.MarketSentimentResponse, error) {
+	type zdResult struct {
+		up, down, flat int
+		err            error
+	}
+	type qkResult struct {
+		limitUp, limitDown int
+		err                error
+	}
+	type volResult struct {
+		sectors     []models.SectorVolume
+		volumeToday int64
+		err         error
+	}
+
+	zdCh := make(chan zdResult, 1)
+	qkCh := make(chan qkResult, 1)
+	volCh := make(chan volResult, 1)
+
+	go func() {
+		up, down, flat, _, err := s.FetchZDFenBu(ctx)
+		zdCh <- zdResult{up, down, flat, err}
+	}()
+	go func() {
+		lu, ld, err := s.FetchLimitUpDown(ctx)
+		qkCh <- qkResult{lu, ld, err}
+	}()
+	go func() {
+		sectors, vol, err := s.FetchSectorVolumes(ctx)
+		volCh <- volResult{sectors, vol, err}
+	}()
+
+	zr := <-zdCh
+	qr := <-qkCh
+	vr := <-volCh
+
+	upCount, downCount, flatCount := 0, 0, 0
+	if zr.err == nil {
+		upCount, downCount, flatCount = zr.up, zr.down, zr.flat
+	}
+
+	limitUp, limitDown := 0, 0
+	if qr.err == nil {
+		limitUp, limitDown = qr.limitUp, qr.limitDown
+	}
+
+	var sectors []models.SectorVolume
+	var volumeToday int64
+	if vr.err == nil {
+		sectors = vr.sectors
+		volumeToday = vr.volumeToday
+	}
+
+	total := upCount + downCount + flatCount
+	volumeRatio := 1.0
+
+	// Calculate Fear/Greed Index (matching Python logic)
+	fearGreed, fearGreedLabel := calculateFearGreed(upCount, downCount, flatCount, limitUp, limitDown, volumeRatio)
+
+	// Calculate Temperature
+	temperature := calculateTemperature(fearGreed, upCount, downCount, limitUp, limitDown)
+
+	return models.MarketSentimentResponse{
+		OK:             true,
+		FearGreedIndex: fearGreed,
+		FearGreedLabel: fearGreedLabel,
+		UpCount:        upCount,
+		DownCount:      downCount,
+		FlatCount:      flatCount,
+		TotalCount:     total,
+		LimitUp:        limitUp,
+		LimitDown:      limitDown,
+		VolumeToday:    volumeToday,
+		VolumeAvg5D:    0,
+		SectorVolumes:  sectors,
+		Temperature:    temperature,
+		ServerTime:     time.Now().In(marketTZ).Format(time.RFC3339),
+	}, nil
+}
+
+// marketTZ is the China Standard Time timezone
+var marketTZ = func() *time.Location {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		return time.FixedZone("CST", 8*3600)
+	}
+	return loc
+}()
+
+func calculateFearGreed(upCount, downCount, flatCount, limitUp, limitDown int, volumeRatio float64) (int, string) {
+	total := upCount + downCount + flatCount
+	if total == 0 {
+		return 50, "中性"
+	}
+
+	// Metric 1: Up/down ratio (0-100)
+	udRatio := float64(upCount) / math.Max(float64(upCount+downCount), 1)
+	udScore := udRatio * 100
+
+	// Metric 2: Limit up/down ratio (0-100)
+	totalLimit := limitUp + limitDown
+	limitScore := 50.0
+	if totalLimit > 0 {
+		limitScore = float64(limitUp) / float64(totalLimit) * 100
+	}
+
+	// Metric 3: Volume ratio (0-100)
+	volScore := 50.0
+	if volumeRatio > 1.5 {
+		if udRatio > 0.5 {
+			volScore = 65
+		} else {
+			volScore = 35
+		}
+	} else if volumeRatio < 0.5 {
+		volScore = 40
+	}
+
+	// Weighted average
+	score := int(udScore*0.5 + limitScore*0.3 + volScore*0.2)
+	score = max(0, min(100, score))
+
+	var label string
+	switch {
+	case score < 20:
+		label = "极度恐慌"
+	case score < 40:
+		label = "恐慌"
+	case score < 60:
+		label = "中性"
+	case score < 80:
+		label = "贪婪"
+	default:
+		label = "极度贪婪"
+	}
+
+	return score, label
+}
+
+func calculateTemperature(fearGreed, upCount, downCount, limitUp, limitDown int) int {
+	total := upCount + downCount
+	if total == 0 {
+		return 50
+	}
+	upRatio := float64(upCount) / float64(total)
+	limitActivity := math.Min(float64(limitUp+limitDown)/50, 1.0) * 100
+	temp := float64(fearGreed)*0.6 + upRatio*100*0.2 + limitActivity*0.2
+	return max(0, min(100, int(temp)))
+}
+
+func round2(f float64) float64 { return math.Round(f*100) / 100 }
+func round4(f float64) float64 { return math.Round(f*10000) / 10000 }
+
+func absInt64(v int64) int64 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func (s *EastMoneyService) HealthCheck(ctx context.Context) error {

@@ -113,8 +113,104 @@ type DailyReturn struct {
 
 // MarketTrends is the full response for the trends API
 type MarketTrends struct {
-	Indices         []TrendStock  `json:"indices"`
-	WatchlistStocks []TrendStock  `json:"watchlist_stocks"`
+	Indices         []TrendStock   `json:"indices"`
+	WatchlistStocks []TrendStock   `json:"watchlist_stocks"`
 	Portfolio       TrendPortfolio `json:"portfolio"`
-	FetchedAt       string        `json:"fetched_at"`
+	FetchedAt       string         `json:"fetched_at"`
+}
+
+// IndexQuote represents a major market index quote from Tencent API
+type IndexQuote struct {
+	Code          string  `json:"code"`
+	Name          string  `json:"name"`
+	Price         float64 `json:"price"`
+	PrevClose     float64 `json:"prev_close"`
+	Change        float64 `json:"change"`
+	ChangePercent float64 `json:"change_pct"`
+	Volume        int64   `json:"volume"`
+	Amount        float64 `json:"amount"`
+}
+
+// MarketBreadth represents market-wide advance/decline statistics
+type MarketBreadth struct {
+	UpCount        int     `json:"up_count"`
+	DownCount      int     `json:"down_count"`
+	FlatCount      int     `json:"flat_count"`
+	LimitUp        int     `json:"limit_up"`
+	LimitDown      int     `json:"limit_down"`
+	Sentiment      string  `json:"sentiment"`
+	SentimentRatio float64 `json:"sentiment_ratio"`
+}
+
+// BreadthDistributionItem represents a single bucket in the advance/decline distribution
+type BreadthDistributionItem struct {
+	Range string `json:"range"`
+	Count int    `json:"count"`
+}
+
+// VolumeStats represents trading volume broken by direction
+type VolumeStats struct {
+	UpVolume   int64 `json:"up_volume"`
+	DownVolume int64 `json:"down_volume"`
+	FlatVolume int64 `json:"flat_volume"`
+}
+
+// MarketBreadthDetail is the full response for /api/market-breadth
+type MarketBreadthDetail struct {
+	Advancing      int                        `json:"advancing"`
+	Declining      int                        `json:"declining"`
+	Flat           int                        `json:"flat"`
+	LimitUp        int                        `json:"limit_up"`
+	LimitDown      int                        `json:"limit_down"`
+	ADRatio        float64                    `json:"ad_ratio"`
+	BreadthThrust  float64                    `json:"breadth_thrust"`
+	LimitRatio     float64                    `json:"limit_ratio"`
+	Total          int                        `json:"total"`
+	VolumeStats    VolumeStats                `json:"volume_stats"`
+	Distribution   []BreadthDistributionItem  `json:"distribution"`
+	Timestamp      string                     `json:"timestamp"`
+}
+
+// SectorVolume represents a sector's volume and change data
+type SectorVolume struct {
+	Name       string  `json:"name"`
+	Volume     int64   `json:"volume"`
+	ChangePct  float64 `json:"change_pct"`
+}
+
+// MarketSentimentResponse is the full response for /api/market-sentiment
+type MarketSentimentResponse struct {
+	OK              bool            `json:"ok"`
+	FearGreedIndex  int             `json:"fear_greed_index"`
+	FearGreedLabel  string          `json:"fear_greed_label"`
+	UpCount         int             `json:"up_count"`
+	DownCount       int             `json:"down_count"`
+	FlatCount       int             `json:"flat_count"`
+	TotalCount      int             `json:"total_count"`
+	LimitUp         int             `json:"limit_up"`
+	LimitDown       int             `json:"limit_down"`
+	VolumeToday     int64           `json:"volume_today"`
+	VolumeAvg5D     int64           `json:"volume_avg_5d"`
+	SectorVolumes   []SectorVolume  `json:"sector_volumes"`
+	Temperature     int             `json:"temperature"`
+	ServerTime      string          `json:"server_time"`
+}
+
+// MarketOverviewResponse is the full response for /api/market-overview
+type MarketOverviewResponse struct {
+	OK      bool           `json:"ok"`
+	Indices []IndexQuote   `json:"indices"`
+	Market  MarketBreadth  `json:"market"`
+}
+
+// HotConcept represents a hot concept sector
+type HotConcept struct {
+	Code       string  `json:"code"`
+	Name       string  `json:"name"`
+	Price      float64 `json:"price"`
+	ChangePct  float64 `json:"change_pct"`
+	Change     float64 `json:"change"`
+	RiseCount  int     `json:"rise_count"`
+	FallCount  int     `json:"fall_count"`
+	LeaderStock string `json:"leader_stock"`
 }
