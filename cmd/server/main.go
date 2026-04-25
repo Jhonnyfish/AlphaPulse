@@ -64,6 +64,7 @@ func main() {
 	trendHandler := handlers.NewTrendHandler(eastMoneyService, tencentService, db)
 	compareHandler := handlers.NewCompareHandler(eastMoneyService, tencentService)
 	portfolioHandler := handlers.NewPortfolioHandler(tencentService, eastMoneyService, db)
+	tradingJournalHandler := handlers.NewTradingJournalHandler(db)
 	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats())
 
 	router := gin.New()
@@ -155,6 +156,17 @@ func main() {
 	portfolioGroup.DELETE("/:id", portfolioHandler.Delete)
 	portfolioGroup.GET("/analytics", portfolioHandler.Analytics)
 	portfolioGroup.GET("/risk", portfolioHandler.Risk)
+	tradingJournalGroup := api.Group("/trading-journal")
+	tradingJournalGroup.Use(authMiddleware)
+	tradingJournalGroup.GET("", tradingJournalHandler.List)
+	tradingJournalGroup.POST("", tradingJournalHandler.Create)
+	tradingJournalGroup.DELETE("/:id", tradingJournalHandler.Delete)
+	tradingJournalGroup.GET("/stats", tradingJournalHandler.Stats)
+	tradingJournalGroup.GET("/calendar", tradingJournalHandler.Calendar)
+
+	tradeStrategyEvalGroup := api.Group("/trade-strategy-eval")
+	tradeStrategyEvalGroup.Use(authMiddleware)
+	tradeStrategyEvalGroup.GET("", tradingJournalHandler.StrategyEval)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
