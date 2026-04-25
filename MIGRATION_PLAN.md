@@ -110,10 +110,10 @@
 - [ ] GET /api/daily-report/list — 日报列表
 - [ ] GET /api/daily-brief — 每日简报
 
-### 模块 17: 投资计划 (待迁移)
-- [ ] GET /api/investment-plans — 计划列表
-- [ ] POST /api/investment-plans — 创建计划
-- [ ] DELETE /api/investment-plans/{code} — 删除计划
+### 模块 17: 投资计划 (已完成 ✅)
+- [x] GET /api/investment-plans — 计划列表
+- [x] POST /api/investment-plans — 创建计划
+- [x] DELETE /api/investment-plans/{code} — 删除计划
 
 ### 模块 18: 信号系统 (待迁移)
 - [ ] GET /api/signal-calendar — 信号日历
@@ -136,15 +136,16 @@
 - [ ] GET /backtest — 回测页面
 - [ ] GET /api/backtest-compare — 回测对比
 
-### 模块 21: 系统管理 (待迁移)
+### 模块 21: 系统管理 (部分完成 ✅)
 - [x] GET /health — 健康检查
 - [x] GET /api/info — 系统信息
-- [ ] GET /api/system-status — 系统状态
-- [ ] GET /api/status — 服务状态
+- [x] GET /api/system-status — 系统状态
+- [x] GET /api/status — 服务状态
 - [ ] GET /api/docs — API 文档
-- [ ] GET /api/slow-queries — 慢查询
-- [ ] GET /api/performance-stats — 性能统计
-- [ ] POST /api/cache/clear — 清除缓存
+- [x] GET /api/slow-queries — 慢查询
+- [x] GET /api/performance-stats — 性能统计
+- [x] POST /api/cache/clear — 清除缓存
+- [x] GET /api/activity-log — 活动日志
 
 ### 模块 22: 设置页面 (待迁移)
 - [ ] GET /settings — 设置页面

@@ -72,6 +72,7 @@ func main() {
 	stockNotesHandler := handlers.NewStockNotesHandler(db)
 	fundFlowHandler := handlers.NewFundFlowHandler(eastMoneyService, logger.L())
 	sectorRotationHandler := handlers.NewSectorRotationHandler(eastMoneyService, db, logger.L())
+	investmentPlansHandler := handlers.NewInvestmentPlansHandler(logger.L())
 	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats())
 
 	router := gin.New()
@@ -221,6 +222,21 @@ func main() {
 
 	// Compat route: Python /api/sector-rotation-history
 	api.GET("/sector-rotation-history", authMiddleware, sectorRotationHandler.RotationHistory)
+
+	// Investment plans (Module 17)
+	investmentPlansGroup := api.Group("/investment-plans")
+	investmentPlansGroup.Use(authMiddleware)
+	investmentPlansGroup.GET("", investmentPlansHandler.List)
+	investmentPlansGroup.POST("", investmentPlansHandler.Upsert)
+	investmentPlansGroup.DELETE("/:code", investmentPlansHandler.Delete)
+
+	// System management (Module 21)
+	api.GET("/system-status", authMiddleware, systemHandler.SystemStatus)
+	api.GET("/status", authMiddleware, systemHandler.Status)
+	api.POST("/cache/clear", authMiddleware, systemHandler.CacheClear)
+	api.GET("/activity-log", authMiddleware, systemHandler.ActivityLog)
+	api.GET("/slow-queries", authMiddleware, systemHandler.SlowQueries)
+	api.GET("/performance-stats", authMiddleware, systemHandler.PerformanceStats)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,

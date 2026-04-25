@@ -117,3 +117,20 @@ func (c *Cache[T]) ResetStats() {
 	c.hits.Store(0)
 	c.misses.Store(0)
 }
+
+// Clear removes all entries from the cache and resets stats.
+func (c *Cache[T]) Clear() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	count := len(c.items)
+	c.items = make(map[string]entry[T])
+	c.hits.Store(0)
+	c.misses.Store(0)
+	return count
+}
+
+// Clearer is implemented by caches that support clearing all entries.
+type Clearer interface {
+	Clear() int
+}
