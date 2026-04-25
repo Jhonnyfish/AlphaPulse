@@ -61,6 +61,7 @@ func main() {
 	scoreHistoryHandler := handlers.NewScoreHistoryHandler(db)
 	patternScannerHandler := handlers.NewPatternScannerHandler(eastMoneyService, tencentService, db)
 	analyzeHandler := handlers.NewAnalyzeHandler(eastMoneyService, tencentService)
+	trendHandler := handlers.NewTrendHandler(eastMoneyService, tencentService, db)
 	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats())
 
 	router := gin.New()
@@ -133,6 +134,11 @@ func main() {
 	analyzeGroup := api.Group("/analyze")
 	analyzeGroup.Use(authMiddleware)
 	analyzeGroup.GET("", analyzeHandler.Analyze)
+
+	trendGroup := api.Group("")
+	trendGroup.Use(authMiddleware)
+	trendGroup.GET("/multi-trend", trendHandler.MultiTrend)
+	trendGroup.GET("/correlation", trendHandler.Correlation)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,

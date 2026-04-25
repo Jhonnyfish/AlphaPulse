@@ -34,8 +34,8 @@
 - [x] GET /analyze — 8维度综合分析详情
 - [x] GET /api/score-history/{code} — 评分历史
 - [x] GET /api/pattern-scanner — 形态扫描
-- [ ] GET /api/multi-trend — 多周期趋势
-- [ ] GET /api/correlation — 相关性分析
+- [x] GET /api/multi-trend — 多周期趋势
+- [x] GET /api/correlation — 相关性分析
 
 ### 模块 5: 股票对比 (待迁移)
 - [ ] GET /compare — 对比页面
