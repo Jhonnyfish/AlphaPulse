@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import Layout from '@/components/Layout';
 import LoginPage from '@/pages/LoginPage';
+import DashboardPage from '@/pages/DashboardPage';
 import WatchlistPage from '@/pages/WatchlistPage';
 import MarketPage from '@/pages/MarketPage';
 import KlinePage from '@/pages/KlinePage';
@@ -43,7 +44,7 @@ export default function App() {
     <Routes>
       <Route
         path="/login"
-        element={token ? <Navigate to="/watchlist" replace /> : <LoginPage />}
+        element={token ? <Navigate to="/dashboard" replace /> : <LoginPage />}
       />
       <Route
         element={
@@ -52,13 +53,14 @@ export default function App() {
           </ProtectedRoute>
         }
       >
+        <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/watchlist" element={<WatchlistPage />} />
         <Route path="/market" element={<MarketPage />} />
         <Route path="/kline" element={<KlinePage />} />
         <Route path="/sectors" element={<SectorsPage />} />
         <Route path="/news" element={<NewsPage />} />
       </Route>
-      <Route path="*" element={<Navigate to={token ? '/watchlist' : '/login'} replace />} />
+      <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
     </Routes>
   );
 }

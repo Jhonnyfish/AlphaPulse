@@ -131,6 +131,11 @@ export interface NewsItem {
   published_at: string;
 }
 
+export interface SearchSuggestion {
+  code: string;
+  name: string;
+}
+
 export const marketApi = {
   quote: (code: string) => api.get<Quote>('/market/quote', { params: { code } }),
   kline: (code: string, days?: number) =>
@@ -138,4 +143,6 @@ export const marketApi = {
   sectors: () => api.get<Sector[]>('/market/sectors'),
   overview: () => api.get<MarketOverview>('/market/overview'),
   news: () => api.get<NewsItem[]>('/market/news'),
+  search: (q: string) =>
+    api.get<SearchSuggestion[]>('/market/search', { params: { q } }),
 };

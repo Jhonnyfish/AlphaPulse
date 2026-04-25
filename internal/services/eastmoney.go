@@ -193,6 +193,54 @@ func (s *EastMoneyService) FetchNews(ctx context.Context, limit int) ([]models.N
 	return items, nil
 }
 
+// SearchSuggestionResult holds search results from the suggest API.
+type SearchSuggestionResult struct {
+	Code string `json:"Code"`
+	Name string `json:"Name"`
+}
+
+func (s *EastMoneyService) SearchStocks(ctx context.Context, query string, limit int) ([]models.SearchSuggestion, error) {
+	if limit <= 0 || limit > 20 {
+		limit = 10
+	}
+
+	params := url.Values{}
+	params.Set("input", query)
+	params.Set("type", "14")
+	params.Set("token", "D43BF722C8E33BDC906FB84D85E326E8")
+	params.Set("count", strconv.Itoa(limit))
+
+	var response struct {
+		QuotationCodeTable struct {
+			Data []struct {
+				Code string `json:"Code"`
+				Name string `json:"Name"`
+				Type int    `json:"SecurityTypeName"`
+			} `json:"Data"`
+		} `json:"QuotationCodeTable"`
+	}
+	if err := s.getJSON(ctx, "https://searchapi.eastmoney.com/api/suggest/get", params, &response); err != nil {
+		return nil, err
+	}
+
+	suggestions := make([]models.SearchSuggestion, 0, len(response.QuotationCodeTable.Data))
+	for _, item := range response.QuotationCodeTable.Data {
+		if item.Code == "" || item.Name == "" {
+			continue
+		}
+		// Only include A-share stocks (6-digit codes)
+		if len(item.Code) != 6 {
+			continue
+		}
+		suggestions = append(suggestions, models.SearchSuggestion{
+			Code: item.Code,
+			Name: item.Name,
+		})
+	}
+
+	return suggestions, nil
+}
+
 func (s *EastMoneyService) HealthCheck(ctx context.Context) error {
 	// Lightweight check: fetch a single stock overview to verify API is responsive
 	params := url.Values{}

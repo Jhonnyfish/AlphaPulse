@@ -1,21 +1,19 @@
 import { useState, useCallback } from 'react';
-import { marketApi, type Quote } from '@/lib/api';
-import { Search, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { marketApi, type Quote, type SearchSuggestion } from '@/lib/api';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import StockSearch from '@/components/StockSearch';
 
 export default function MarketPage() {
-  const [code, setCode] = useState('');
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSearch = useCallback(async () => {
-    const c = code.trim();
-    if (!c) return;
+  const handleSelect = useCallback(async (suggestion: SearchSuggestion) => {
     setLoading(true);
     setError('');
     setQuote(null);
     try {
-      const res = await marketApi.quote(c);
+      const res = await marketApi.quote(suggestion.code);
       setQuote(res.data);
     } catch (err: unknown) {
       const msg =
@@ -25,7 +23,7 @@ export default function MarketPage() {
     } finally {
       setLoading(false);
     }
-  }, [code]);
+  }, []);
 
   const pct = quote?.change_percent ?? 0;
   const color =
@@ -37,33 +35,19 @@ export default function MarketPage() {
       <h1 className="text-xl font-bold mb-6">行情查询</h1>
 
       {/* Search */}
-      <div className="flex gap-2 mb-6">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-            style={{ color: 'var(--color-text-muted)' }} />
-          <input
-            type="text"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="输入股票代码，如 600519"
-            className="w-full pl-9 pr-3 py-2 rounded-lg border text-sm outline-none"
-            style={{
-              background: 'var(--color-bg-card)',
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-text-primary)',
-            }}
-          />
-        </div>
-        <button
-          onClick={handleSearch}
-          disabled={loading || !code.trim()}
-          className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
-          style={{ background: 'var(--color-accent)' }}
-        >
-          {loading ? '查询中...' : '查询'}
-        </button>
+      <div className="mb-6 max-w-sm">
+        <StockSearch
+          onSelect={handleSelect}
+          placeholder="搜索股票代码或名称..."
+        />
       </div>
+
+      {loading && (
+        <div className="text-sm px-3 py-2 rounded-lg mb-4 max-w-md"
+          style={{ background: 'rgba(59,130,246,0.1)', color: 'var(--color-accent)' }}>
+          查询中...
+        </div>
+      )}
 
       {error && (
         <div className="text-sm px-3 py-2 rounded-lg mb-4 max-w-md"
@@ -129,9 +113,9 @@ export default function MarketPage() {
       {!quote && !error && !loading && (
         <div className="text-center py-16 rounded-lg border max-w-lg"
           style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}>
-          <p style={{ color: 'var(--color-text-muted)' }}>输入股票代码查询实时行情</p>
+          <p style={{ color: 'var(--color-text-muted)' }}>搜索股票查看实时行情</p>
           <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            例如: 000001 (平安银行), 600519 (贵州茅台)
+            例如: 平安银行、贵州茅台、000001
           </p>
         </div>
       )}

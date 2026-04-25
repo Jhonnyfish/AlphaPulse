@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { createChart, CandlestickSeries, HistogramSeries, type IChartApi } from 'lightweight-charts';
-import { marketApi, type KlinePoint, type Quote } from '@/lib/api';
-import { Search, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { marketApi, type KlinePoint, type Quote, type SearchSuggestion } from '@/lib/api';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import StockSearch from '@/components/StockSearch';
 
 const PERIODS = [
   { value: 'daily', label: '日K', days: 120 },
@@ -13,7 +14,6 @@ const PERIODS = [
 export default function KlinePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [code, setCode] = useState(searchParams.get('code') || '');
-  const [inputCode, setInputCode] = useState(searchParams.get('code') || '');
   const [period, setPeriod] = useState('daily');
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(false);
@@ -141,11 +141,9 @@ export default function KlinePage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const handleSearch = () => {
-    const c = inputCode.trim();
-    if (!c) return;
-    setCode(c);
-    setSearchParams({ code: c });
+  const handleSearch = (suggestion: SearchSuggestion) => {
+    setCode(suggestion.code);
+    setSearchParams({ code: suggestion.code });
   };
 
   const pct = quote?.change_percent ?? 0;
@@ -157,35 +155,14 @@ export default function KlinePage() {
     <div>
       <h1 className="text-xl font-bold mb-6">K线图</h1>
 
-      {/* Search bar */}
+      {/* Search with autocomplete */}
       <div className="flex gap-2 mb-4">
-        <div className="relative flex-1 max-w-xs">
-          <Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-            style={{ color: 'var(--color-text-muted)' }}
-          />
-          <input
-            type="text"
-            value={inputCode}
-            onChange={(e) => setInputCode(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="输入股票代码，如 600519"
-            className="w-full pl-9 pr-3 py-2 rounded-lg border text-sm outline-none"
-            style={{
-              background: 'var(--color-bg-card)',
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-text-primary)',
-            }}
+        <div className="flex-1 max-w-sm">
+          <StockSearch
+            onSelect={handleSearch}
+            placeholder="搜索股票代码或名称..."
           />
         </div>
-        <button
-          onClick={handleSearch}
-          disabled={loading || !inputCode.trim()}
-          className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
-          style={{ background: 'var(--color-accent)' }}
-        >
-          查看
-        </button>
       </div>
 
       {/* Period selector */}
@@ -259,7 +236,7 @@ export default function KlinePage() {
           className="text-center py-16 rounded-lg border"
           style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
         >
-          <p style={{ color: 'var(--color-text-muted)' }}>输入股票代码查看K线图</p>
+          <p style={{ color: 'var(--color-text-muted)' }}>搜索股票查看K线图</p>
           <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
             支持日K、周K、月K线，红涨绿跌
           </p>

@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import { watchlistApi, marketApi, type WatchlistItem, type Quote } from '@/lib/api';
-import { Plus, Trash2, Search, RefreshCw } from 'lucide-react';
+import { watchlistApi, marketApi, type WatchlistItem, type Quote, type SearchSuggestion } from '@/lib/api';
+import { Trash2, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import StockSearch from '@/components/StockSearch';
 
 export default function WatchlistPage() {
   const [items, setItems] = useState<WatchlistItem[]>([]);
   const [quotes, setQuotes] = useState<Map<string, Quote>>(new Map());
   const [loading, setLoading] = useState(true);
-  const [addCode, setAddCode] = useState('');
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
 
@@ -48,14 +48,11 @@ export default function WatchlistPage() {
     }
   }, [items, fetchQuotes]);
 
-  const handleAdd = async () => {
-    const code = addCode.trim();
-    if (!code) return;
+  const handleAddFromSearch = async (suggestion: SearchSuggestion) => {
     setAdding(true);
     setError('');
     try {
-      await watchlistApi.add(code);
-      setAddCode('');
+      await watchlistApi.add(suggestion.code);
       await fetchWatchlist();
     } catch (err: unknown) {
       const msg =
@@ -103,38 +100,16 @@ export default function WatchlistPage() {
         </button>
       </div>
 
-      {/* Add stock input */}
-      <div className="flex gap-2 mb-4">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-            style={{ color: 'var(--color-text-muted)' }} />
-          <input
-            type="text"
-            value={addCode}
-            onChange={(e) => setAddCode(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-            placeholder="输入股票代码，如 000001"
-            className="w-full pl-9 pr-3 py-2 rounded-lg border text-sm outline-none"
-            style={{
-              background: 'var(--color-bg-card)',
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-text-primary)',
-            }}
-          />
-        </div>
-        <button
-          onClick={handleAdd}
-          disabled={adding || !addCode.trim()}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
-          style={{ background: 'var(--color-accent)' }}
-        >
-          <Plus className="w-4 h-4" />
-          {adding ? '添加中...' : '添加'}
-        </button>
+      {/* Search with autocomplete */}
+      <div className="mb-4 max-w-sm">
+        <StockSearch
+          onSelect={handleAddFromSearch}
+          placeholder={adding ? '添加中...' : '搜索股票代码或名称，选中即添加...'}
+        />
       </div>
 
       {error && (
-        <div className="text-sm px-3 py-2 rounded-lg mb-4"
+        <div className="text-sm px-3 py-2 rounded-lg mb-4 max-w-md"
           style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--color-danger)' }}>
           {error}
         </div>
@@ -150,7 +125,7 @@ export default function WatchlistPage() {
           style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}>
           <p style={{ color: 'var(--color-text-muted)' }}>暂无自选股</p>
           <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            输入股票代码添加到自选列表
+            搜索股票代码或名称添加到自选列表
           </p>
         </div>
       ) : (

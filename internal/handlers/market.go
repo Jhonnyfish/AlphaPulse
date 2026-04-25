@@ -22,6 +22,7 @@ type MarketHandler struct {
 	sectorsCache  *cache.Cache[[]models.Sector]
 	overviewCache *cache.Cache[models.MarketOverview]
 	newsCache     *cache.Cache[[]models.NewsItem]
+	searchCache   *cache.Cache[[]models.SearchSuggestion]
 }
 
 func NewMarketHandler(eastMoney *services.EastMoneyService, tencent *services.TencentService) *MarketHandler {
@@ -33,6 +34,7 @@ func NewMarketHandler(eastMoney *services.EastMoneyService, tencent *services.Te
 		sectorsCache:  cache.New[[]models.Sector](),
 		overviewCache: cache.New[models.MarketOverview](),
 		newsCache:     cache.New[[]models.NewsItem](),
+		searchCache:   cache.New[[]models.SearchSuggestion](),
 	}
 }
 
@@ -158,6 +160,33 @@ func (h *MarketHandler) News(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
+func (h *MarketHandler) Search(c *gin.Context) {
+	query := strings.TrimSpace(c.Query("q"))
+	if query == "" {
+		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "q is required")
+		return
+	}
+	if len(query) < 1 {
+		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "query too short")
+		return
+	}
+
+	cacheKey := "search:" + query
+	if cached, ok := h.searchCache.Get(cacheKey); ok {
+		c.JSON(http.StatusOK, cached)
+		return
+	}
+
+	suggestions, err := h.eastMoney.SearchStocks(c.Request.Context(), query, 10)
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "SEARCH_FAILED", "failed to search stocks")
+		return
+	}
+	h.searchCache.Set(cacheKey, suggestions, 5*time.Minute)
+
+	c.JSON(http.StatusOK, suggestions)
+}
+
 func (h *MarketHandler) CacheStats() map[string]cache.Sizer {
 	return map[string]cache.Sizer{
 		"quote":    h.quoteCache,
@@ -165,5 +194,6 @@ func (h *MarketHandler) CacheStats() map[string]cache.Sizer {
 		"sectors":  h.sectorsCache,
 		"overview": h.overviewCache,
 		"news":     h.newsCache,
+		"search":   h.searchCache,
 	}
 }
