@@ -33,7 +33,7 @@
 - [x] GET /api/screener — 选股器
 - [ ] GET /analyze — 个股分析详情
 - [x] GET /api/score-history/{code} — 评分历史
-- [ ] GET /api/pattern-scanner — 形态扫描
+- [x] GET /api/pattern-scanner — 形态扫描
 - [ ] GET /api/multi-trend — 多周期趋势
 - [ ] GET /api/correlation — 相关性分析
 
