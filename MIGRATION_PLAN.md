@@ -23,8 +23,8 @@
 ### 模块 3: 仪表盘 (部分完成 ⚠️)
 - [x] GET /api/dashboard-summary — 仪表盘摘要
 - [ ] GET /api/market-overview — 市场概览（大盘指数）
-- [ ] GET /api/market-session — 市场状态（开盘/收盘/午休）
-- [ ] GET /api/market-trends — 市场趋势
+- [x] GET /api/market-session — 市场状态（开盘/收盘/午休）
+- [x] GET /api/market-trends — 市场趋势
 - [ ] GET /api/market-breadth — 市场宽度（涨跌家数）
 - [ ] GET /api/market-sentiment — 市场情绪
 
