@@ -1,6 +1,7 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { BarChart3, Star, TrendingUp, Newspaper, LogOut, Activity, CandlestickChart, LayoutDashboard } from 'lucide-react';
+import { BarChart3, Star, TrendingUp, Newspaper, LogOut, Activity, CandlestickChart, LayoutDashboard, Menu, X } from 'lucide-react';
 
 const navItems = [
   { to: '/dashboard', label: '总览', icon: LayoutDashboard },
@@ -13,17 +14,55 @@ const navItems = [
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
+  // Close sidebar on Escape key
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSidebarOpen(false);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, []);
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen relative">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-56 flex flex-col border-r"
-        style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}>
+      <aside
+        className={`
+          fixed inset-y-0 left-0 z-50 w-56 flex flex-col border-r transform transition-transform duration-200 ease-in-out
+          lg:relative lg:translate-x-0
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}
+        style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
+      >
         {/* Logo */}
-        <div className="flex items-center gap-2 px-5 py-4 border-b"
+        <div className="flex items-center justify-between px-5 py-4 border-b"
           style={{ borderColor: 'var(--color-border)' }}>
-          <Activity className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
-          <span className="text-lg font-bold tracking-tight">AlphaPulse</span>
+          <div className="flex items-center gap-2">
+            <Activity className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
+            <span className="text-lg font-bold tracking-tight">AlphaPulse</span>
+          </div>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="p-1 rounded hover:bg-[var(--color-bg-hover)] transition-colors lg:hidden"
+          >
+            <X className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
+          </button>
         </div>
 
         {/* Nav */}
@@ -66,10 +105,30 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto p-6">
-        <Outlet />
-      </main>
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile top bar */}
+        <header
+          className="flex items-center gap-3 px-4 py-3 border-b lg:hidden"
+          style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
+        >
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-1.5 rounded hover:bg-[var(--color-bg-hover)] transition-colors"
+          >
+            <Menu className="w-5 h-5" style={{ color: 'var(--color-text-primary)' }} />
+          </button>
+          <div className="flex items-center gap-2">
+            <Activity className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
+            <span className="font-bold">AlphaPulse</span>
+          </div>
+        </header>
+
+        {/* Content */}
+        <main className="flex-1 overflow-auto p-4 sm:p-6">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

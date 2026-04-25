@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   marketApi,
@@ -16,6 +16,8 @@ import {
   RefreshCw,
 } from 'lucide-react';
 
+const REFRESH_INTERVAL = 30_000; // 30 seconds
+
 export default function DashboardPage() {
   const [overview, setOverview] = useState<MarketOverview | null>(null);
   const [watchlistQuotes, setWatchlistQuotes] = useState<
@@ -23,6 +25,9 @@ export default function DashboardPage() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval>>();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -57,6 +62,7 @@ export default function DashboardPage() {
           );
         }
       }
+      setLastUpdated(new Date());
     } catch {
       setError('加载数据失败');
     } finally {
@@ -64,9 +70,20 @@ export default function DashboardPage() {
     }
   }, []);
 
+  // Initial fetch
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Auto-refresh polling
+  useEffect(() => {
+    if (autoRefresh) {
+      intervalRef.current = setInterval(fetchData, REFRESH_INTERVAL);
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [autoRefresh, fetchData]);
 
   const changeColor = (n: number) =>
     n > 0
@@ -89,15 +106,30 @@ export default function DashboardPage() {
           <Activity className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
           <h1 className="text-xl font-bold">市场总览</h1>
         </div>
-        <button
-          onClick={fetchData}
-          disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm hover:bg-[var(--color-bg-hover)] transition-colors"
-          style={{ color: 'var(--color-text-secondary)' }}
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          刷新
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Auto-refresh toggle */}
+          <button
+            onClick={() => setAutoRefresh((prev) => !prev)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors"
+            style={{
+              background: autoRefresh ? 'rgba(59,130,246,0.15)' : 'transparent',
+              color: autoRefresh ? 'var(--color-accent)' : 'var(--color-text-muted)',
+              border: `1px solid ${autoRefresh ? 'var(--color-accent)' : 'var(--color-border)'}`,
+            }}
+          >
+            <span className={`w-2 h-2 rounded-full ${autoRefresh ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
+            {autoRefresh ? '自动刷新' : '已暂停'}
+          </button>
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm hover:bg-[var(--color-bg-hover)] transition-colors"
+            style={{ color: 'var(--color-text-secondary)' }}
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            刷新
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -324,11 +356,14 @@ export default function DashboardPage() {
       </div>
 
       {/* Updated time */}
-      {overview?.updated_at && (
-        <div className="mt-4 text-xs text-right" style={{ color: 'var(--color-text-muted)' }}>
-          数据更新: {new Date(overview.updated_at).toLocaleString('zh-CN')}
-        </div>
-      )}
+      <div className="mt-4 flex items-center justify-between text-xs" style={{ color: 'var(--color-text-muted)' }}>
+        <span>
+          {lastUpdated && `上次刷新: ${lastUpdated.toLocaleTimeString('zh-CN')}`}
+        </span>
+        <span>
+          {autoRefresh && `每 ${REFRESH_INTERVAL / 1000} 秒自动刷新`}
+        </span>
+      </div>
     </div>
   );
 }
