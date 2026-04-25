@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"alphapulse/internal/cache"
@@ -12,11 +15,13 @@ import (
 	"alphapulse/internal/services"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type MarketHandler struct {
 	eastMoney      *services.EastMoneyService
 	tencent        *services.TencentService
+	db             *pgxpool.Pool
 	quoteCache     *cache.Cache[models.Quote]
 	klineCache     *cache.Cache[[]models.KlinePoint]
 	sectorsCache   *cache.Cache[[]models.Sector]
@@ -24,12 +29,14 @@ type MarketHandler struct {
 	newsCache      *cache.Cache[[]models.NewsItem]
 	searchCache    *cache.Cache[[]models.SearchSuggestion]
 	topMoversCache *cache.Cache[[]models.TopMover]
+	trendsCache    *cache.Cache[models.MarketTrends]
 }
 
-func NewMarketHandler(eastMoney *services.EastMoneyService, tencent *services.TencentService) *MarketHandler {
+func NewMarketHandler(eastMoney *services.EastMoneyService, tencent *services.TencentService, db *pgxpool.Pool) *MarketHandler {
 	return &MarketHandler{
 		eastMoney:      eastMoney,
 		tencent:        tencent,
+		db:             db,
 		quoteCache:     cache.New[models.Quote](),
 		klineCache:     cache.New[[]models.KlinePoint](),
 		sectorsCache:   cache.New[[]models.Sector](),
@@ -37,6 +44,7 @@ func NewMarketHandler(eastMoney *services.EastMoneyService, tencent *services.Te
 		newsCache:      cache.New[[]models.NewsItem](),
 		searchCache:    cache.New[[]models.SearchSuggestion](),
 		topMoversCache: cache.New[[]models.TopMover](),
+		trendsCache:    cache.New[models.MarketTrends](),
 	}
 }
 
@@ -221,6 +229,371 @@ func (h *MarketHandler) TopMovers(c *gin.Context) {
 	c.JSON(http.StatusOK, movers)
 }
 
+// ==================== Market Session ====================
+
+// chinaTZ returns the China/CST timezone (UTC+8).
+func chinaTZ() *time.Location {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	if loc == nil {
+		loc = time.FixedZone("CST", 8*3600)
+	}
+	return loc
+}
+
+// Session returns the current market session status.
+// Pure time-based logic — no external API calls needed.
+func (h *MarketHandler) Session(c *gin.Context) {
+	now := time.Now().In(chinaTZ())
+	weekday := now.Weekday() // 0=Sun, 6=Sat
+	minutes := now.Hour()*60 + now.Minute()
+
+	var session, sessionEN, nextInfo string
+	var refreshInterval int
+
+	switch {
+	case weekday == time.Saturday || weekday == time.Sunday:
+		session = "休市"
+		sessionEN = "closed"
+		refreshInterval = 600
+		if weekday == time.Saturday {
+			nextInfo = "周一 09:30 开盘"
+		} else {
+			nextInfo = "明日 09:30 开盘"
+		}
+	case minutes < 9*60+25:
+		session = "盘前"
+		sessionEN = "pre_market"
+		refreshInterval = 120
+		nextInfo = "09:25 集合竞价"
+	case minutes < 9*60+30:
+		session = "集合竞价"
+		sessionEN = "call_auction"
+		refreshInterval = 10
+		nextInfo = "09:30 开盘"
+	case minutes <= 11*60+30:
+		session = "交易中"
+		sessionEN = "trading"
+		refreshInterval = 30
+		nextInfo = "11:30 午间休市"
+	case minutes < 13*60:
+		session = "午间休市"
+		sessionEN = "lunch_break"
+		refreshInterval = 120
+		nextInfo = "13:00 下午开盘"
+	case minutes <= 15*60:
+		session = "交易中"
+		sessionEN = "trading"
+		refreshInterval = 30
+		nextInfo = "15:00 收盘"
+	default:
+		session = "已收盘"
+		sessionEN = "closed"
+		refreshInterval = 600
+		if weekday == time.Friday {
+			nextInfo = "周一 09:30 开盘"
+		} else {
+			nextInfo = "明日 09:30 开盘"
+		}
+	}
+
+	isTrading := sessionEN == "trading" || sessionEN == "call_auction"
+
+	result := models.MarketSession{
+		Session:         session,
+		SessionEN:       sessionEN,
+		IsTrading:       isTrading,
+		RefreshInterval: refreshInterval,
+		NextSession:     nextInfo,
+		ServerTime:      now.Format(time.RFC3339),
+		Weekday:         int(weekday),
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"ok":   true,
+		"data": result,
+	})
+}
+
+// ==================== Market Trends ====================
+
+var trendIndexCodes = []string{"sh000001", "sz399001", "sz399006"}
+var trendIndexNames = map[string]string{
+	"sh000001": "上证指数",
+	"sz399001": "深证成指",
+	"sz399006": "创业板指",
+}
+
+const trendKlineLimit = 35 // 30 trading days + safety margin
+
+func calcKlineChange(klines []models.KlinePoint, days int) *float64 {
+	if len(klines) < days+1 {
+		return nil
+	}
+	current := klines[len(klines)-1].Close
+	base := klines[len(klines)-1-days].Close
+	if base == 0 {
+		return nil
+	}
+	v := round2((current - base) / base * 100)
+	return &v
+}
+
+func round2(v float64) float64 {
+	return float64(int(v*100+0.5)) / 100 // banker's rounding simplified
+}
+
+func round2Neg(v float64) float64 {
+	// handle negative correctly
+	return float64(int(v*100+0.5)) / 100
+}
+
+// Trends returns multi-timeframe performance comparison for indices and watchlist stocks.
+func (h *MarketHandler) Trends(c *gin.Context) {
+	if cached, ok := h.trendsCache.Get("trends:all"); ok {
+		c.JSON(http.StatusOK, cached)
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	// Load watchlist codes from DB
+	wlCodes := h.loadWatchlistCodes(ctx)
+
+	type result struct {
+		index   []models.TrendStock
+		stocks  []models.TrendStock
+	}
+
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	var indices []models.TrendStock
+	var watchlistStocks []models.TrendStock
+
+	// Fetch index klines
+	for _, code := range trendIndexCodes {
+		wg.Add(1)
+		go func(code string) {
+			defer wg.Done()
+			ts := h.fetchTrendStock(ctx, code, trendIndexNames[code])
+			mu.Lock()
+			indices = append(indices, ts)
+			mu.Unlock()
+		}(code)
+	}
+
+	// Fetch watchlist stock klines
+	for _, code := range wlCodes {
+		wg.Add(1)
+		go func(code string) {
+			defer wg.Done()
+			ts := h.fetchTrendStock(ctx, code, "")
+			mu.Lock()
+			watchlistStocks = append(watchlistStocks, ts)
+			mu.Unlock()
+		}(code)
+	}
+
+	wg.Wait()
+
+	// Sort indices in defined order
+	idxOrder := make(map[string]int)
+	for i, c := range trendIndexCodes {
+		idxOrder[c] = i
+	}
+	sort.Slice(indices, func(i, j int) bool {
+		return idxOrder[indices[i].Code] < idxOrder[indices[j].Code]
+	})
+
+	// Compute equal-weighted portfolio returns
+	portfolio := models.TrendPortfolio{
+		DailyReturns: []models.DailyReturn{},
+	}
+	for _, period := range []int{1, 5, 20, 30} {
+		val := portfolioChange(watchlistStocks, period)
+		switch period {
+		case 1:
+			portfolio.Change1D = val
+		case 5:
+			portfolio.Change5D = val
+		case 20:
+			portfolio.Change20D = val
+		case 30:
+			portfolio.Change30D = val
+		}
+	}
+
+	// Compute daily portfolio vs benchmark cumulative returns for chart
+	if len(indices) > 0 {
+		benchIdx := indices[0] // sh000001
+		if len(benchIdx.KlineData) > 0 {
+			benchBase := benchIdx.KlineData[0].Close
+			if benchBase > 0 {
+				// Build per-stock daily close lookup by date
+				stockDailyMap := make(map[string]map[string]float64)
+				for _, s := range watchlistStocks {
+					m := make(map[string]float64)
+					for _, k := range s.KlineData {
+						m[k.Date] = k.Close
+					}
+					stockDailyMap[s.Code] = m
+				}
+
+				dailyReturns := make([]models.DailyReturn, 0, len(benchIdx.KlineData))
+				for _, bk := range benchIdx.KlineData {
+					dt := bk.Date
+					benchRet := round2((bk.Close - benchBase) / benchBase * 100)
+
+					stockRets := make([]float64, 0)
+					for _, s := range watchlistStocks {
+						sd := stockDailyMap[s.Code]
+						closes := make([]float64, 0, len(s.KlineData))
+						for _, k := range s.KlineData {
+							closes = append(closes, k.Close)
+						}
+						if len(closes) > 0 {
+							if _, ok := sd[dt]; ok {
+								baseClose := closes[0]
+								if baseClose > 0 {
+									stockRets = append(stockRets, round2((sd[dt]-baseClose)/baseClose*100))
+								}
+							}
+						}
+					}
+
+					dr := models.DailyReturn{
+						Date:      dt,
+						Benchmark: benchRet,
+					}
+					if len(stockRets) > 0 {
+						sum := 0.0
+						for _, r := range stockRets {
+							sum += r
+						}
+						portRet := round2(sum / float64(len(stockRets)))
+						dr.Portfolio = &portRet
+					}
+					dailyReturns = append(dailyReturns, dr)
+				}
+				portfolio.DailyReturns = dailyReturns
+			}
+		}
+	}
+
+	now := time.Now().In(chinaTZ())
+	trends := models.MarketTrends{
+		Indices:         indices,
+		WatchlistStocks: watchlistStocks,
+		Portfolio:       portfolio,
+		FetchedAt:       now.Format("2006-01-02 15:04:05"),
+	}
+
+	h.trendsCache.Set("trends:all", trends, 60*time.Second)
+
+	c.JSON(http.StatusOK, trends)
+}
+
+// stripExchangePrefix converts "sh000001" -> "000001", "sz399001" -> "399001".
+// For plain 6-digit codes, returns as-is.
+func stripExchangePrefix(code string) string {
+	if len(code) > 2 && (code[:2] == "sh" || code[:2] == "sz") {
+		return code[2:]
+	}
+	return code
+}
+
+func (h *MarketHandler) fetchTrendStock(ctx context.Context, code string, name string) models.TrendStock {
+	klineCode := stripExchangePrefix(code)
+	klines, err := h.eastMoney.FetchKline(ctx, klineCode, trendKlineLimit)
+	if err != nil {
+		if name == "" {
+			name = code
+		}
+		return models.TrendStock{
+			Code:      code,
+			Name:      name,
+			KlineData: []models.KlinePoint{},
+		}
+	}
+
+	ts := models.TrendStock{
+		Code:      code,
+		Name:      name,
+		KlineData: klines,
+		Change1D:  calcKlineChange(klines, 1),
+		Change5D:  calcKlineChange(klines, 5),
+		Change20D: calcKlineChange(klines, 20),
+		Change30D: calcKlineChange(klines, 30),
+	}
+
+	if len(klines) > 0 {
+		p := klines[len(klines)-1].Close
+		ts.Price = &p
+	}
+
+	// For stocks (not indices), try to get name from quote if not provided
+	if name == "" {
+		if q, err := h.tencent.FetchQuote(ctx, code); err == nil && q.Name != "" {
+			ts.Name = q.Name
+		} else {
+			ts.Name = code
+		}
+	}
+
+	// Keep only last 30 klines in response
+	if len(ts.KlineData) > 30 {
+		ts.KlineData = ts.KlineData[len(ts.KlineData)-30:]
+	}
+
+	return ts
+}
+
+func (h *MarketHandler) loadWatchlistCodes(ctx context.Context) []string {
+	rows, err := h.db.Query(ctx, `SELECT code FROM watchlist ORDER BY added_at DESC`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	var codes []string
+	for rows.Next() {
+		var code string
+		if err := rows.Scan(&code); err != nil {
+			continue
+		}
+		codes = append(codes, code)
+	}
+	return codes
+}
+
+func portfolioChange(stocks []models.TrendStock, period int) *float64 {
+	var vals []float64
+	for _, s := range stocks {
+		var v *float64
+		switch period {
+		case 1:
+			v = s.Change1D
+		case 5:
+			v = s.Change5D
+		case 20:
+			v = s.Change20D
+		case 30:
+			v = s.Change30D
+		}
+		if v != nil {
+			vals = append(vals, *v)
+		}
+	}
+	if len(vals) == 0 {
+		return nil
+	}
+	sum := 0.0
+	for _, v := range vals {
+		sum += v
+	}
+	r := round2(sum / float64(len(vals)))
+	return &r
+}
+
 func (h *MarketHandler) CacheStats() map[string]cache.Sizer {
 	return map[string]cache.Sizer{
 		"quote":      h.quoteCache,
@@ -230,5 +603,6 @@ func (h *MarketHandler) CacheStats() map[string]cache.Sizer {
 		"news":       h.newsCache,
 		"search":     h.searchCache,
 		"top_movers": h.topMoversCache,
+		"trends":     h.trendsCache,
 	}
 }

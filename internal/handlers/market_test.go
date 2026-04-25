@@ -25,7 +25,7 @@ func setupTestRouter(h *MarketHandler) *gin.Engine {
 }
 
 func TestQuoteMissingCode(t *testing.T) {
-	h := NewMarketHandler(nil, nil)
+	h := NewMarketHandler(nil, nil, nil)
 	r := setupTestRouter(h)
 
 	w := httptest.NewRecorder()
@@ -44,7 +44,7 @@ func TestQuoteMissingCode(t *testing.T) {
 }
 
 func TestQuoteInvalidCodeFormat(t *testing.T) {
-	h := NewMarketHandler(nil, nil)
+	h := NewMarketHandler(nil, nil, nil)
 	r := setupTestRouter(h)
 
 	tests := []string{"12345", "abcdef", "1234567", "12345a"}
@@ -77,7 +77,7 @@ func TestQuoteValidCodeFormat(t *testing.T) {
 	// valid codes pass validation and reach the service layer.
 	// The actual API call will fail (no network), but we get a 500 not 400.
 	svc := services.NewTencentService(2 * time.Second)
-	h := NewMarketHandler(nil, svc)
+	h := NewMarketHandler(nil, svc, nil)
 	r := setupTestRouter(h)
 
 	w := httptest.NewRecorder()
@@ -93,7 +93,7 @@ func TestQuoteValidCodeFormat(t *testing.T) {
 }
 
 func TestKlineMissingCode(t *testing.T) {
-	h := NewMarketHandler(nil, nil)
+	h := NewMarketHandler(nil, nil, nil)
 	r := setupTestRouter(h)
 
 	w := httptest.NewRecorder()
@@ -106,7 +106,7 @@ func TestKlineMissingCode(t *testing.T) {
 }
 
 func TestKlineInvalidDays(t *testing.T) {
-	h := NewMarketHandler(nil, nil)
+	h := NewMarketHandler(nil, nil, nil)
 	r := setupTestRouter(h)
 
 	tests := []string{"abc", "0", "-1"}
@@ -122,7 +122,7 @@ func TestKlineInvalidDays(t *testing.T) {
 }
 
 func TestCacheStats(t *testing.T) {
-	h := NewMarketHandler(nil, nil)
+	h := NewMarketHandler(nil, nil, nil)
 	stats := h.CacheStats()
 
 	expected := []string{"quote", "kline", "sectors", "overview", "news"}
@@ -134,7 +134,7 @@ func TestCacheStats(t *testing.T) {
 }
 
 func TestQuoteCacheHit(t *testing.T) {
-	h := NewMarketHandler(nil, nil)
+	h := NewMarketHandler(nil, nil, nil)
 	r := setupTestRouter(h)
 
 	// Pre-populate cache

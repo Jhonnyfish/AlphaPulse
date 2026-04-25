@@ -71,3 +71,50 @@ type NewsItem struct {
 	URL         string    `json:"url"`
 	PublishedAt time.Time `json:"published_at"`
 }
+
+// MarketSession represents the current trading session status
+type MarketSession struct {
+	Session         string `json:"session"`           // 盘前/集合竞价/交易中/午间休市/已收盘/休市
+	SessionEN       string `json:"session_en"`        // pre_market/call_auction/trading/lunch_break/closed
+	IsTrading       bool   `json:"is_trading"`        // true if trading or call_auction
+	RefreshInterval int    `json:"refresh_interval"`  // recommended refresh interval in seconds
+	NextSession     string `json:"next_session"`      // info about next session
+	ServerTime      string `json:"server_time"`       // server time ISO format
+	Weekday         int    `json:"weekday"`           // 0=Mon, 6=Sun
+}
+
+// TrendStock represents a single stock/index in the market trends view
+type TrendStock struct {
+	Code       string       `json:"code"`
+	Name       string       `json:"name"`
+	Price      *float64     `json:"price,omitempty"`
+	Change1D   *float64     `json:"change_1d"`
+	Change5D   *float64     `json:"change_5d"`
+	Change20D  *float64     `json:"change_20d"`
+	Change30D  *float64     `json:"change_30d"`
+	KlineData  []KlinePoint `json:"kline_data"`
+}
+
+// TrendPortfolio represents portfolio-level aggregated trend data
+type TrendPortfolio struct {
+	Change1D      *float64           `json:"change_1d"`
+	Change5D      *float64           `json:"change_5d"`
+	Change20D     *float64           `json:"change_20d"`
+	Change30D     *float64           `json:"change_30d"`
+	DailyReturns  []DailyReturn      `json:"daily_returns"`
+}
+
+// DailyReturn represents one day's portfolio vs benchmark return
+type DailyReturn struct {
+	Date       string   `json:"date"`
+	Portfolio  *float64 `json:"portfolio"`
+	Benchmark  float64  `json:"benchmark"`
+}
+
+// MarketTrends is the full response for the trends API
+type MarketTrends struct {
+	Indices         []TrendStock  `json:"indices"`
+	WatchlistStocks []TrendStock  `json:"watchlist_stocks"`
+	Portfolio       TrendPortfolio `json:"portfolio"`
+	FetchedAt       string        `json:"fetched_at"`
+}
