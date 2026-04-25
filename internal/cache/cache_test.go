@@ -139,3 +139,93 @@ func TestCacheZeroValue(t *testing.T) {
 		t.Errorf("expected zero value, got %d", val)
 	}
 }
+
+func TestCacheStatsHitMiss(t *testing.T) {
+	c := New[string]()
+
+	c.Set("a", "1", 5*time.Second)
+
+	// 2 hits, 1 miss
+	c.Get("a")
+	c.Get("a")
+	c.Get("missing")
+
+	stats := c.Stats()
+	if stats.Hits != 2 {
+		t.Errorf("expected 2 hits, got %d", stats.Hits)
+	}
+	if stats.Misses != 1 {
+		t.Errorf("expected 1 miss, got %d", stats.Misses)
+	}
+}
+
+func TestCacheStatsHitRate(t *testing.T) {
+	c := New[int]()
+
+	c.Set("x", 10, 5*time.Second)
+
+	// 3 hits, 1 miss → 75%
+	c.Get("x")
+	c.Get("x")
+	c.Get("x")
+	c.Get("nope")
+
+	stats := c.Stats()
+	if stats.Hits != 3 || stats.Misses != 1 {
+		t.Errorf("expected 3 hits/1 miss, got %d/%d", stats.Hits, stats.Misses)
+	}
+
+	rate := stats.HitRate()
+	if rate != 75.0 {
+		t.Errorf("expected hit rate 75.0, got %.1f", rate)
+	}
+}
+
+func TestCacheStatsHitRateZeroRequests(t *testing.T) {
+	c := New[string]()
+	stats := c.Stats()
+	if stats.HitRate() != 0 {
+		t.Errorf("expected 0 hit rate for empty cache, got %.1f", stats.HitRate())
+	}
+}
+
+func TestCacheStatsExpiredCountsAsMiss(t *testing.T) {
+	c := New[string]()
+
+	c.Set("key", "val", 30*time.Millisecond)
+
+	// Hit
+	c.Get("key")
+
+	// Wait for expiration — should count as miss
+	time.Sleep(40 * time.Millisecond)
+	c.Get("key")
+
+	stats := c.Stats()
+	if stats.Hits != 1 {
+		t.Errorf("expected 1 hit, got %d", stats.Hits)
+	}
+	if stats.Misses != 1 {
+		t.Errorf("expected 1 miss (expired), got %d", stats.Misses)
+	}
+}
+
+func TestCacheResetStats(t *testing.T) {
+	c := New[int]()
+
+	c.Set("k", 1, 5*time.Second)
+	c.Get("k")
+	c.Get("miss")
+
+	stats := c.Stats()
+	if stats.Hits == 0 || stats.Misses == 0 {
+		t.Fatal("expected non-zero stats before reset")
+	}
+
+	c.ResetStats()
+
+	stats = c.Stats()
+	if stats.Hits != 0 || stats.Misses != 0 {
+		t.Errorf("expected zero stats after reset, got hits=%d misses=%d", stats.Hits, stats.Misses)
+	}
+}

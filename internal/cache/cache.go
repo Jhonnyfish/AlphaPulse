@@ -2,6 +2,7 @@ package cache
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -14,9 +15,27 @@ type Sizer interface {
 	Len() int
 }
 
+// CacheStats holds hit/miss counters for a cache instance.
+type CacheStats struct {
+	Hits   int64
+	Misses int64
+}
+
+// HitRate returns the cache hit rate as a percentage (0.0–100.0).
+// Returns 0 if no requests have been made.
+func (s CacheStats) HitRate() float64 {
+	total := s.Hits + s.Misses
+	if total == 0 {
+		return 0
+	}
+	return float64(s.Hits) / float64(total) * 100.0
+}
+
 type Cache[T any] struct {
 	mu    sync.RWMutex
 	items map[string]entry[T]
+	hits  atomic.Int64
+	misses atomic.Int64
 }
 
 func New[T any]() *Cache[T] {
@@ -42,13 +61,16 @@ func (c *Cache[T]) Get(key string) (T, bool) {
 
 	var zero T
 	if !ok {
+		c.misses.Add(1)
 		return zero, false
 	}
 	if time.Now().After(item.expiresAt) {
+		c.misses.Add(1)
 		c.Delete(key)
 		return zero, false
 	}
 
+	c.hits.Add(1)
 	return item.value, true
 }
 
@@ -74,4 +96,18 @@ func (c *Cache[T]) Len() int {
 	}
 
 	return count
+}
+
+// Stats returns cache hit/miss counters and hit rate.
+func (c *Cache[T]) Stats() CacheStats {
+	return CacheStats{
+		Hits:   c.hits.Load(),
+		Misses: c.misses.Load(),
+	}
+}
+
+// ResetStats zeroes the hit/miss counters.
+func (c *Cache[T]) ResetStats() {
+	c.hits.Store(0)
+	c.misses.Store(0)
 }
