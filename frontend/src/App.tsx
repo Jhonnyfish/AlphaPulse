@@ -7,6 +7,7 @@ import WatchlistPage from '@/pages/WatchlistPage';
 import MarketPage from '@/pages/MarketPage';
 import KlinePage from '@/pages/KlinePage';
 import SectorsPage from '@/pages/SectorsPage';
+import ComparePage from '@/pages/ComparePage';
 import NewsPage from '@/pages/NewsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="/market" element={<MarketPage />} />
         <Route path="/kline" element={<KlinePage />} />
         <Route path="/sectors" element={<SectorsPage />} />
+        <Route path="/compare" element={<ComparePage />} />
         <Route path="/news" element={<NewsPage />} />
       </Route>
       <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />

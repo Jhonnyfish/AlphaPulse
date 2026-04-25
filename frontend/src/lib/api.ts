@@ -159,3 +159,51 @@ export const marketApi = {
   topMovers: (sort?: 'asc' | 'desc', limit?: number) =>
     api.get<TopMover[]>('/market/top-movers', { params: { sort, limit } }),
 };
+
+// --- Compare ---
+export interface SectorMember {
+  name: string;
+  code: string;
+  change_pct: number;
+  pe: number;
+  pb: number;
+  amount: number;
+}
+
+export interface SectorCompareResult {
+  code: string;
+  sector_name: string;
+  board_code: string;
+  top5: SectorMember[];
+  current_rank: number;
+  total_count: number;
+}
+
+export interface BacktestTrade {
+  signal_date: string;
+  sell_date: string;
+  buy_price: number;
+  sell_price: number;
+  holding_days: number;
+  score: number;
+  return_pct: number;
+}
+
+export interface BacktestResult {
+  code: string;
+  name: string;
+  signal_count: number;
+  win_rate: number;
+  avg_return_pct: number;
+  max_drawdown_pct: number;
+  equity_curve: number[];
+  trades: BacktestTrade[];
+  error?: string;
+}
+
+export const compareApi = {
+  sectorCompare: (code: string) =>
+    api.get<SectorCompareResult>('/compare/sector', { params: { code } }),
+  backtestCompare: (codes: string, days?: number) =>
+    api.get<BacktestResult[]>('/compare/backtest', { params: { codes, days } }),
+};

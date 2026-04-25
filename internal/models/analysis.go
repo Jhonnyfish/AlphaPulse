@@ -23,6 +23,24 @@ type StockSector struct {
 	Code string `json:"code"`
 }
 
+type SectorMember struct {
+	Name      string  `json:"name"`
+	Code      string  `json:"code"`
+	ChangePct float64 `json:"change_pct"`
+	PE        float64 `json:"pe"`
+	PB        float64 `json:"pb"`
+	Amount    float64 `json:"amount"`
+}
+
+type SectorCompareResult struct {
+	Code        string         `json:"code"`
+	SectorName  string         `json:"sector_name"`
+	BoardCode   string         `json:"board_code"`
+	Top5        []SectorMember `json:"top5"`
+	CurrentRank int            `json:"current_rank"`
+	TotalCount  int            `json:"total_count"`
+}
+
 // Announcement represents a stock announcement
 type Announcement struct {
 	Title       string    `json:"title"`

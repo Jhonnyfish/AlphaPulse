@@ -9,10 +9,12 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	apperrors "alphapulse/internal/errors"
 	"alphapulse/internal/models"
 )
 
@@ -277,6 +279,63 @@ func (s *EastMoneyService) FetchStockSectors(ctx context.Context, code string) (
 		})
 	}
 	return sectors, nil
+}
+
+func (s *EastMoneyService) FetchSectorMembers(ctx context.Context, boardCode string, pageSize int) ([]models.SectorMember, error) {
+	boardCode = strings.TrimSpace(boardCode)
+	if boardCode == "" {
+		return nil, apperrors.BadRequest("board code is required")
+	}
+	if pageSize <= 0 {
+		pageSize = 200
+	}
+	if pageSize > 500 {
+		pageSize = 500
+	}
+
+	params := url.Values{}
+	params.Set("pn", "1")
+	params.Set("pz", strconv.Itoa(pageSize))
+	params.Set("po", "1")
+	params.Set("np", "1")
+	params.Set("fltt", "2")
+	params.Set("invt", "2")
+	params.Set("fid", "f3")
+	params.Set("fs", "b:"+boardCode)
+	params.Set("fields", "f2,f3,f12,f14,f9,f23,f22")
+
+	var response struct {
+		Data struct {
+			Diff json.RawMessage `json:"diff"`
+		} `json:"data"`
+	}
+	if err := s.getJSON(ctx, "https://push2.eastmoney.com/api/qt/clist/get", params, &response); err != nil {
+		return nil, err
+	}
+
+	items, err := parseSectorMembersDiff(response.Data.Diff)
+	if err != nil {
+		return nil, err
+	}
+
+	members := make([]models.SectorMember, 0, len(items))
+	for _, item := range items {
+		code := strings.TrimSpace(item.Code)
+		name := strings.TrimSpace(item.Name)
+		if code == "" || name == "" {
+			continue
+		}
+		members = append(members, models.SectorMember{
+			Name:      name,
+			Code:      code,
+			ChangePct: item.ChangePct,
+			PE:        item.PE,
+			PB:        item.PB,
+			Amount:    item.Amount,
+		})
+	}
+
+	return members, nil
 }
 
 func (s *EastMoneyService) FetchStockNews(ctx context.Context, code string, limit int) ([]models.NewsItem, error) {
@@ -1006,6 +1065,55 @@ func absInt64(v int64) int64 {
 		return -v
 	}
 	return v
+}
+
+type sectorMemberFields struct {
+	Code      string  `json:"f12"`
+	Name      string  `json:"f14"`
+	ChangePct float64 `json:"f3"`
+	PE        float64 `json:"f9"`
+	PB        float64 `json:"f23"`
+	Amount    float64 `json:"f22"`
+}
+
+func parseSectorMembersDiff(raw json.RawMessage) ([]sectorMemberFields, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return []sectorMemberFields{}, nil
+	}
+
+	var list []sectorMemberFields
+	if err := json.Unmarshal(raw, &list); err == nil {
+		return list, nil
+	}
+
+	var dict map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &dict); err != nil {
+		return nil, err
+	}
+
+	keys := make([]string, 0, len(dict))
+	for key := range dict {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		left, leftErr := strconv.Atoi(keys[i])
+		right, rightErr := strconv.Atoi(keys[j])
+		if leftErr == nil && rightErr == nil {
+			return left < right
+		}
+		return keys[i] < keys[j]
+	})
+
+	list = make([]sectorMemberFields, 0, len(keys))
+	for _, key := range keys {
+		var item sectorMemberFields
+		if err := json.Unmarshal(dict[key], &item); err != nil {
+			return nil, err
+		}
+		list = append(list, item)
+	}
+
+	return list, nil
 }
 
 func (s *EastMoneyService) HealthCheck(ctx context.Context) error {

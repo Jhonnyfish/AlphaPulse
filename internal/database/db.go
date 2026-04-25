@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 
 	"alphapulse/internal/config"
 
@@ -39,13 +42,36 @@ func New(ctx context.Context, cfg *config.Config, migrationPath string) (*pgxpoo
 }
 
 func RunMigrations(ctx context.Context, pool *pgxpool.Pool, migrationPath string) error {
-	migrationSQL, err := os.ReadFile(migrationPath)
+	info, err := os.Stat(migrationPath)
 	if err != nil {
-		return fmt.Errorf("read migration file: %w", err)
+		return fmt.Errorf("stat migration path: %w", err)
 	}
 
-	if _, err := pool.Exec(ctx, string(migrationSQL)); err != nil {
-		return fmt.Errorf("run migrations: %w", err)
+	paths := []string{migrationPath}
+	if info.IsDir() {
+		entries, err := os.ReadDir(migrationPath)
+		if err != nil {
+			return fmt.Errorf("read migration dir: %w", err)
+		}
+
+		paths = make([]string, 0, len(entries))
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+				continue
+			}
+			paths = append(paths, filepath.Join(migrationPath, entry.Name()))
+		}
+		sort.Strings(paths)
+	}
+
+	for _, path := range paths {
+		migrationSQL, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read migration file %s: %w", path, err)
+		}
+		if _, err := pool.Exec(ctx, string(migrationSQL)); err != nil {
+			return fmt.Errorf("run migration %s: %w", path, err)
+		}
 	}
 
 	return nil

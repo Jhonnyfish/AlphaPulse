@@ -62,6 +62,7 @@ func main() {
 	patternScannerHandler := handlers.NewPatternScannerHandler(eastMoneyService, tencentService, db)
 	analyzeHandler := handlers.NewAnalyzeHandler(eastMoneyService, tencentService)
 	trendHandler := handlers.NewTrendHandler(eastMoneyService, tencentService, db)
+	compareHandler := handlers.NewCompareHandler(eastMoneyService, tencentService)
 	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats())
 
 	router := gin.New()
@@ -139,6 +140,11 @@ func main() {
 	trendGroup.Use(authMiddleware)
 	trendGroup.GET("/multi-trend", trendHandler.MultiTrend)
 	trendGroup.GET("/correlation", trendHandler.Correlation)
+
+	compareGroup := api.Group("/compare")
+	compareGroup.Use(authMiddleware)
+	compareGroup.GET("/sector", compareHandler.SectorCompare)
+	compareGroup.GET("/backtest", compareHandler.BacktestCompare)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
