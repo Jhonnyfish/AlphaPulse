@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"alphapulse/internal/models"
+
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
 
 type TencentService struct {
@@ -47,7 +50,10 @@ func (s *TencentService) FetchQuote(ctx context.Context, code string) (models.Qu
 		return models.Quote{}, err
 	}
 
-	quote, err := parseTencentQuote(code, string(body))
+	// Decode GBK → UTF-8
+	decoded, _, _ := transform.Bytes(simplifiedchinese.GBK.NewDecoder(), body)
+
+	quote, err := parseTencentQuote(code, string(decoded))
 	if err != nil {
 		return models.Quote{}, err
 	}
