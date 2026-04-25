@@ -42,13 +42,13 @@
 - [x] GET /api/backtest-compare — 回测对比
 - [x] GET /sector-compare — 板块对比
 
-### 模块 6: 投资组合 (待迁移)
-- [ ] GET /api/portfolio — 持仓列表
-- [ ] POST /api/portfolio — 添加持仓
-- [ ] PUT /api/portfolio/{id} — 更新持仓
-- [ ] DELETE /api/portfolio/{id} — 删除持仓
-- [ ] GET /api/portfolio/analytics — 组合分析
-- [ ] GET /api/portfolio-risk — 风险分析
+### 模块 6: 投资组合 (已完成 ✅)
+- [x] GET /api/portfolio — 持仓列表
+- [x] POST /api/portfolio — 添加持仓
+- [x] PUT /api/portfolio/{id} — 更新持仓
+- [x] DELETE /api/portfolio/{id} — 删除持仓
+- [x] GET /api/portfolio/analytics — 组合分析
+- [x] GET /api/portfolio-risk — 风险分析
 
 ### 模块 7: 交易日志 (待迁移)
 - [ ] GET /api/trading-journal — 交易记录
