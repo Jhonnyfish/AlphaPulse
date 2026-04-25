@@ -11,11 +11,13 @@ import (
 	"time"
 
 	"alphapulse/internal/cache"
+	"alphapulse/internal/logger"
 	"alphapulse/internal/models"
 	"alphapulse/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 )
 
 type MarketHandler struct {
@@ -33,6 +35,7 @@ type MarketHandler struct {
 	trendsCache         *cache.Cache[models.MarketTrends]
 	marketOverviewCache *cache.Cache[models.MarketOverviewResponse]
 	hotConceptsCache    *cache.Cache[[]models.HotConcept]
+	conceptStocksCache  *cache.Cache[[]conceptStockItem]
 	breadthCache        *cache.Cache[models.MarketBreadthDetail]
 	sentimentCache      *cache.Cache[models.MarketSentimentResponse]
 }
@@ -53,9 +56,20 @@ func NewMarketHandler(eastMoney *services.EastMoneyService, tencent *services.Te
 		trendsCache:         cache.New[models.MarketTrends](),
 		marketOverviewCache: cache.New[models.MarketOverviewResponse](),
 		hotConceptsCache:    cache.New[[]models.HotConcept](),
+		conceptStocksCache:  cache.New[[]conceptStockItem](),
 		breadthCache:        cache.New[models.MarketBreadthDetail](),
 		sentimentCache:      cache.New[models.MarketSentimentResponse](),
 	}
+}
+
+type conceptStockItem struct {
+	models.SectorMember
+	InWatchlist bool `json:"in_watchlist"`
+}
+
+type conceptOverlapItem struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
 }
 
 func (h *MarketHandler) Quote(c *gin.Context) {
@@ -788,6 +802,108 @@ func (h *MarketHandler) MarketSentiment(c *gin.Context) {
 
 	h.sentimentCache.Set("sentiment", data, 5*time.Minute)
 	c.JSON(http.StatusOK, data)
+}
+
+// HotConceptStocks handles GET /api/hot-concepts/:code/stocks — fetch constituent stocks for a concept.
+func (h *MarketHandler) HotConceptStocks(c *gin.Context) {
+	conceptCode := strings.TrimSpace(c.Param("code"))
+	if conceptCode == "" {
+		writeError(c, http.StatusBadRequest, "INVALID_CODE", "concept code is required")
+		return
+	}
+
+	cacheKey := "concept_stocks:" + conceptCode
+	if cached, ok := h.conceptStocksCache.Get(cacheKey); ok {
+		c.JSON(http.StatusOK, gin.H{"ok": true, "concept_code": conceptCode, "stocks": cached, "cached": true})
+		return
+	}
+
+	ctx := c.Request.Context()
+	members, err := h.eastMoney.FetchSectorMembers(ctx, conceptCode, 200)
+	if err != nil {
+		logger.L().Warn("fetch concept stocks", zap.String("concept", conceptCode), zap.Error(err))
+		writeError(c, http.StatusInternalServerError, "CONCEPT_STOCKS_FAILED", "failed to fetch concept stocks")
+		return
+	}
+
+	// Get watchlist set from DB
+	wlSet := make(map[string]bool)
+	rows, err := h.db.Query(ctx, "SELECT code FROM watchlist")
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var code string
+			if err := rows.Scan(&code); err == nil {
+				wlSet[code] = true
+			}
+		}
+	}
+
+	stocks := make([]conceptStockItem, 0, len(members))
+	for _, m := range members {
+		stocks = append(stocks, conceptStockItem{
+			SectorMember: m,
+			InWatchlist:  wlSet[m.Code],
+		})
+	}
+
+	h.conceptStocksCache.Set(cacheKey, stocks, 5*time.Minute)
+	c.JSON(http.StatusOK, gin.H{"ok": true, "concept_code": conceptCode, "stocks": stocks, "cached": false})
+}
+
+// WatchlistConceptOverlap handles GET /api/watchlist-concept-overlap — check which watchlist stocks appear in top hot concepts.
+func (h *MarketHandler) WatchlistConceptOverlap(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	// Get hot concepts
+	var concepts []models.HotConcept
+	if cached, ok := h.hotConceptsCache.Get("hot_concepts"); ok {
+		concepts = cached
+	} else {
+		var err error
+		concepts, err = h.eastMoney.FetchHotConcepts(ctx)
+		if err != nil {
+			writeError(c, http.StatusInternalServerError, "HOT_CONCEPTS_FAILED", "failed to fetch hot concepts")
+			return
+		}
+	}
+
+	// Get watchlist codes
+	wlCodes := make(map[string]bool)
+	rows, err := h.db.Query(ctx, "SELECT code FROM watchlist")
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "WATCHLIST_QUERY_FAILED", "failed to query watchlist")
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var code string
+		if err := rows.Scan(&code); err == nil {
+			wlCodes[code] = true
+		}
+	}
+
+	// For each concept, fetch members and check overlap
+	overlap := make(map[string][]conceptOverlapItem)
+	for _, concept := range concepts {
+		if concept.Code == "" {
+			continue
+		}
+		members, err := h.eastMoney.FetchSectorMembers(ctx, concept.Code, 200)
+		if err != nil {
+			continue
+		}
+		for _, m := range members {
+			if wlCodes[m.Code] {
+				overlap[m.Code] = append(overlap[m.Code], conceptOverlapItem{
+					Code: concept.Code,
+					Name: concept.Name,
+				})
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "overlap": overlap})
 }
 
 func (h *MarketHandler) CacheStats() map[string]cache.Sizer {

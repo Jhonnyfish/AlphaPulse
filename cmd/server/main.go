@@ -75,6 +75,8 @@ func main() {
 	investmentPlansHandler := handlers.NewInvestmentPlansHandler(logger.L())
 	watchlistAnalysisHandler := handlers.NewWatchlistAnalysisHandler(db, tencentService, eastMoneyService, analyzeHandler, logger.L())
 	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats())
+	signalHandler := handlers.NewSignalHandler(alpha300Service, tencentService, eastMoneyService, logger.L())
+	reportsHandler := handlers.NewReportsHandler(db, tencentService, eastMoneyService, analyzeHandler, watchlistHandler, logger.L())
 
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -259,6 +261,24 @@ func main() {
 	wlGroupsGroup.PUT("/:id", watchlistAnalysisHandler.UpdateGroup)
 	wlGroupsGroup.DELETE("/:id", watchlistAnalysisHandler.DeleteGroup)
 	wlGroupsGroup.POST("/assign", watchlistAnalysisHandler.AssignStock)
+
+	// Signal system (Module 18)
+	api.GET("/anomalies", authMiddleware, signalHandler.Anomalies)
+	api.GET("/signal-history", authMiddleware, signalHandler.SignalHistory)
+	api.GET("/signal-calendar", authMiddleware, signalHandler.SignalCalendar)
+
+	// Hot concept stocks (Module 12 remaining)
+	marketGroup.GET("/hot-concepts/:code/stocks", marketHandler.HotConceptStocks)
+	api.GET("/watchlist-concept-overlap", authMiddleware, marketHandler.WatchlistConceptOverlap)
+
+	// Reports system (Module 16)
+	router.GET("/reports", reportsHandler.RedirectToAPI)
+	api.GET("/reports", authMiddleware, reportsHandler.ListReports)
+	api.GET("/reports/:filename", authMiddleware, reportsHandler.GetReport)
+	api.GET("/daily-report/latest", authMiddleware, reportsHandler.DailyReportLatest)
+	api.GET("/daily-report/list", authMiddleware, reportsHandler.DailyReportList)
+	api.POST("/daily-report/generate", authMiddleware, reportsHandler.DailyReportGenerate)
+	api.GET("/daily-brief", authMiddleware, reportsHandler.DailyBrief)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
