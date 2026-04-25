@@ -37,10 +37,10 @@
 - [x] GET /api/multi-trend — 多周期趋势
 - [x] GET /api/correlation — 相关性分析
 
-### 模块 5: 股票对比 (待迁移)
-- [ ] GET /compare — 对比页面
-- [ ] GET /api/backtest-compare — 回测对比
-- [ ] GET /sector-compare — 板块对比
+### 模块 5: 股票对比 (已完成 ✅)
+- [x] GET /compare — 对比页面
+- [x] GET /api/backtest-compare — 回测对比
+- [x] GET /sector-compare — 板块对比
 
 ### 模块 6: 投资组合 (待迁移)
 - [ ] GET /api/portfolio — 持仓列表
