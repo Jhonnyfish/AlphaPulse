@@ -20,13 +20,13 @@
 - [x] POST /api/watchlist/remove — 删除自选股
 - [x] POST /api/watchlist/sync — 同步自选股
 
-### 模块 3: 仪表盘 (部分完成 ⚠️)
+### 模块 3: 仪表盘 (已完成 ✅)
 - [x] GET /api/dashboard-summary — 仪表盘摘要
-- [ ] GET /api/market-overview — 市场概览（大盘指数）
+- [x] GET /api/market-overview — 市场概览（大盘指数）
 - [x] GET /api/market-session — 市场状态（开盘/收盘/午休）
 - [x] GET /api/market-trends — 市场趋势
-- [ ] GET /api/market-breadth — 市场宽度（涨跌家数）
-- [ ] GET /api/market-sentiment — 市场情绪
+- [x] GET /api/market-breadth — 市场宽度（涨跌家数）
+- [x] GET /api/market-sentiment — 市场情绪
 
 ### 模块 4: 选股分析 (待迁移)
 - [ ] GET /api/candidates — AI 候选股
