@@ -73,6 +73,7 @@ func main() {
 	fundFlowHandler := handlers.NewFundFlowHandler(eastMoneyService, logger.L())
 	sectorRotationHandler := handlers.NewSectorRotationHandler(eastMoneyService, db, logger.L())
 	investmentPlansHandler := handlers.NewInvestmentPlansHandler(logger.L())
+	watchlistAnalysisHandler := handlers.NewWatchlistAnalysisHandler(db, tencentService, eastMoneyService, analyzeHandler, logger.L())
 	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats())
 
 	router := gin.New()
@@ -237,6 +238,27 @@ func main() {
 	api.GET("/activity-log", authMiddleware, systemHandler.ActivityLog)
 	api.GET("/slow-queries", authMiddleware, systemHandler.SlowQueries)
 	api.GET("/performance-stats", authMiddleware, systemHandler.PerformanceStats)
+
+	// Watchlist analysis (Module 19)
+	wlAnalysisGroup := api.Group("/watchlist-analysis")
+	wlAnalysisGroup.Use(authMiddleware)
+	wlAnalysisGroup.GET("/heatmap", watchlistAnalysisHandler.Heatmap)
+	wlAnalysisGroup.GET("/sectors", watchlistAnalysisHandler.Sectors)
+	wlAnalysisGroup.GET("/ranking", watchlistAnalysisHandler.Ranking)
+
+	// Compat routes matching Python paths
+	api.GET("/watchlist-heatmap", authMiddleware, watchlistAnalysisHandler.Heatmap)
+	api.GET("/watchlist-sectors", authMiddleware, watchlistAnalysisHandler.Sectors)
+	api.GET("/watchlist-ranking", authMiddleware, watchlistAnalysisHandler.Ranking)
+
+	// Watchlist groups CRUD
+	wlGroupsGroup := api.Group("/watchlist-groups")
+	wlGroupsGroup.Use(authMiddleware)
+	wlGroupsGroup.GET("", watchlistAnalysisHandler.GetGroups)
+	wlGroupsGroup.POST("", watchlistAnalysisHandler.CreateGroup)
+	wlGroupsGroup.PUT("/:id", watchlistAnalysisHandler.UpdateGroup)
+	wlGroupsGroup.DELETE("/:id", watchlistAnalysisHandler.DeleteGroup)
+	wlGroupsGroup.POST("/assign", watchlistAnalysisHandler.AssignStock)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
