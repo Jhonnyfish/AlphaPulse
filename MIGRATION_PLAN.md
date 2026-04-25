@@ -29,7 +29,7 @@
 - [x] GET /api/market-sentiment — 市场情绪
 
 ### 模块 4: 选股分析 (待迁移)
-- [ ] GET /api/candidates — AI 候选股
+- [x] GET /api/candidates — AI 候选股
 - [ ] GET /api/screener — 选股器
 - [ ] GET /analyze — 个股分析详情
 - [ ] GET /api/score-history/{code} — 评分历史

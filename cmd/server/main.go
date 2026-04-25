@@ -52,10 +52,11 @@ func main() {
 
 	eastMoneyService := services.NewEastMoneyService(cfg.HTTPTimeout)
 	tencentService := services.NewTencentService(cfg.HTTPTimeout)
-
+	alpha300Service := services.NewAlpha300Service(cfg.HTTPTimeout)
 	authHandler := handlers.NewAuthHandler(db, cfg)
 	watchlistHandler := handlers.NewWatchlistHandler(db)
 	marketHandler := handlers.NewMarketHandler(eastMoneyService, tencentService, db)
+	candidatesHandler := handlers.NewCandidatesHandler(alpha300Service, db)
 	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats())
 
 	router := gin.New()
@@ -108,6 +109,10 @@ func main() {
 	marketGroup.GET("/hot-concepts", marketHandler.HotConcepts)
 	marketGroup.GET("/breadth", marketHandler.MarketBreadth)
 	marketGroup.GET("/sentiment", marketHandler.MarketSentiment)
+
+	candidatesGroup := api.Group("/candidates")
+	candidatesGroup.Use(authMiddleware)
+	candidatesGroup.GET("", candidatesHandler.Candidates)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
