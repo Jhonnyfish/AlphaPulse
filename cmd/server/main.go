@@ -57,6 +57,8 @@ func main() {
 	watchlistHandler := handlers.NewWatchlistHandler(db)
 	marketHandler := handlers.NewMarketHandler(eastMoneyService, tencentService, db)
 	candidatesHandler := handlers.NewCandidatesHandler(alpha300Service, db)
+	screenerHandler := handlers.NewScreenerHandler(alpha300Service, db)
+	scoreHistoryHandler := handlers.NewScoreHistoryHandler(db)
 	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats())
 
 	router := gin.New()
@@ -113,6 +115,14 @@ func main() {
 	candidatesGroup := api.Group("/candidates")
 	candidatesGroup.Use(authMiddleware)
 	candidatesGroup.GET("", candidatesHandler.Candidates)
+
+	screenerGroup := api.Group("/screener")
+	screenerGroup.Use(authMiddleware)
+	screenerGroup.GET("", screenerHandler.Screener)
+
+	scoreHistoryGroup := api.Group("/score-history")
+	scoreHistoryGroup.Use(authMiddleware)
+	scoreHistoryGroup.GET("/:code", scoreHistoryHandler.GetHistory)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
