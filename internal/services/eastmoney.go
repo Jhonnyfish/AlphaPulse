@@ -193,6 +193,66 @@ func (s *EastMoneyService) FetchNews(ctx context.Context, limit int) ([]models.N
 	return items, nil
 }
 
+// FetchTopMovers fetches top gaining and losing A-share stocks.
+// sort: "asc" for top losers, "desc" for top gainers.
+func (s *EastMoneyService) FetchTopMovers(ctx context.Context, sort string, limit int) ([]models.TopMover, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+
+	params := url.Values{}
+	params.Set("pn", "1")
+	params.Set("pz", strconv.Itoa(limit))
+	params.Set("po", "1") // descending
+	params.Set("np", "1")
+	params.Set("fltt", "2")
+	params.Set("invt", "2")
+	params.Set("fid", "f3") // sort by change percent
+	if sort == "asc" {
+		params.Set("po", "0") // ascending for losers
+	}
+	params.Set("fs", "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048") // A-share stocks
+	params.Set("fields", "f2,f3,f4,f5,f6,f7,f12,f14") // price, change%, change, volume, amount, amplitude, code, name
+
+	var response struct {
+		Data struct {
+			Diff []struct {
+				Price         float64 `json:"f2"`
+				ChangePercent float64 `json:"f3"`
+				Change        float64 `json:"f4"`
+				Volume        float64 `json:"f5"`
+				Amount        float64 `json:"f6"`
+				Amplitude     float64 `json:"f7"`
+				Code          string  `json:"f12"`
+				Name          string  `json:"f14"`
+			} `json:"diff"`
+		} `json:"data"`
+	}
+	if err := s.getJSON(ctx, "https://push2.eastmoney.com/api/qt/clist/get", params, &response); err != nil {
+		return nil, err
+	}
+
+	movers := make([]models.TopMover, 0, len(response.Data.Diff))
+	for _, item := range response.Data.Diff {
+		m := models.TopMover{
+			Code:          item.Code,
+			Name:          item.Name,
+			Price:         item.Price,
+			Change:        item.Change,
+			ChangePercent: item.ChangePercent,
+			Volume:        item.Volume,
+			Amount:        item.Amount,
+			Amplitude:     item.Amplitude,
+		}
+		if err := m.Validate(); err != nil {
+			continue
+		}
+		movers = append(movers, m)
+	}
+
+	return movers, nil
+}
+
 // SearchSuggestionResult holds search results from the suggest API.
 type SearchSuggestionResult struct {
 	Code string `json:"Code"`

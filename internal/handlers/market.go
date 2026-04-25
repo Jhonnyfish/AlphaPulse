@@ -15,26 +15,28 @@ import (
 )
 
 type MarketHandler struct {
-	eastMoney     *services.EastMoneyService
-	tencent       *services.TencentService
-	quoteCache    *cache.Cache[models.Quote]
-	klineCache    *cache.Cache[[]models.KlinePoint]
-	sectorsCache  *cache.Cache[[]models.Sector]
-	overviewCache *cache.Cache[models.MarketOverview]
-	newsCache     *cache.Cache[[]models.NewsItem]
-	searchCache   *cache.Cache[[]models.SearchSuggestion]
+	eastMoney      *services.EastMoneyService
+	tencent        *services.TencentService
+	quoteCache     *cache.Cache[models.Quote]
+	klineCache     *cache.Cache[[]models.KlinePoint]
+	sectorsCache   *cache.Cache[[]models.Sector]
+	overviewCache  *cache.Cache[models.MarketOverview]
+	newsCache      *cache.Cache[[]models.NewsItem]
+	searchCache    *cache.Cache[[]models.SearchSuggestion]
+	topMoversCache *cache.Cache[[]models.TopMover]
 }
 
 func NewMarketHandler(eastMoney *services.EastMoneyService, tencent *services.TencentService) *MarketHandler {
 	return &MarketHandler{
-		eastMoney:     eastMoney,
-		tencent:       tencent,
-		quoteCache:    cache.New[models.Quote](),
-		klineCache:    cache.New[[]models.KlinePoint](),
-		sectorsCache:  cache.New[[]models.Sector](),
-		overviewCache: cache.New[models.MarketOverview](),
-		newsCache:     cache.New[[]models.NewsItem](),
-		searchCache:   cache.New[[]models.SearchSuggestion](),
+		eastMoney:      eastMoney,
+		tencent:        tencent,
+		quoteCache:     cache.New[models.Quote](),
+		klineCache:     cache.New[[]models.KlinePoint](),
+		sectorsCache:   cache.New[[]models.Sector](),
+		overviewCache:  cache.New[models.MarketOverview](),
+		newsCache:      cache.New[[]models.NewsItem](),
+		searchCache:    cache.New[[]models.SearchSuggestion](),
+		topMoversCache: cache.New[[]models.TopMover](),
 	}
 }
 
@@ -187,13 +189,46 @@ func (h *MarketHandler) Search(c *gin.Context) {
 	c.JSON(http.StatusOK, suggestions)
 }
 
+func (h *MarketHandler) TopMovers(c *gin.Context) {
+	sortOrder := strings.TrimSpace(c.DefaultQuery("sort", "desc")) // desc=gainers, asc=losers
+	if sortOrder != "asc" && sortOrder != "desc" {
+		sortOrder = "desc"
+	}
+
+	limit := 20
+	if rawLimit := strings.TrimSpace(c.Query("limit")); rawLimit != "" {
+		parsedLimit, err := strconv.Atoi(rawLimit)
+		if err != nil || parsedLimit < 1 {
+			writeError(c, http.StatusBadRequest, "INVALID_LIMIT", "limit must be a positive integer")
+			return
+		}
+		limit = parsedLimit
+	}
+
+	cacheKey := fmt.Sprintf("topmovers:%s:%d", sortOrder, limit)
+	if cached, ok := h.topMoversCache.Get(cacheKey); ok {
+		c.JSON(http.StatusOK, cached)
+		return
+	}
+
+	movers, err := h.eastMoney.FetchTopMovers(c.Request.Context(), sortOrder, limit)
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "TOP_MOVERS_FETCH_FAILED", "failed to fetch top movers")
+		return
+	}
+	h.topMoversCache.Set(cacheKey, movers, 30*time.Second)
+
+	c.JSON(http.StatusOK, movers)
+}
+
 func (h *MarketHandler) CacheStats() map[string]cache.Sizer {
 	return map[string]cache.Sizer{
-		"quote":    h.quoteCache,
-		"kline":    h.klineCache,
-		"sectors":  h.sectorsCache,
-		"overview": h.overviewCache,
-		"news":     h.newsCache,
-		"search":   h.searchCache,
+		"quote":      h.quoteCache,
+		"kline":      h.klineCache,
+		"sectors":    h.sectorsCache,
+		"overview":   h.overviewCache,
+		"news":       h.newsCache,
+		"search":     h.searchCache,
+		"top_movers": h.topMoversCache,
 	}
 }

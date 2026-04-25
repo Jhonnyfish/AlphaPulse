@@ -113,3 +113,22 @@ func (o OverviewIndex) Validate() error {
 	}
 	return nil
 }
+
+// Validate checks that top mover data is within reasonable bounds.
+func (t TopMover) Validate() error {
+	t.Code = strings.TrimSpace(t.Code)
+	t.Name = strings.TrimSpace(t.Name)
+	if t.Code == "" {
+		return fmt.Errorf("top mover validation: code is empty")
+	}
+	if t.Name == "" {
+		return fmt.Errorf("top mover validation: name is empty for code %s", t.Code)
+	}
+	if t.Price < 0 {
+		return fmt.Errorf("top mover validation: price %.4f is negative for %s", t.Price, t.Code)
+	}
+	if math.Abs(t.ChangePercent) > 22.0 {
+		return fmt.Errorf("top mover validation: change_percent %.2f%% exceeds ±22%% for %s", t.ChangePercent, t.Code)
+	}
+	return nil
+}

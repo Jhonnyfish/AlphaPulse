@@ -52,6 +52,17 @@ type MarketOverview struct {
 	UpdatedAt    time.Time       `json:"updated_at"`
 }
 
+type TopMover struct {
+	Code          string  `json:"code"`
+	Name          string  `json:"name"`
+	Price         float64 `json:"price"`
+	Change        float64 `json:"change"`
+	ChangePercent float64 `json:"change_percent"`
+	Volume        float64 `json:"volume"`   // 成交量（手）
+	Amount        float64 `json:"amount"`   // 成交额（元）
+	Amplitude     float64 `json:"amplitude"` // 振幅%
+}
+
 type NewsItem struct {
 	Code        string    `json:"code,omitempty"`
 	Title       string    `json:"title"`

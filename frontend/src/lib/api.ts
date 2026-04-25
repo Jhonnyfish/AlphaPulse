@@ -136,6 +136,17 @@ export interface SearchSuggestion {
   name: string;
 }
 
+export interface TopMover {
+  code: string;
+  name: string;
+  price: number;
+  change: number;
+  change_percent: number;
+  volume: number;
+  amount: number;
+  amplitude: number;
+}
+
 export const marketApi = {
   quote: (code: string) => api.get<Quote>('/market/quote', { params: { code } }),
   kline: (code: string, days?: number) =>
@@ -145,4 +156,6 @@ export const marketApi = {
   news: () => api.get<NewsItem[]>('/market/news'),
   search: (q: string) =>
     api.get<SearchSuggestion[]>('/market/search', { params: { q } }),
+  topMovers: (sort?: 'asc' | 'desc', limit?: number) =>
+    api.get<TopMover[]>('/market/top-movers', { params: { sort, limit } }),
 };

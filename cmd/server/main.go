@@ -101,6 +101,7 @@ func main() {
 	marketGroup.GET("/overview", marketHandler.Overview)
 	marketGroup.GET("/news", marketHandler.News)
 	marketGroup.GET("/search", marketHandler.Search)
+	marketGroup.GET("/top-movers", marketHandler.TopMovers)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,

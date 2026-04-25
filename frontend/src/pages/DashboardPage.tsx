@@ -5,6 +5,7 @@ import {
   watchlistApi,
   type MarketOverview,
   type Quote,
+  type TopMover,
 } from '@/lib/api';
 import {
   TrendingUp,
@@ -23,6 +24,8 @@ export default function DashboardPage() {
   const [watchlistQuotes, setWatchlistQuotes] = useState<
     { code: string; quote: Quote | null }[]
   >([]);
+  const [topGainers, setTopGainers] = useState<TopMover[]>([]);
+  const [topLosers, setTopLosers] = useState<TopMover[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -33,9 +36,11 @@ export default function DashboardPage() {
     setLoading(true);
     setError('');
     try {
-      const [overviewRes, watchlistRes] = await Promise.allSettled([
+      const [overviewRes, watchlistRes, gainersRes, losersRes] = await Promise.allSettled([
         marketApi.overview(),
         watchlistApi.list(),
+        marketApi.topMovers('desc', 10),
+        marketApi.topMovers('asc', 10),
       ]);
 
       if (overviewRes.status === 'fulfilled') {
@@ -61,6 +66,12 @@ export default function DashboardPage() {
               .filter(Boolean) as { code: string; quote: Quote | null }[]
           );
         }
+      }
+      if (gainersRes.status === 'fulfilled') {
+        setTopGainers(gainersRes.value.data);
+      }
+      if (losersRes.status === 'fulfilled') {
+        setTopLosers(losersRes.value.data);
       }
       setLastUpdated(new Date());
     } catch {
@@ -249,6 +260,75 @@ export default function DashboardPage() {
             <span style={{ color: 'var(--color-text-muted)' }}>
               平盘 {overview?.flat_count ?? 0}
             </span>
+          </div>
+        </div>
+      )}
+
+      {/* Top Movers: Gainers & Losers */}
+      {(topGainers.length > 0 || topLosers.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
+          {/* Gainers */}
+          <div
+            className="rounded-xl border p-4"
+            style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp className="w-4 h-4" style={{ color: 'var(--color-danger)' }} />
+              <span className="text-sm font-medium">涨幅榜</span>
+            </div>
+            <div className="space-y-1">
+              {topGainers.slice(0, 8).map((m) => (
+                <Link
+                  key={m.code}
+                  to={`/kline?code=${m.code}`}
+                  className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-mono" style={{ color: 'var(--color-accent)' }}>
+                      {m.code}
+                    </span>
+                    <span className="text-sm truncate" style={{ color: 'var(--color-text-secondary)' }}>
+                      {m.name}
+                    </span>
+                  </div>
+                  <span className="font-mono text-sm font-medium flex-shrink-0" style={{ color: 'var(--color-danger)' }}>
+                    +{m.change_percent.toFixed(2)}%
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* Losers */}
+          <div
+            className="rounded-xl border p-4"
+            style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingDown className="w-4 h-4" style={{ color: 'var(--color-success)' }} />
+              <span className="text-sm font-medium">跌幅榜</span>
+            </div>
+            <div className="space-y-1">
+              {topLosers.slice(0, 8).map((m) => (
+                <Link
+                  key={m.code}
+                  to={`/kline?code=${m.code}`}
+                  className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-mono" style={{ color: 'var(--color-accent)' }}>
+                      {m.code}
+                    </span>
+                    <span className="text-sm truncate" style={{ color: 'var(--color-text-secondary)' }}>
+                      {m.name}
+                    </span>
+                  </div>
+                  <span className="font-mono text-sm font-medium flex-shrink-0" style={{ color: 'var(--color-success)' }}>
+                    {m.change_percent.toFixed(2)}%
+                  </span>
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
       )}

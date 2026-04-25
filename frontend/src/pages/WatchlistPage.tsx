@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { watchlistApi, marketApi, type WatchlistItem, type Quote, type SearchSuggestion } from '@/lib/api';
-import { Trash2, RefreshCw } from 'lucide-react';
+import { Trash2, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import StockSearch from '@/components/StockSearch';
 
@@ -14,6 +14,8 @@ export default function WatchlistPage() {
   const [error, setError] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [sortField, setSortField] = useState<'code' | 'name' | 'price' | 'change_percent' | 'change'>('code');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
 
   const fetchWatchlist = useCallback(async () => {
@@ -105,6 +107,67 @@ export default function WatchlistPage() {
   const changeColor = (n: number) =>
     n > 0 ? 'var(--color-danger)' : n < 0 ? 'var(--color-success)' : 'var(--color-text-secondary)';
 
+  // Sort toggle handler
+  const toggleSort = (field: typeof sortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      // Default: desc for numeric fields, asc for text fields
+      setSortDir(field === 'code' || field === 'name' ? 'asc' : 'desc');
+    }
+  };
+
+  // Compute sorted items
+  const sortedItems = [...items].sort((a, b) => {
+    const qa = quotes.get(a.code);
+    const qb = quotes.get(b.code);
+    let va: number | string, vb: number | string;
+
+    switch (sortField) {
+      case 'code':
+        va = a.code; vb = b.code;
+        break;
+      case 'name':
+        va = qa?.name || a.name || ''; vb = qb?.name || b.name || '';
+        break;
+      case 'price':
+        va = qa?.price ?? -Infinity; vb = qb?.price ?? -Infinity;
+        break;
+      case 'change_percent':
+        va = qa?.change_percent ?? -Infinity; vb = qb?.change_percent ?? -Infinity;
+        break;
+      case 'change':
+        va = qa?.change ?? -Infinity; vb = qb?.change ?? -Infinity;
+        break;
+    }
+
+    if (typeof va === 'string' && typeof vb === 'string') {
+      return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+    }
+    return sortDir === 'asc' ? (va as number) - (vb as number) : (vb as number) - (va as number);
+  });
+
+  // Sort indicator component
+  const SortIcon = ({ field }: { field: typeof sortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 opacity-30" />;
+    return sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />;
+  };
+
+  // Table header cell with sort
+  const Th = ({ field, label, align = 'left' }: { field: typeof sortField; label: string; align?: 'left' | 'right' }) => (
+    <th
+      className={`px-4 py-3 font-medium cursor-pointer select-none hover:text-[var(--color-text-primary)] transition-colors ${align === 'right' ? 'text-right' : 'text-left'}`}
+      style={{ color: sortField === field ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
+      onClick={() => toggleSort(field)}
+    >
+      <span className={`inline-flex items-center gap-1 ${align === 'right' ? 'justify-end' : ''}`}>
+        {label}
+        <SortIcon field={field} />
+      </span>
+    </th>
+  );
+
   return (
     <div>
       {/* Header */}
@@ -173,22 +236,17 @@ export default function WatchlistPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ background: 'var(--color-bg-secondary)' }}>
-                  <th className="text-left px-4 py-3 font-medium"
-                    style={{ color: 'var(--color-text-secondary)' }}>代码</th>
-                  <th className="text-left px-4 py-3 font-medium"
-                    style={{ color: 'var(--color-text-secondary)' }}>名称</th>
-                  <th className="text-right px-4 py-3 font-medium"
-                    style={{ color: 'var(--color-text-secondary)' }}>最新价</th>
-                  <th className="text-right px-4 py-3 font-medium"
-                    style={{ color: 'var(--color-text-secondary)' }}>涨跌幅</th>
-                  <th className="text-right px-4 py-3 font-medium"
-                    style={{ color: 'var(--color-text-secondary)' }}>涨跌额</th>
+                  <Th field="code" label="代码" />
+                  <Th field="name" label="名称" />
+                  <Th field="price" label="最新价" align="right" />
+                  <Th field="change_percent" label="涨跌幅" align="right" />
+                  <Th field="change" label="涨跌额" align="right" />
                   <th className="text-right px-4 py-3 font-medium"
                     style={{ color: 'var(--color-text-secondary)' }}>操作</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => {
+                {sortedItems.map((item) => {
                   const q = quotes.get(item.code);
                   const pct = q?.change_percent ?? 0;
                   return (
@@ -230,7 +288,7 @@ export default function WatchlistPage() {
 
           {/* Mobile card list */}
           <div className="sm:hidden space-y-2">
-            {items.map((item) => {
+            {sortedItems.map((item) => {
               const q = quotes.get(item.code);
               const pct = q?.change_percent ?? 0;
               return (
