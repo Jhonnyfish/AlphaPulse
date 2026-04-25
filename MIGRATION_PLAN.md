@@ -58,13 +58,13 @@
 - [x] GET /api/trading-journal/calendar — 交易日历
 - [x] GET /api/trade-strategy-eval — 策略评估
 
-### 模块 8: 自定义策略 (待迁移)
-- [ ] GET /api/strategies — 策略列表
-- [ ] POST /api/strategies — 创建策略
-- [ ] PUT /api/strategies/{id} — 更新策略
-- [ ] DELETE /api/strategies/{id} — 删除策略
-- [ ] POST /api/strategies/{id}/activate — 激活策略
-- [ ] POST /api/strategies/{id}/deactivate — 停用策略
+### 模块 8: 自定义策略 (已完成 ✅)
+- [x] GET /api/strategies — 策略列表
+- [x] POST /api/strategies — 创建策略
+- [x] PUT /api/strategies/{id} — 更新策略
+- [x] DELETE /api/strategies/{id} — 删除策略
+- [x] POST /api/strategies/{id}/activate — 激活策略
+- [x] POST /api/strategies/{id}/deactivate — 停用策略
 - [ ] GET /api/candidates?strategy_id=xxx — 策略选股
 
 ### 模块 9: 自定义预警 (待迁移)

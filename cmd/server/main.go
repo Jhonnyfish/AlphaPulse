@@ -66,6 +66,7 @@ func main() {
 	portfolioHandler := handlers.NewPortfolioHandler(tencentService, eastMoneyService, db)
 	tradingJournalHandler := handlers.NewTradingJournalHandler(db)
 	strategiesHandler := handlers.NewStrategiesHandler(db)
+	customAlertsHandler := handlers.NewCustomAlertsHandler(db, tencentService)
 	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats())
 
 	router := gin.New()
@@ -177,6 +178,13 @@ func main() {
 	strategiesGroup.DELETE("/:id", strategiesHandler.Delete)
 	strategiesGroup.POST("/:id/activate", strategiesHandler.Activate)
 	strategiesGroup.POST("/:id/deactivate", strategiesHandler.Deactivate)
+
+	customAlertsGroup := api.Group("/custom-alerts")
+	customAlertsGroup.Use(authMiddleware)
+	customAlertsGroup.GET("", customAlertsHandler.List)
+	customAlertsGroup.POST("", customAlertsHandler.Create)
+	customAlertsGroup.DELETE("/:id", customAlertsHandler.Delete)
+	customAlertsGroup.GET("/check", customAlertsHandler.Check)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
