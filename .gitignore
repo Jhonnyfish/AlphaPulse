@@ -13,3 +13,4 @@ server
 
 # OS
 .DS_Store
+bin/
