@@ -101,14 +101,14 @@
 - [x] GET /api/sector-rotation — 板块轮动
 - [x] GET /api/sector-rotation-history — 轮动历史
 
-### 模块 16: 报告系统 (待迁移)
-- [ ] GET /reports — 报告列表
-- [ ] GET /reports/api — 报告 API
-- [ ] GET /report/{filename} — 查看报告
-- [ ] POST /api/daily-report/generate — 生成日报
-- [ ] GET /api/daily-report/latest — 最新日报
-- [ ] GET /api/daily-report/list — 日报列表
-- [ ] GET /api/daily-brief — 每日简报
+### 模块 16: 报告系统 (已完成 ✅)
+- [x] GET /reports — 报告列表页面(重定向到API)
+- [x] GET /api/reports — 报告列表 API
+- [x] GET /api/reports/:filename — 查看报告
+- [x] POST /api/daily-report/generate — 生成日报
+- [x] GET /api/daily-report/latest — 最新日报
+- [x] GET /api/daily-report/list — 日报列表
+- [x] GET /api/daily-brief — 每日简报
 
 ### 模块 17: 投资计划 (已完成 ✅)
 - [x] GET /api/investment-plans — 计划列表
