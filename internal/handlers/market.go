@@ -72,6 +72,15 @@ type conceptOverlapItem struct {
 	Name string `json:"name"`
 }
 
+// @Summary      获取股票实时行情
+// @Description  根据股票代码获取实时行情数据
+// @Tags         market
+// @Produce      json
+// @Security     BearerAuth
+// @Param        code query string true "股票代码"
+// @Success      200 {object} models.Quote
+// @Failure      400 {object} map[string]interface{}
+// @Router       /api/market/quote [get]
 func (h *MarketHandler) Quote(c *gin.Context) {
 	code := strings.TrimSpace(c.Query("code"))
 	if code == "" {
@@ -98,6 +107,16 @@ func (h *MarketHandler) Quote(c *gin.Context) {
 	c.JSON(http.StatusOK, quote)
 }
 
+// @Summary      获取K线数据
+// @Description  根据股票代码获取日K线历史数据
+// @Tags         market
+// @Produce      json
+// @Security     BearerAuth
+// @Param        code query string true "股票代码"
+// @Param        days query int false "天数" default(60)
+// @Success      200 {array} models.KlinePoint
+// @Failure      400 {object} map[string]interface{}
+// @Router       /api/market/kline [get]
 func (h *MarketHandler) Kline(c *gin.Context) {
 	code := strings.TrimSpace(c.Query("code"))
 	if code == "" {
@@ -135,6 +154,13 @@ func (h *MarketHandler) Kline(c *gin.Context) {
 	c.JSON(http.StatusOK, points)
 }
 
+// @Summary      获取板块数据
+// @Description  获取所有板块行情及涨跌排行
+// @Tags         market
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {array} models.Sector
+// @Router       /api/market/sectors [get]
 func (h *MarketHandler) Sectors(c *gin.Context) {
 	if cached, ok := h.sectorsCache.Get("sectors"); ok {
 		c.JSON(http.StatusOK, cached)
@@ -151,6 +177,13 @@ func (h *MarketHandler) Sectors(c *gin.Context) {
 	c.JSON(http.StatusOK, sectors)
 }
 
+// @Summary      市场概览（旧版）
+// @Description  获取市场基础概览数据
+// @Tags         market
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} models.MarketOverview
+// @Router       /api/market/overview [get]
 func (h *MarketHandler) Overview(c *gin.Context) {
 	if cached, ok := h.overviewCache.Get("overview"); ok {
 		c.JSON(http.StatusOK, cached)
@@ -167,6 +200,14 @@ func (h *MarketHandler) Overview(c *gin.Context) {
 	c.JSON(http.StatusOK, overview)
 }
 
+// @Summary      获取市场新闻
+// @Description  获取最新的市场新闻资讯
+// @Tags         market
+// @Produce      json
+// @Security     BearerAuth
+// @Param        limit query int false "返回条数" default(20)
+// @Success      200 {array} models.NewsItem
+// @Router       /api/market/news [get]
 func (h *MarketHandler) News(c *gin.Context) {
 	limit := 20
 	if rawLimit := strings.TrimSpace(c.Query("limit")); rawLimit != "" {
@@ -194,6 +235,16 @@ func (h *MarketHandler) News(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
+// @Summary      获取个股公告
+// @Description  根据股票代码获取相关公告列表
+// @Tags         market
+// @Produce      json
+// @Security     BearerAuth
+// @Param        code query string true "股票代码"
+// @Param        limit query int false "返回条数" default(10)
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]interface{}
+// @Router       /api/announcements [get]
 func (h *MarketHandler) Announcements(c *gin.Context) {
 	code := strings.TrimSpace(c.Query("code"))
 	if code == "" {
@@ -241,6 +292,15 @@ func (h *MarketHandler) Announcements(c *gin.Context) {
 	})
 }
 
+// @Summary      搜索股票
+// @Description  根据关键词搜索股票，返回匹配的股票列表
+// @Tags         market
+// @Produce      json
+// @Security     BearerAuth
+// @Param        q query string true "搜索关键词"
+// @Success      200 {array} models.SearchSuggestion
+// @Failure      400 {object} map[string]interface{}
+// @Router       /api/market/search [get]
 func (h *MarketHandler) Search(c *gin.Context) {
 	query := strings.TrimSpace(c.Query("q"))
 	if query == "" {
@@ -268,6 +328,15 @@ func (h *MarketHandler) Search(c *gin.Context) {
 	c.JSON(http.StatusOK, suggestions)
 }
 
+// @Summary      获取涨跌幅排行
+// @Description  获取当日涨幅或跌幅前N只股票
+// @Tags         market
+// @Produce      json
+// @Security     BearerAuth
+// @Param        sort query string false "排序方式: desc=涨幅 asc=跌幅" default(desc)
+// @Param        limit query int false "返回条数" default(20)
+// @Success      200 {array} models.TopMover
+// @Router       /api/market/top-movers [get]
 func (h *MarketHandler) TopMovers(c *gin.Context) {
 	sortOrder := strings.TrimSpace(c.DefaultQuery("sort", "desc")) // desc=gainers, asc=losers
 	if sortOrder != "asc" && sortOrder != "desc" {
@@ -312,6 +381,13 @@ func chinaTZ() *time.Location {
 }
 
 // Session returns the current market session status.
+// @Summary      获取市场交易时段
+// @Description  获取当前市场交易时段状态，包括盘前、交易中、午休、已收盘等
+// @Tags         market
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} map[string]interface{}
+// @Router       /api/market/session [get]
 // Pure time-based logic — no external API calls needed.
 func (h *MarketHandler) Session(c *gin.Context) {
 	now := time.Now().In(chinaTZ())
@@ -418,7 +494,13 @@ func round2Neg(v float64) float64 {
 	return float64(int(v*100+0.5)) / 100
 }
 
-// Trends returns multi-timeframe performance comparison for indices and watchlist stocks.
+// @Summary      多周期趋势对比
+// @Description  获取指数和自选股的多周期涨跌幅对比及组合收益曲线
+// @Tags         market
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} models.MarketTrends
+// @Router       /api/market/trends [get]
 func (h *MarketHandler) Trends(c *gin.Context) {
 	if cached, ok := h.trendsCache.Get("trends:all"); ok {
 		c.JSON(http.StatusOK, cached)
@@ -665,8 +747,13 @@ func portfolioChange(stocks []models.TrendStock, period int) *float64 {
 	return &r
 }
 
-// MarketOverview handles GET /api/market-overview
-// Returns major index quotes (from Tencent) + market breadth (from EastMoney).
+// @Summary      市场全景
+// @Description  获取主要指数实时行情与市场涨跌家数统计
+// @Tags         market
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} models.MarketOverviewResponse
+// @Router       /api/market/market-overview [get]
 func (h *MarketHandler) MarketOverview(c *gin.Context) {
 	if cached, ok := h.marketOverviewCache.Get("market_overview"); ok {
 		c.JSON(http.StatusOK, cached)
@@ -731,8 +818,13 @@ func (h *MarketHandler) MarketOverview(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// HotConcepts handles GET /api/hot-concepts
-// Returns top 30 hot concept sectors from EastMoney.
+// @Summary      获取热门概念板块
+// @Description  获取当日最热门的概念板块排行（东方财富数据）
+// @Tags         market
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} map[string]interface{}
+// @Router       /api/market/hot-concepts [get]
 func (h *MarketHandler) HotConcepts(c *gin.Context) {
 	if cached, ok := h.hotConceptsCache.Get("hot_concepts"); ok {
 		c.JSON(http.StatusOK, gin.H{"ok": true, "concepts": cached})
@@ -752,8 +844,13 @@ func (h *MarketHandler) HotConcepts(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "concepts": concepts})
 }
 
-// MarketBreadth handles GET /api/market-breadth
-// Returns advance/decline counts, limit-up/down, AD ratio, breadth thrust, volume stats.
+// @Summary      市场宽度
+// @Description  获取涨跌家数、涨停跌停、AD比率、成交量等市场宽度指标
+// @Tags         market
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} map[string]interface{}
+// @Router       /api/market/breadth [get]
 func (h *MarketHandler) MarketBreadth(c *gin.Context) {
 	if cached, ok := h.breadthCache.Get("breadth"); ok {
 		c.JSON(http.StatusOK, gin.H{"ok": true, "data": cached, "cached": true})
@@ -770,8 +867,13 @@ func (h *MarketHandler) MarketBreadth(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": breadth, "cached": false})
 }
 
-// MarketSentiment handles GET /api/market-sentiment
-// Returns fear/greed index, up/down/flat counts, sector volumes, and market temperature.
+// @Summary      市场情绪
+// @Description  获取恐贪指数、涨跌家数、板块成交额、市场温度等情绪指标
+// @Tags         market
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} map[string]interface{}
+// @Router       /api/market/sentiment [get]
 func (h *MarketHandler) MarketSentiment(c *gin.Context) {
 	if cached, ok := h.sentimentCache.Get("sentiment"); ok {
 		c.JSON(http.StatusOK, gin.H{
@@ -804,7 +906,15 @@ func (h *MarketHandler) MarketSentiment(c *gin.Context) {
 	c.JSON(http.StatusOK, data)
 }
 
-// HotConceptStocks handles GET /api/hot-concepts/:code/stocks — fetch constituent stocks for a concept.
+// @Summary      获取概念板块成分股
+// @Description  根据概念板块代码获取其成分股票列表，标注是否在自选中
+// @Tags         market
+// @Produce      json
+// @Security     BearerAuth
+// @Param        code path string true "概念板块代码"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]interface{}
+// @Router       /api/market/hot-concepts/{code}/stocks [get]
 func (h *MarketHandler) HotConceptStocks(c *gin.Context) {
 	conceptCode := strings.TrimSpace(c.Param("code"))
 	if conceptCode == "" {
@@ -851,7 +961,13 @@ func (h *MarketHandler) HotConceptStocks(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "concept_code": conceptCode, "stocks": stocks, "cached": false})
 }
 
-// WatchlistConceptOverlap handles GET /api/watchlist-concept-overlap — check which watchlist stocks appear in top hot concepts.
+// @Summary      自选股与热门概念交叉
+// @Description  检查自选股出现在哪些热门概念板块中
+// @Tags         market
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} map[string]interface{}
+// @Router       /api/watchlist-concept-overlap [get]
 func (h *MarketHandler) WatchlistConceptOverlap(c *gin.Context) {
 	ctx := c.Request.Context()
 

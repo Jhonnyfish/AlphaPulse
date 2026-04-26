@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"alphapulse/internal/cache"
 	"alphapulse/internal/models"
 	"alphapulse/internal/services"
@@ -15,9 +17,10 @@ import (
 )
 
 type AnalyzeHandler struct {
-	eastMoney        *services.EastMoneyService
-	tencent          *services.TencentService
-	quoteCache       *cache.Cache[models.Quote]
+	eastMoney          *services.EastMoneyService
+	tencent            *services.TencentService
+	logger             *zap.Logger
+	quoteCache         *cache.Cache[models.Quote]
 	klineCache       *cache.Cache[[]models.KlinePoint]
 	flowCache        *cache.Cache[[]models.MoneyFlowDay]
 	sectorsCache     *cache.Cache[[]models.StockSector]
@@ -25,10 +28,11 @@ type AnalyzeHandler struct {
 	announcementsCache *cache.Cache[[]models.Announcement]
 }
 
-func NewAnalyzeHandler(eastMoney *services.EastMoneyService, tencent *services.TencentService) *AnalyzeHandler {
+func NewAnalyzeHandler(eastMoney *services.EastMoneyService, tencent *services.TencentService, logger *zap.Logger) *AnalyzeHandler {
 	return &AnalyzeHandler{
 		eastMoney:          eastMoney,
 		tencent:            tencent,
+		logger:             logger,
 		quoteCache:         cache.New[models.Quote](),
 		klineCache:         cache.New[[]models.KlinePoint](),
 		flowCache:          cache.New[[]models.MoneyFlowDay](),
@@ -44,6 +48,10 @@ func (h *AnalyzeHandler) Analyze(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_CODE", "code is required")
 		return
 	}
+
+	h.logger.Info("analyze request",
+		zap.String("codes", codeParam),
+	)
 
 	codeList := strings.Split(codeParam, ",")
 	var cleaned []string
@@ -89,6 +97,8 @@ func (h *AnalyzeHandler) Analyze(c *gin.Context) {
 func (h *AnalyzeHandler) analyzeSingle(ctx context.Context, code string) models.StockAnalysis {
 	code = services.NormalizeCode(code)
 	errs := make(map[string]string)
+
+	h.logger.Info("analyzing single stock", zap.String("code", code))
 
 	// Fetch quote
 	quote, quoteErr := h.fetchQuote(ctx, code)
@@ -254,6 +264,10 @@ func (h *AnalyzeHandler) StockInfo(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_CODE", "code is required")
 		return
 	}
+
+	h.logger.Info("stock info request",
+		zap.String("code", codeParam),
+	)
 
 	if err := services.ValidateStockCode(codeParam); err != nil {
 		writeError(c, http.StatusBadRequest, "INVALID_CODE_FORMAT", err.Error())

@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"go.uber.org/zap"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +22,7 @@ func setupAnalyzeRouter(h *AnalyzeHandler) *gin.Engine {
 }
 
 func TestAnalyzeMissingCode(t *testing.T) {
-	h := NewAnalyzeHandler(nil, nil)
+	h := NewAnalyzeHandler(nil, nil, zap.NewNop())
 	r := setupAnalyzeRouter(h)
 
 	w := httptest.NewRecorder()
@@ -35,7 +37,7 @@ func TestAnalyzeMissingCode(t *testing.T) {
 }
 
 func TestAnalyzeEmptyCode(t *testing.T) {
-	h := NewAnalyzeHandler(nil, nil)
+	h := NewAnalyzeHandler(nil, nil, zap.NewNop())
 	r := setupAnalyzeRouter(h)
 
 	w := httptest.NewRecorder()
@@ -50,7 +52,7 @@ func TestAnalyzeEmptyCode(t *testing.T) {
 }
 
 func TestAnalyzeInvalidCodeFormat(t *testing.T) {
-	h := NewAnalyzeHandler(nil, nil)
+	h := NewAnalyzeHandler(nil, nil, zap.NewNop())
 	r := setupAnalyzeRouter(h)
 
 	w := httptest.NewRecorder()
@@ -65,7 +67,7 @@ func TestAnalyzeInvalidCodeFormat(t *testing.T) {
 }
 
 func TestAnalyzeTooManyCodes(t *testing.T) {
-	h := NewAnalyzeHandler(nil, nil)
+	h := NewAnalyzeHandler(nil, nil, zap.NewNop())
 	r := setupAnalyzeRouter(h)
 
 	// 11 codes exceeds the max of 10
@@ -82,7 +84,7 @@ func TestAnalyzeTooManyCodes(t *testing.T) {
 }
 
 func TestStockInfoMissingCode(t *testing.T) {
-	h := NewAnalyzeHandler(nil, nil)
+	h := NewAnalyzeHandler(nil, nil, zap.NewNop())
 	r := setupAnalyzeRouter(h)
 
 	w := httptest.NewRecorder()
@@ -97,7 +99,7 @@ func TestStockInfoMissingCode(t *testing.T) {
 }
 
 func TestStockInfoInvalidCode(t *testing.T) {
-	h := NewAnalyzeHandler(nil, nil)
+	h := NewAnalyzeHandler(nil, nil, zap.NewNop())
 	r := setupAnalyzeRouter(h)
 
 	w := httptest.NewRecorder()

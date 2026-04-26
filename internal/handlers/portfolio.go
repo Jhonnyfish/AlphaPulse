@@ -14,27 +14,32 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 )
 
 type PortfolioHandler struct {
 	tencent   *services.TencentService
 	eastMoney *services.EastMoneyService
 	db        *pgxpool.Pool
+	logger    *zap.Logger
 }
 
-func NewPortfolioHandler(tencent *services.TencentService, eastMoney *services.EastMoneyService, db *pgxpool.Pool) *PortfolioHandler {
+func NewPortfolioHandler(tencent *services.TencentService, eastMoney *services.EastMoneyService, db *pgxpool.Pool, logger *zap.Logger) *PortfolioHandler {
 	return &PortfolioHandler{
 		tencent:   tencent,
 		eastMoney: eastMoney,
 		db:        db,
+		logger:    logger,
 	}
 }
 
 // List handles GET /api/portfolio — list all positions enriched with live quotes.
 func (h *PortfolioHandler) List(c *gin.Context) {
+	h.logger.Info("portfolio list requested")
 	ctx := c.Request.Context()
 	positions, err := h.loadPositions(ctx)
 	if err != nil {
+		h.logger.Error("failed to load portfolio positions", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "PORTFOLIO_LOAD_FAILED", "failed to load portfolio")
 		return
 	}
@@ -56,6 +61,7 @@ func (h *PortfolioHandler) List(c *gin.Context) {
 		enriched = append(enriched, ep)
 	}
 
+	h.logger.Info("portfolio listed", zap.Int("count", len(enriched)))
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": enriched})
 }
 
@@ -68,6 +74,7 @@ type addPositionRequest struct {
 
 // Add handles POST /api/portfolio — add a new position.
 func (h *PortfolioHandler) Add(c *gin.Context) {
+	h.logger.Info("portfolio add requested")
 	var req addPositionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeError(c, http.StatusBadRequest, "INVALID_BODY", "invalid request body")
@@ -105,6 +112,7 @@ func (h *PortfolioHandler) Add(c *gin.Context) {
 		id, code, name, req.CostPrice, req.Quantity, req.Notes, now, now,
 	)
 	if err != nil {
+		h.logger.Error("failed to insert portfolio position", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "PORTFOLIO_INSERT_FAILED", "failed to add position")
 		return
 	}
@@ -120,6 +128,7 @@ func (h *PortfolioHandler) Add(c *gin.Context) {
 		UpdatedAt: now,
 	}
 
+	h.logger.Info("portfolio position added", zap.String("code", code))
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": position})
 }
 
@@ -132,6 +141,7 @@ type updatePositionRequest struct {
 
 // Update handles PUT /api/portfolio/:id — update an existing position.
 func (h *PortfolioHandler) Update(c *gin.Context) {
+	h.logger.Info("portfolio update requested")
 	id := c.Param("id")
 	if id == "" {
 		writeError(c, http.StatusBadRequest, "INVALID_ID", "id is required")
@@ -192,15 +202,18 @@ func (h *PortfolioHandler) Update(c *gin.Context) {
 		pos.Code, pos.Name, pos.CostPrice, pos.Quantity, pos.Notes, pos.UpdatedAt, id,
 	)
 	if err != nil {
+		h.logger.Error("failed to update portfolio position", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "PORTFOLIO_UPDATE_FAILED", "failed to update position")
 		return
 	}
 
+	h.logger.Info("portfolio position updated", zap.String("id", id))
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": pos})
 }
 
 // Delete handles DELETE /api/portfolio/:id — delete a position.
 func (h *PortfolioHandler) Delete(c *gin.Context) {
+	h.logger.Info("portfolio delete requested")
 	id := c.Param("id")
 	if id == "" {
 		writeError(c, http.StatusBadRequest, "INVALID_ID", "id is required")
@@ -211,6 +224,7 @@ func (h *PortfolioHandler) Delete(c *gin.Context) {
 		`DELETE FROM portfolio WHERE id = $1`, id,
 	)
 	if err != nil {
+		h.logger.Error("failed to delete portfolio position", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "PORTFOLIO_DELETE_FAILED", "failed to delete position")
 		return
 	}
@@ -219,14 +233,17 @@ func (h *PortfolioHandler) Delete(c *gin.Context) {
 		return
 	}
 
+	h.logger.Info("portfolio position deleted", zap.String("id", id))
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "已删除"})
 }
 
 // Analytics handles GET /api/portfolio/analytics — portfolio analytics.
 func (h *PortfolioHandler) Analytics(c *gin.Context) {
+	h.logger.Info("portfolio analytics requested")
 	ctx := c.Request.Context()
 	positions, err := h.loadPositions(ctx)
 	if err != nil {
+		h.logger.Error("failed to load portfolio for analytics", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "PORTFOLIO_LOAD_FAILED", "failed to load portfolio")
 		return
 	}
@@ -428,9 +445,11 @@ func (h *PortfolioHandler) Analytics(c *gin.Context) {
 
 // Risk handles GET /api/portfolio/risk — portfolio risk analysis.
 func (h *PortfolioHandler) Risk(c *gin.Context) {
+	h.logger.Info("portfolio risk requested")
 	ctx := c.Request.Context()
 	positions, err := h.loadPositions(ctx)
 	if err != nil {
+		h.logger.Error("failed to load portfolio for risk analysis", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "PORTFOLIO_LOAD_FAILED", "failed to load portfolio")
 		return
 	}

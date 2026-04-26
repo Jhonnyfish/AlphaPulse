@@ -18,12 +18,14 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthHandler struct {
-	db  *pgxpool.Pool
-	cfg *config.Config
+	db     *pgxpool.Pool
+	cfg    *config.Config
+	logger *zap.Logger
 }
 
 type registerRequest struct {
@@ -48,11 +50,22 @@ type authResponse struct {
 	User         models.User `json:"user"`
 }
 
-func NewAuthHandler(db *pgxpool.Pool, cfg *config.Config) *AuthHandler {
-	return &AuthHandler{db: db, cfg: cfg}
+func NewAuthHandler(db *pgxpool.Pool, cfg *config.Config, logger *zap.Logger) *AuthHandler {
+	return &AuthHandler{db: db, cfg: cfg, logger: logger}
 }
 
+// @Summary      用户注册
+// @Description  使用邀请码注册新用户，返回 JWT token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body body registerRequest true "注册信息"
+// @Success      200 {object} authResponse
+// @Failure      400 {object} map[string]interface{}
+// @Failure      401 {object} map[string]interface{}
+// @Router       /api/auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
+	h.logger.Info("user registration requested")
 	var req registerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "invalid request body")
@@ -70,6 +83,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	ctx := c.Request.Context()
 	tx, err := h.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
+		h.logger.Error("failed to begin transaction for registration", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "TX_START_FAILED", "failed to start transaction")
 		return
 	}
@@ -110,25 +124,30 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.Role, &user.CreatedAt)
 	if err != nil {
 		if isUniqueViolation(err) {
+			h.logger.Warn("registration failed: username already exists", zap.String("username", username))
 			writeError(c, http.StatusBadRequest, "USERNAME_EXISTS", "username already exists")
 			return
 		}
+		h.logger.Error("failed to create user", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "USER_CREATE_FAILED", "failed to create user")
 		return
 	}
 
 	if _, err := tx.Exec(ctx, `UPDATE invite_codes SET uses = uses + 1 WHERE id = $1`, invite.ID); err != nil {
+		h.logger.Error("failed to update invite code uses", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "INVITE_UPDATE_FAILED", "failed to update invite code")
 		return
 	}
 
 	response, err := h.createSession(ctx, tx, user)
 	if err != nil {
+		h.logger.Error("failed to create session during registration", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "SESSION_CREATE_FAILED", "failed to create login session")
 		return
 	}
 
 	if err := tx.Commit(ctx); err != nil {
+		h.logger.Error("failed to commit registration transaction", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "TX_COMMIT_FAILED", "failed to save user")
 		return
 	}
@@ -136,6 +155,16 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// @Summary      用户登录
+// @Description  使用用户名密码登录获取 JWT token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body body loginRequest true "登录信息"
+// @Success      200 {object} authResponse
+// @Failure      400 {object} map[string]interface{}
+// @Failure      401 {object} map[string]interface{}
+// @Router       /api/auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req loginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -161,6 +190,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.Role, &user.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			h.logger.Warn("login failed: user not found", zap.String("username", username))
 			writeError(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "invalid username or password")
 			return
 		}
@@ -169,12 +199,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		h.logger.Warn("login failed: invalid password", zap.String("username", username))
 		writeError(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "invalid username or password")
 		return
 	}
 
 	tx, err := h.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
+		h.logger.Error("failed to begin transaction for login", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "TX_START_FAILED", "failed to start transaction")
 		return
 	}
@@ -182,21 +214,34 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	response, err := h.createSession(ctx, tx, user)
 	if err != nil {
+		h.logger.Error("failed to create session during login", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "SESSION_CREATE_FAILED", "failed to create login session")
 		return
 	}
 
 	if err := tx.Commit(ctx); err != nil {
+		h.logger.Error("failed to commit login transaction", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "TX_COMMIT_FAILED", "failed to create session")
 		return
 	}
 
+	h.logger.Info("user logged in successfully", zap.String("username", username))
 	c.JSON(http.StatusOK, response)
 }
 
+// @Summary      验证 Token
+// @Description  验证当前 JWT token 是否有效，返回用户信息
+// @Tags         auth
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} map[string]interface{}
+// @Failure      401 {object} map[string]interface{}
+// @Router       /api/auth/verify [get]
 func (h *AuthHandler) Verify(c *gin.Context) {
+	h.logger.Info("token verification requested")
 	user, ok := middleware.CurrentUser(c)
 	if !ok {
+		h.logger.Warn("token verification failed: no user in context")
 		writeError(c, http.StatusUnauthorized, "AUTH_REQUIRED", "authentication required")
 		return
 	}
@@ -208,6 +253,7 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 }
 
 func (h *AuthHandler) CreateInviteCode(c *gin.Context) {
+	h.logger.Info("create invite code requested")
 	var req createInviteCodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
 		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "invalid request body")
@@ -246,6 +292,7 @@ func (h *AuthHandler) CreateInviteCode(c *gin.Context) {
 		maxUses,
 		expiresAt,
 	); err != nil {
+		h.logger.Error("failed to insert invite code", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "INVITE_CREATE_FAILED", "failed to create invite code")
 		return
 	}
@@ -254,6 +301,7 @@ func (h *AuthHandler) CreateInviteCode(c *gin.Context) {
 }
 
 func (h *AuthHandler) ListInviteCodes(c *gin.Context) {
+	h.logger.Info("list invite codes requested")
 	rows, err := h.db.Query(
 		c.Request.Context(),
 		`SELECT id, code, created_by, max_uses, uses, expires_at, created_at
@@ -261,6 +309,7 @@ func (h *AuthHandler) ListInviteCodes(c *gin.Context) {
 		 ORDER BY created_at DESC`,
 	)
 	if err != nil {
+		h.logger.Error("failed to query invite codes", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "INVITE_LIST_FAILED", "failed to load invite codes")
 		return
 	}
@@ -278,6 +327,7 @@ func (h *AuthHandler) ListInviteCodes(c *gin.Context) {
 			&invite.ExpiresAt,
 			&invite.CreatedAt,
 		); err != nil {
+			h.logger.Error("failed to scan invite code row", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "INVITE_SCAN_FAILED", "failed to scan invite code")
 			return
 		}
@@ -292,12 +342,14 @@ func (h *AuthHandler) ListInviteCodes(c *gin.Context) {
 }
 
 func (h *AuthHandler) DeleteInviteCode(c *gin.Context) {
+	h.logger.Info("delete invite code requested")
 	commandTag, err := h.db.Exec(
 		c.Request.Context(),
 		`DELETE FROM invite_codes WHERE id = $1`,
 		c.Param("id"),
 	)
 	if err != nil {
+		h.logger.Error("failed to delete invite code", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "INVITE_DELETE_FAILED", "failed to delete invite code")
 		return
 	}

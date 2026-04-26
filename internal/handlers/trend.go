@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"alphapulse/internal/cache"
 	"alphapulse/internal/models"
 	"alphapulse/internal/services"
@@ -22,6 +24,7 @@ type TrendHandler struct {
 	eastMoney    *services.EastMoneyService
 	tencent      *services.TencentService
 	db           *pgxpool.Pool
+	logger       *zap.Logger
 	trendCache   *cache.Cache[[]models.MultiTrendStock]
 	corrCache    *cache.Cache[correlationData]
 }
@@ -33,11 +36,12 @@ type correlationData struct {
 	Message string      `json:"message,omitempty"`
 }
 
-func NewTrendHandler(eastMoney *services.EastMoneyService, tencent *services.TencentService, db *pgxpool.Pool) *TrendHandler {
+func NewTrendHandler(eastMoney *services.EastMoneyService, tencent *services.TencentService, db *pgxpool.Pool, logger *zap.Logger) *TrendHandler {
 	return &TrendHandler{
 		eastMoney:  eastMoney,
 		tencent:    tencent,
 		db:         db,
+		logger:     logger,
 		trendCache: cache.New[[]models.MultiTrendStock](),
 		corrCache:  cache.New[correlationData](),
 	}
@@ -81,6 +85,8 @@ func (h *TrendHandler) fetchKlinesCached(ctx context.Context, code string, days 
 // @Success 200 {object} models.MultiTrendResponse
 // @Router /api/multi-trend [get]
 func (h *TrendHandler) MultiTrend(c *gin.Context) {
+	h.logger.Info("multi-trend request")
+
 	// Check cache
 	if cached, ok := h.trendCache.Get("all"); ok {
 		c.JSON(http.StatusOK, models.MultiTrendResponse{
@@ -158,6 +164,10 @@ func (h *TrendHandler) MultiTrend(c *gin.Context) {
 func (h *TrendHandler) analyzeMultiTrend(ctx context.Context, code string) *models.MultiTrendStock {
 	klines, err := h.eastMoney.FetchKline(ctx, code, 120)
 	if err != nil || len(klines) == 0 {
+		h.logger.Error("failed to fetch klines for multi-trend",
+			zap.String("code", code),
+			zap.Error(err),
+		)
 		return nil
 	}
 
@@ -195,6 +205,8 @@ func (h *TrendHandler) analyzeMultiTrend(ctx context.Context, code string) *mode
 // @Success 200 {object} models.CorrelationResponse
 // @Router /api/correlation [get]
 func (h *TrendHandler) Correlation(c *gin.Context) {
+	h.logger.Info("correlation request")
+
 	// Check cache
 	if cached, ok := h.corrCache.Get("all"); ok {
 		c.JSON(http.StatusOK, models.CorrelationResponse{

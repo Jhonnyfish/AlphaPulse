@@ -14,10 +14,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 )
 
 type WatchlistHandler struct {
 	db           *pgxpool.Pool
+	logger       *zap.Logger
 	alpha300Svc  *services.Alpha300Service // optional, set via SetAlpha300
 }
 
@@ -36,11 +38,12 @@ type batchAddWatchlistRequest struct {
 	Codes []string `json:"codes"`
 }
 
-func NewWatchlistHandler(db *pgxpool.Pool) *WatchlistHandler {
-	return &WatchlistHandler{db: db}
+func NewWatchlistHandler(db *pgxpool.Pool, logger *zap.Logger) *WatchlistHandler {
+	return &WatchlistHandler{db: db, logger: logger}
 }
 
 func (h *WatchlistHandler) List(c *gin.Context) {
+	h.logger.Info("watchlist list requested")
 	rows, err := h.db.Query(
 		c.Request.Context(),
 		`SELECT id, code, COALESCE(name, ''), group_name, added_at
@@ -48,6 +51,7 @@ func (h *WatchlistHandler) List(c *gin.Context) {
 		 ORDER BY added_at DESC`,
 	)
 	if err != nil {
+		h.logger.Error("failed to query watchlist", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "WATCHLIST_LIST_FAILED", "failed to load watchlist")
 		return
 	}
@@ -57,20 +61,24 @@ func (h *WatchlistHandler) List(c *gin.Context) {
 	for rows.Next() {
 		var item models.WatchlistItem
 		if err := rows.Scan(&item.ID, &item.Code, &item.Name, &item.GroupName, &item.AddedAt); err != nil {
+			h.logger.Error("failed to scan watchlist item", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "WATCHLIST_SCAN_FAILED", "failed to scan watchlist item")
 			return
 		}
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
+		h.logger.Error("watchlist rows iteration error", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "WATCHLIST_LIST_FAILED", "failed to load watchlist")
 		return
 	}
 
+	h.logger.Info("watchlist listed", zap.Int("count", len(items)))
 	c.JSON(http.StatusOK, items)
 }
 
 func (h *WatchlistHandler) Add(c *gin.Context) {
+	h.logger.Info("watchlist add requested")
 	var req addWatchlistRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "invalid request body")
@@ -88,13 +96,16 @@ func (h *WatchlistHandler) Add(c *gin.Context) {
 			return
 		}
 		writeError(c, http.StatusInternalServerError, "WATCHLIST_ADD_FAILED", "failed to save watchlist item")
+		h.logger.Error("failed to add watchlist item", zap.Error(err))
 		return
 	}
 
+	h.logger.Info("watchlist item added", zap.String("code", item.Code))
 	c.JSON(http.StatusOK, gin.H{"stock": item})
 }
 
 func (h *WatchlistHandler) Delete(c *gin.Context) {
+	h.logger.Info("watchlist delete requested")
 	code := cleanCode(c.Param("code"))
 	if code == "" {
 		writeError(c, http.StatusBadRequest, "INVALID_CODE", "code is required")
@@ -103,6 +114,7 @@ func (h *WatchlistHandler) Delete(c *gin.Context) {
 
 	result, err := h.db.Exec(c.Request.Context(), `DELETE FROM watchlist WHERE code = $1`, code)
 	if err != nil {
+		h.logger.Error("failed to delete watchlist item", zap.Error(err))
 		writeError(c, http.StatusInternalServerError, "WATCHLIST_DELETE_FAILED", "failed to delete watchlist item")
 		return
 	}
@@ -111,10 +123,12 @@ func (h *WatchlistHandler) Delete(c *gin.Context) {
 		return
 	}
 
+	h.logger.Info("watchlist item deleted", zap.String("code", code))
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 func (h *WatchlistHandler) BatchAdd(c *gin.Context) {
+	h.logger.Info("watchlist batch add requested")
 	var req batchAddWatchlistRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "invalid request body")
@@ -155,6 +169,7 @@ func (h *WatchlistHandler) BatchAdd(c *gin.Context) {
 			cleaned,
 		)
 		if err != nil {
+			h.logger.Error("failed to insert watchlist item in batch", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "WATCHLIST_BATCH_FAILED", "failed to add watchlist items")
 			return
 		}
@@ -166,6 +181,7 @@ func (h *WatchlistHandler) BatchAdd(c *gin.Context) {
 		return
 	}
 
+	h.logger.Info("batch add completed", zap.Int("added", added))
 	c.JSON(http.StatusOK, gin.H{"added": added})
 }
 
@@ -181,6 +197,7 @@ func (h *WatchlistHandler) BatchAdd(c *gin.Context) {
 //	@Success		200		{object}	map[string]interface{}
 //	@Router			/api/watchlist/sync [post]
 func (h *WatchlistHandler) Sync(c *gin.Context) {
+	h.logger.Info("watchlist sync requested")
 	if h.alpha300Svc == nil {
 		writeError(c, http.StatusServiceUnavailable, "ALPHA300_NOT_CONFIGURED", "Alpha300 service not configured")
 		return
@@ -201,6 +218,7 @@ func (h *WatchlistHandler) Sync(c *gin.Context) {
 
 	candidates, err := h.alpha300Svc.FetchCandidates(ctx, limit)
 	if err != nil {
+		h.logger.Error("failed to fetch Alpha300 candidates", zap.Error(err))
 		writeError(c, http.StatusBadGateway, "ALPHA300_FETCH_FAILED", "failed to fetch Alpha300 candidates")
 		return
 	}
@@ -235,6 +253,7 @@ func (h *WatchlistHandler) Sync(c *gin.Context) {
 		return
 	}
 
+	h.logger.Info("Alpha300 sync completed", zap.Int("added", added), zap.Int("candidates", len(candidates)))
 	c.JSON(http.StatusOK, gin.H{
 		"ok":      true,
 		"message": fmt.Sprintf("Synced %d Alpha300 stock(s).", added),
