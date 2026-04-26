@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"alphapulse/internal/cache"
+	apperrors "alphapulse/internal/errors"
 	"alphapulse/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -69,6 +70,13 @@ func NewAlertsHandler(
 }
 
 // Alerts returns smart alerts for all watchlist stocks.
+//
+// @Summary      获取智能预警
+// @Description  获取自选股的智能预警信息
+// @Tags         alerts
+// @Produce      json
+// @Success      200  {object}  AlertsResponse
+// @Router       /api/alerts [get]
 func (h *AlertsHandler) Alerts(c *gin.Context) {
 	if cached, ok := h.alertsCache.Get("all"); ok {
 		c.JSON(http.StatusOK, AlertsResponse{
@@ -82,7 +90,7 @@ func (h *AlertsHandler) Alerts(c *gin.Context) {
 	codes, err := h.loadWatchlistCodes(c.Request.Context())
 	if err != nil {
 		h.log.Warn("alerts: load watchlist", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, AlertsResponse{OK: false, Error: err.Error()})
+		writeAppError(c, apperrors.Internal(err))
 		return
 	}
 

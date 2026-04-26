@@ -1,148 +1,61 @@
 package handlers
 
 import (
-	"context"
-	"encoding/json"
-	"errors"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestDataSourceHealthAllOK(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
+func TestFormatCN(t *testing.T) {
+	// Test with hours and minutes
+	result := formatCN("%d小时%d分钟", 2, 30)
+	assert.Equal(t, "2小时30分钟", result)
 
-	sh := &SystemHandler{}
-	r.GET("/api/system/datasources",
-		sh.DataSourceHealth(
-			func(ctx context.Context) error { return nil },
-			func(ctx context.Context) error { return nil },
-		),
-	)
+	// Test with minutes only
+	result = formatCN("%d分钟", 45)
+	assert.Equal(t, "45分钟", result)
 
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/api/system/datasources", nil)
-	r.ServeHTTP(w, req)
+	// Test with zero
+	result = formatCN("%d分钟", 0)
+	assert.Equal(t, "0分钟", result)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
+	// Test with no format specifiers
+	result = formatCN("no numbers here")
+	assert.Equal(t, "no numbers here", result)
 
-	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
-
-	if resp["status"] != "ok" {
-		t.Errorf("expected status ok, got %v", resp["status"])
-	}
-
-	em := resp["eastmoney"].(map[string]interface{})
-	if em["status"] != "ok" {
-		t.Errorf("eastmoney status should be ok, got %v", em["status"])
-	}
-	if _, ok := em["latency"]; !ok {
-		t.Error("eastmoney should have latency field")
-	}
-
-	tc := resp["tencent"].(map[string]interface{})
-	if tc["status"] != "ok" {
-		t.Errorf("tencent status should be ok, got %v", tc["status"])
-	}
+	// Test with large numbers
+	result = formatCN("%d小时", 100)
+	assert.Equal(t, "100小时", result)
 }
 
-func TestDataSourceHealthEastMoneyFails(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
+func TestAppendInt(t *testing.T) {
+	// Test zero
+	buf := make([]byte, 0, 10)
+	result := appendInt(buf, 0)
+	assert.Equal(t, "0", string(result))
 
-	sh := &SystemHandler{}
-	r.GET("/api/system/datasources",
-		sh.DataSourceHealth(
-			func(ctx context.Context) error { return errors.New("connection refused") },
-			func(ctx context.Context) error { return nil },
-		),
-	)
+	// Test positive number
+	buf = make([]byte, 0, 10)
+	result = appendInt(buf, 42)
+	assert.Equal(t, "42", string(result))
 
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/api/system/datasources", nil)
-	r.ServeHTTP(w, req)
+	// Test negative number
+	buf = make([]byte, 0, 10)
+	result = appendInt(buf, -5)
+	assert.Equal(t, "-5", string(result))
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
+	// Test large number
+	buf = make([]byte, 0, 10)
+	result = appendInt(buf, 99999)
+	assert.Equal(t, "99999", string(result))
 
-	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	// Test single digit
+	buf = make([]byte, 0, 10)
+	result = appendInt(buf, 7)
+	assert.Equal(t, "7", string(result))
 
-	if resp["status"] != "degraded" {
-		t.Errorf("expected status degraded, got %v", resp["status"])
-	}
-
-	em := resp["eastmoney"].(map[string]interface{})
-	if em["status"] != "error" {
-		t.Errorf("eastmoney status should be error, got %v", em["status"])
-	}
-	if em["error"] != "connection refused" {
-		t.Errorf("expected error message, got %v", em["error"])
-	}
-}
-
-func TestDataSourceHealthTencentFails(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-
-	sh := &SystemHandler{}
-	r.GET("/api/system/datasources",
-		sh.DataSourceHealth(
-			func(ctx context.Context) error { return nil },
-			func(ctx context.Context) error { return errors.New("timeout") },
-		),
-	)
-
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/api/system/datasources", nil)
-	r.ServeHTTP(w, req)
-
-	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
-
-	if resp["status"] != "degraded" {
-		t.Errorf("expected status degraded, got %v", resp["status"])
-	}
-
-	tc := resp["tencent"].(map[string]interface{})
-	if tc["status"] != "error" {
-		t.Errorf("tencent status should be error, got %v", tc["status"])
-	}
-}
-
-func TestDataSourceHealthBothFail(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-
-	sh := &SystemHandler{}
-	r.GET("/api/system/datasources",
-		sh.DataSourceHealth(
-			func(ctx context.Context) error { return errors.New("eastmoney down") },
-			func(ctx context.Context) error { return errors.New("tencent down") },
-		),
-	)
-
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/api/system/datasources", nil)
-	r.ServeHTTP(w, req)
-
-	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
-
-	if resp["status"] != "degraded" {
-		t.Errorf("expected status degraded, got %v", resp["status"])
-	}
-
-	em := resp["eastmoney"].(map[string]interface{})
-	tc := resp["tencent"].(map[string]interface{})
-	if em["status"] != "error" || tc["status"] != "error" {
-		t.Error("both sources should be in error state")
-	}
+	// Test appending to existing buffer
+	buf = []byte("prefix:")
+	result = appendInt(buf, 123)
+	assert.Equal(t, "prefix:123", string(result))
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"alphapulse/internal/cache"
+	apperrors "alphapulse/internal/errors"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -35,6 +36,14 @@ func NewSystemHandler(db *pgxpool.Pool, version string, started time.Time, cache
 	}
 }
 
+// Health checks the service and database connectivity.
+//
+// @Summary      健康检查
+// @Description  检查服务和数据库连接状态
+// @Tags         system
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /health [get]
 func (h *SystemHandler) Health(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 	defer cancel()
@@ -42,6 +51,7 @@ func (h *SystemHandler) Health(c *gin.Context) {
 	status := "ok"
 	if err := h.db.Ping(ctx); err != nil {
 		status = "degraded"
+		h.log.Warn("health check: db ping failed", zap.Error(err))
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -51,6 +61,14 @@ func (h *SystemHandler) Health(c *gin.Context) {
 	})
 }
 
+// Info returns system information including DB pool stats and cache info.
+//
+// @Summary      系统信息
+// @Description  返回数据库连接池和缓存信息
+// @Tags         system
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/system/info [get]
 func (h *SystemHandler) Info(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 	defer cancel()
@@ -58,6 +76,7 @@ func (h *SystemHandler) Info(c *gin.Context) {
 	dbStatus := "ok"
 	if err := h.db.Ping(ctx); err != nil {
 		dbStatus = "error"
+		h.log.Warn("info: db ping failed", zap.Error(err))
 	}
 
 	stats := h.db.Stat()
@@ -130,6 +149,13 @@ func (h *SystemHandler) DataSourceHealth(eastMoneyCheck, tencentCheck func(conte
 }
 
 // SystemStatus handles GET /api/system-status — return uptime, cache, DB stats.
+//
+// @Summary      系统状态
+// @Description  返回运行时间、缓存和数据库统计
+// @Tags         system
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/system-status [get]
 func (h *SystemHandler) SystemStatus(c *gin.Context) {
 	uptime := time.Since(h.started)
 	hours := int(uptime.Hours())
@@ -166,6 +192,13 @@ func (h *SystemHandler) SystemStatus(c *gin.Context) {
 }
 
 // CacheClear handles POST /api/cache/clear — clear all in-memory caches.
+//
+// @Summary      清除缓存
+// @Description  清除所有内存缓存
+// @Tags         system
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/cache/clear [post]
 func (h *SystemHandler) CacheClear(c *gin.Context) {
 	totalCleared := 0
 	for name, s := range h.cacheMap {
@@ -190,6 +223,13 @@ type activityLogEntry struct {
 }
 
 // ActivityLog handles GET /api/activity-log — return last 50 entries.
+//
+// @Summary      活动日志
+// @Description  返回最近50条活动日志
+// @Tags         system
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/activity-log [get]
 func (h *SystemHandler) ActivityLog(c *gin.Context) {
 	logPath := os.Getenv("ACTIVITY_LOG_PATH")
 	if logPath == "" {
@@ -207,7 +247,7 @@ func (h *SystemHandler) ActivityLog(c *gin.Context) {
 
 	if err := json.Unmarshal(raw, &entries); err != nil {
 		h.log.Warn("failed to parse activity log", zap.Error(err))
-		c.JSON(http.StatusOK, gin.H{"ok": true, "entries": entries})
+		writeAppError(c, apperrors.Internal(err))
 		return
 	}
 
@@ -227,29 +267,50 @@ func (h *SystemHandler) ActivityLog(c *gin.Context) {
 }
 
 // SlowQueries handles GET /api/slow-queries — placeholder for slow query tracking.
+//
+// @Summary      慢查询
+// @Description  返回慢查询记录
+// @Tags         system
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/slow-queries [get]
 func (h *SystemHandler) SlowQueries(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"ok":    true,
 		"items": []interface{}{},
 		"total": 0,
 		"stats": gin.H{
-			"avg_duration_ms":   0,
-			"max_duration_ms":   0,
-			"slowest_endpoint":  "N/A",
+			"avg_duration_ms":  0,
+			"max_duration_ms":  0,
+			"slowest_endpoint": "N/A",
 		},
 	})
 }
 
 // PerformanceStats handles GET /api/performance-stats — placeholder.
+//
+// @Summary      性能统计
+// @Description  返回性能统计数据
+// @Tags         system
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/performance-stats [get]
 func (h *SystemHandler) PerformanceStats(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"ok":            true,
-		"endpoints":     []interface{}{},
+		"ok":             true,
+		"endpoints":      []interface{}{},
 		"total_requests": 0,
 	})
 }
 
 // Status handles GET /api/status — simple status probe.
+//
+// @Summary      服务状态
+// @Description  简单的服务状态探测
+// @Tags         system
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/status [get]
 func (h *SystemHandler) Status(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 	defer cancel()
@@ -263,8 +324,8 @@ func (h *SystemHandler) Status(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"ok": true,
 		"data": gin.H{
-			"db":    dbOK,
-			"cache": cacheCount,
+			"db":     dbOK,
+			"cache":  cacheCount,
 			"uptime": int(time.Since(h.started).Seconds()),
 		},
 	})
