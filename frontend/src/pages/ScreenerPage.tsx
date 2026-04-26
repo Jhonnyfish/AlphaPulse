@@ -1,9 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { screenerApi } from '@/lib/api';
+import EChart from '@/components/charts/EChart';
 import EmptyState from '@/components/EmptyState';
 import ErrorState from '@/components/ErrorState';
-import { Filter, RefreshCw, ArrowUpDown, TrendingUp, Search, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Filter, RefreshCw, ArrowUpDown, TrendingUp, Search, X, Target, Hash, BarChart3, PieChart as PieChartIcon } from 'lucide-react';
 
 interface ScreenerResult {
   code: string;
@@ -46,6 +46,100 @@ export default function ScreenerPage() {
   const [minMomentum, setMinMomentum] = useState('');
   const [minTrend, setMinTrend] = useState('');
   const [industry, setIndustry] = useState('');
+
+  // Active filter tags
+  const activeFilters = useMemo(() => {
+    const tags: { key: string; label: string; value: string; icon: typeof Target }[] = [];
+    if (minScore) tags.push({ key: 'minScore', label: '最低评分', value: minScore, icon: Hash });
+    if (minMomentum) tags.push({ key: 'minMomentum', label: '最低动量', value: minMomentum, icon: TrendingUp });
+    if (minTrend) tags.push({ key: 'minTrend', label: '最低趋势', value: minTrend, icon: TrendingUp });
+    if (industry) tags.push({ key: 'industry', label: '行业', value: industry, icon: Filter });
+    return tags;
+  }, [minScore, minMomentum, minTrend, industry]);
+
+  const removeFilter = (key: string) => {
+    switch (key) {
+      case 'minScore': setMinScore(''); break;
+      case 'minMomentum': setMinMomentum(''); break;
+      case 'minTrend': setMinTrend(''); break;
+      case 'industry': setIndustry(''); break;
+    }
+  };
+
+  // Industry distribution pie chart
+  const industryPieOption = useMemo(() => {
+    if (!data?.results?.length) return null;
+    const industryCount: Record<string, number> = {};
+    data.results.forEach(r => {
+      const ind = r.industry || '未知';
+      industryCount[ind] = (industryCount[ind] || 0) + 1;
+    });
+    const sorted = Object.entries(industryCount).sort((a, b) => b[1] - a[1]);
+    const top = sorted.slice(0, 10);
+    const others = sorted.slice(10).reduce((sum, [, v]) => sum + v, 0);
+    const pieData = [...top];
+    if (others > 0) pieData.push(['其他', others]);
+
+    return {
+      tooltip: { trigger: 'item', formatter: '{b}: {c}只 ({d}%)' },
+      color: ['#3b82f6', '#22c55e', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#6366f1', '#94a3b8'],
+      series: [{
+        type: 'pie',
+        radius: ['40%', '70%'],
+        avoidLabelOverlap: true,
+        itemStyle: { borderRadius: 6, borderColor: '#222536', borderWidth: 2 },
+        label: { show: true, color: '#94a3b8', fontSize: 11, formatter: '{b}\n{d}%' },
+        emphasis: {
+          label: { show: true, fontSize: 13, fontWeight: 'bold' },
+          itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.5)' }
+        },
+        data: pieData.map(([name, value]) => ({ name, value }))
+      }]
+    };
+  }, [data]);
+
+  // Score distribution bar chart
+  const scoreBarOption = useMemo(() => {
+    if (!data?.results?.length) return null;
+    const ranges = [
+      { label: '0-20', min: 0, max: 20 },
+      { label: '20-40', min: 20, max: 40 },
+      { label: '40-60', min: 40, max: 60 },
+      { label: '60-70', min: 60, max: 70 },
+      { label: '70-80', min: 70, max: 80 },
+      { label: '80-90', min: 80, max: 90 },
+      { label: '90-100', min: 90, max: 100 },
+    ];
+    const counts = ranges.map(r => data.results.filter(d => d.score >= r.min && d.score < r.max).length);
+    // last range includes 100
+    counts[counts.length - 1] += data.results.filter(d => d.score === 100).length;
+
+    const colors = ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#22c55e', '#10b981', '#3b82f6'];
+
+    return {
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: ranges.map(r => r.label),
+        axisLabel: { color: '#94a3b8', fontSize: 11 },
+        axisLine: { lineStyle: { color: '#334155' } },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: { color: '#94a3b8', fontSize: 11 },
+        splitLine: { lineStyle: { color: '#1e293b' } },
+        axisLine: { show: false },
+      },
+      series: [{
+        type: 'bar',
+        data: counts.map((v, i) => ({ value: v, itemStyle: { color: colors[i], borderRadius: [4, 4, 0, 0] } })),
+        barWidth: '60%',
+        label: { show: true, position: 'top', color: '#94a3b8', fontSize: 11, formatter: '{c}只' },
+      }]
+    };
+  }, [data]);
 
   const doScreen = useCallback(async () => {
     setLoading(true);
@@ -185,7 +279,8 @@ export default function ScreenerPage() {
       <div
         className="rounded-lg border p-4 space-y-3"
         style={{
-          background: 'var(--color-bg-secondary)',
+          background: 'rgba(34,37,54,0.7)',
+          backdropFilter: 'blur(18px)',
           borderColor: 'var(--color-border)',
         }}
       >
@@ -253,6 +348,80 @@ export default function ScreenerPage() {
         </div>
       </div>
 
+      {/* Active filter tags */}
+      {activeFilters.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Target className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+          <span className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>筛选条件:</span>
+          {activeFilters.map(({ key, label, value, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => removeFilter(key)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all hover:opacity-80 animate-fade-in"
+              style={{
+                background: 'rgba(59,130,246,0.15)',
+                color: '#60a5fa',
+                border: '1px solid rgba(59,130,246,0.3)',
+              }}
+              title="点击移除"
+            >
+              <Icon className="w-3 h-3" />
+              {label}: {value}
+              <X className="w-3 h-3 opacity-60" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Charts section */}
+      {data && data.results.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Industry distribution pie */}
+          <div
+            className="rounded-lg border p-4"
+            style={{
+              background: 'rgba(34,37,54,0.7)',
+              backdropFilter: 'blur(18px)',
+              borderColor: 'var(--color-border)',
+            }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <PieChartIcon className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+              <h3 className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                行业分布
+              </h3>
+            </div>
+            <div style={{ height: 260 }}>
+              {industryPieOption && (
+                <EChart option={industryPieOption} style={{ height: '100%', width: '100%' }} />
+              )}
+            </div>
+          </div>
+
+          {/* Score distribution bar */}
+          <div
+            className="rounded-lg border p-4"
+            style={{
+              background: 'rgba(34,37,54,0.7)',
+              backdropFilter: 'blur(18px)',
+              borderColor: 'var(--color-border)',
+            }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <BarChart3 className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+              <h3 className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                评分分布
+              </h3>
+            </div>
+            <div style={{ height: 260 }}>
+              {scoreBarOption && (
+                <EChart option={scoreBarOption} style={{ height: '100%', width: '100%' }} />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Error */}
       {error && (
         <ErrorState
@@ -264,8 +433,12 @@ export default function ScreenerPage() {
 
       {/* Loading */}
       {loading && (
-        <div className="py-4">
-          <SkeletonInlineTable rows={8} columns={6} />
+        <div className="space-y-3 animate-pulse">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="rounded-lg border p-4" style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)', height: 300 }} />
+            <div className="rounded-lg border p-4" style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)', height: 300 }} />
+          </div>
+          <div className="rounded-lg border" style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)', height: 400 }} />
         </div>
       )}
 
@@ -274,7 +447,8 @@ export default function ScreenerPage() {
         <div
           className="rounded-lg border overflow-x-auto"
           style={{
-            background: 'var(--color-bg-secondary)',
+            background: 'rgba(34,37,54,0.7)',
+            backdropFilter: 'blur(18px)',
             borderColor: 'var(--color-border)',
           }}
         >
@@ -376,8 +550,8 @@ export default function ScreenerPage() {
                       {s.focus_reason || '-'}
                     </td>
                     <td className="px-3 py-2.5 text-center">
-                      <Link
-                        to={`/kline?code=${s.code}`}
+                      <button
+                        onClick={() => {/* Could trigger navigation to kline view */}}
                         className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors"
                         style={{
                           background: 'var(--color-bg-hover)',
@@ -386,7 +560,7 @@ export default function ScreenerPage() {
                       >
                         <TrendingUp className="w-3 h-3" />
                         K线
-                      </Link>
+                      </button>
                     </td>
                   </tr>
                 );
@@ -406,7 +580,7 @@ export default function ScreenerPage() {
       )}
 
       {/* Initial state */}
-      {!data && !loading && (
+      {!data && !loading && !error && (
         <EmptyState
           icon={Search}
           title="选股器"
