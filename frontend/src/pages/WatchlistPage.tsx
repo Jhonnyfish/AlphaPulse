@@ -19,7 +19,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { watchlistApi, marketApi, type WatchlistItem, type Quote, type SearchSuggestion } from '@/lib/api';
-import { Trash2, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown, GripVertical, Star } from 'lucide-react';
+import { Trash2, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown, GripVertical, Star, CheckSquare, Square, Tag, X } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
 import ErrorState from '@/components/ErrorState';
 
@@ -129,10 +129,14 @@ interface SortableRowProps {
   pct: number;
   overId: string | null;
   onRemove: (code: string) => void;
+  editMode: boolean;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
+  tags?: string[];
 }
 
 // ─── Sortable Desktop Table Row ───────────────────────────────────────────
-function SortableDesktopRow({ item, quote, sparkData, pct, overId, onRemove }: SortableRowProps) {
+function SortableDesktopRow({ item, quote, sparkData, pct, overId, onRemove, editMode, selected, onToggleSelect, tags }: SortableRowProps) {
   const {
     attributes,
     listeners,
@@ -150,6 +154,7 @@ function SortableDesktopRow({ item, quote, sparkData, pct, overId, onRemove }: S
     transition,
     opacity: isDragging ? 0.4 : 1,
     ...(isOver ? { boxShadow: 'inset 0 2px 0 0 #3b82f6' } : {}),
+    ...(selected ? { background: 'rgba(59,130,246,0.08)' } : {}),
   };
 
   // Cell style for change columns — includes background gradient for strong moves
@@ -165,6 +170,18 @@ function SortableDesktopRow({ item, quote, sparkData, pct, overId, onRemove }: S
       style={rowStyle}
       className="hover:bg-[var(--color-bg-hover)] transition-colors"
     >
+      {/* Checkbox (edit mode) */}
+      {editMode && (
+        <td className="pl-2 pr-0 py-3 w-8">
+          <button
+            onClick={() => onToggleSelect(item.id)}
+            className="p-1 rounded hover:bg-white/5 transition-colors"
+            style={{ color: selected ? 'var(--color-accent)' : 'var(--color-text-muted)' }}
+          >
+            {selected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+          </button>
+        </td>
+      )}
       {/* Drag handle */}
       <td className="pl-2 pr-0 py-3 w-8">
         <button
@@ -182,7 +199,16 @@ function SortableDesktopRow({ item, quote, sparkData, pct, overId, onRemove }: S
         </button>
       </td>
       <td className="px-4 py-3" style={{ color: 'var(--color-text-secondary)' }}>
-        {quote?.name || item.name || '—'}
+        <div className="flex items-center gap-1.5">
+          <span>{quote?.name || item.name || '—'}</span>
+          {tags && tags.length > 0 && (
+            <span className="flex gap-0.5">
+              {tags.map((t, i) => (
+                <span key={i} className="badge badge-info text-[10px] px-1.5 py-0">{t}</span>
+              ))}
+            </span>
+          )}
+        </div>
       </td>
       <td className="px-4 py-3 text-right font-mono" style={changeCellStyle}>
         {quote ? formatPrice(quote.price) : '—'}
@@ -216,7 +242,7 @@ function SortableDesktopRow({ item, quote, sparkData, pct, overId, onRemove }: S
 }
 
 // ─── Sortable Mobile Card ────────────────────────────────────────────────
-function SortableMobileCard({ item, quote, sparkData, pct, overId, onRemove }: SortableRowProps) {
+function SortableMobileCard({ item, quote, sparkData, pct, overId, onRemove, editMode, selected, onToggleSelect, tags }: SortableRowProps) {
   const {
     attributes,
     listeners,
@@ -234,9 +260,10 @@ function SortableMobileCard({ item, quote, sparkData, pct, overId, onRemove }: S
     transition,
     opacity: isDragging ? 0.4 : 1,
     background: 'var(--color-bg-secondary)',
-    borderColor: isOver ? '#3b82f6' : 'var(--color-border)',
+    borderColor: selected ? '#3b82f6' : isOver ? '#3b82f6' : 'var(--color-border)',
     borderWidth: isOver ? '2px' : '1px',
     ...(isOver ? { boxShadow: '0 0 8px rgba(59,130,246,0.3)' } : {}),
+    ...(selected ? { background: 'rgba(59,130,246,0.08)' } : {}),
   };
 
   return (
@@ -245,6 +272,16 @@ function SortableMobileCard({ item, quote, sparkData, pct, overId, onRemove }: S
       style={cardStyle}
       className="rounded-lg border p-3 flex items-center justify-between"
     >
+      {/* Checkbox (edit mode) */}
+      {editMode && (
+        <button
+          onClick={() => onToggleSelect(item.id)}
+          className="p-1 mr-1 rounded hover:bg-white/5 transition-colors flex-shrink-0"
+          style={{ color: selected ? 'var(--color-accent)' : 'var(--color-text-muted)' }}
+        >
+          {selected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+        </button>
+      )}
       {/* Drag handle */}
       <button
         {...attributes}
@@ -260,6 +297,13 @@ function SortableMobileCard({ item, quote, sparkData, pct, overId, onRemove }: S
         </button>
         <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
           {quote?.name || item.name || '—'}
+          {tags && tags.length > 0 && (
+            <span className="ml-1.5 inline-flex gap-0.5">
+              {tags.map((t, i) => (
+                <span key={i} className="badge badge-info text-[10px] px-1.5 py-0">{t}</span>
+              ))}
+            </span>
+          )}
         </div>
       </div>
       {/* Mobile sparkline */}
@@ -306,6 +350,13 @@ export default function WatchlistPage() {
   const [sortField, setSortField] = useState<'code' | 'name' | 'price' | 'change_percent' | 'change'>('code');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  // ─── Batch edit mode state ────────────────────────────────────────────
+  const [editMode, setEditMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showTagModal, setShowTagModal] = useState(false);
+  const [tagInput, setTagInput] = useState('');
+  const [itemTags, setItemTags] = useState<Map<string, string[]>>(new Map());
 
   // ─── DnD state ─────────────────────────────────────────────────────────
   const [activeId, _setActiveId] = useState<string | null>(null);
@@ -415,6 +466,70 @@ export default function WatchlistPage() {
     } catch {
       setError('删除失败');
     }
+  };
+  // ─── Batch operations ──────────────────────────────────────────────────
+  const toggleEditMode = () => {
+    setEditMode((prev) => {
+      if (prev) setSelectedIds(new Set());
+      return !prev;
+    });
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selectedIds.size === displayItems.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(displayItems.map((i) => i.id)));
+    }
+  };
+
+  const selectedItems = useMemo(
+    () => items.filter((i) => selectedIds.has(i.id)),
+    [items, selectedIds],
+  );
+
+  const handleBatchDelete = async () => {
+    setShowDeleteModal(false);
+    const codes = selectedItems.map((i) => i.code);
+    try {
+      await Promise.allSettled(codes.map((c) => watchlistApi.remove(c)));
+      await fetchWatchlist();
+    } catch {
+      setError('批量删除部分失败');
+    }
+    setSelectedIds(new Set());
+    setEditMode(false);
+  };
+
+  const handleBatchAddTags = () => {
+    const tags = tagInput
+      .split(/[,，\s]+/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    if (tags.length === 0) return;
+
+    setItemTags((prev) => {
+      const next = new Map(prev);
+      selectedItems.forEach((item) => {
+        const existing = next.get(item.id) || [];
+        next.set(item.id, [...new Set([...existing, ...tags])]);
+      });
+      return next;
+    });
+
+    setTagInput('');
+    setShowTagModal(false);
+    setSelectedIds(new Set());
+    setEditMode(false);
   };
 
   // Sort toggle handler — also clears manual drag order
@@ -537,6 +652,19 @@ export default function WatchlistPage() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-bold">自选股</h1>
           <div className="flex items-center gap-2">
+            {/* Edit mode toggle */}
+            <button
+              onClick={toggleEditMode}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors"
+              style={{
+                background: editMode ? 'rgba(59,130,246,0.15)' : 'transparent',
+                color: editMode ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                border: `1px solid ${editMode ? 'var(--color-accent)' : 'var(--color-border)'}`,
+              }}
+            >
+              <CheckSquare className="w-3.5 h-3.5" />
+              {editMode ? '退出编辑' : '编辑'}
+            </button>
             {/* Auto-refresh toggle */}
             <button
               onClick={() => setAutoRefresh((prev) => !prev)}
@@ -592,12 +720,62 @@ export default function WatchlistPage() {
           />
         ) : (
           <>
+            {/* Batch action bar */}
+            {editMode && (
+              <div
+                className="mb-3 flex items-center gap-3 px-4 py-2.5 rounded-lg animate-fade-in"
+                style={{
+                  background: 'rgba(59,130,246,0.08)',
+                  border: '1px solid rgba(59,130,246,0.2)',
+                }}
+              >
+                <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                  已选 <span className="font-semibold" style={{ color: 'var(--color-accent)' }}>{selectedIds.size}</span> 项
+                </span>
+                <button
+                  onClick={selectAll}
+                  className="text-xs px-2.5 py-1 rounded-md hover:bg-white/5 transition-colors"
+                  style={{ color: 'var(--color-accent)' }}
+                >
+                  {selectedIds.size === displayItems.length ? '取消全选' : '全选'}
+                </button>
+                <div className="flex-1" />
+                <button
+                  onClick={() => setShowDeleteModal(true)}
+                  disabled={selectedIds.size === 0}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  style={{
+                    background: selectedIds.size > 0 ? 'rgba(239,68,68,0.12)' : 'transparent',
+                    color: selectedIds.size > 0 ? '#f87171' : 'var(--color-text-muted)',
+                    border: '1px solid rgba(239,68,68,0.2)',
+                  }}
+                >
+                  <Trash2 className="w-3 h-3" />
+                  批量删除
+                </button>
+                <button
+                  onClick={() => setShowTagModal(true)}
+                  disabled={selectedIds.size === 0}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  style={{
+                    background: selectedIds.size > 0 ? 'rgba(59,130,246,0.12)' : 'transparent',
+                    color: selectedIds.size > 0 ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                    border: '1px solid rgba(59,130,246,0.2)',
+                  }}
+                >
+                  <Tag className="w-3 h-3" />
+                  批量添加标签
+                </button>
+              </div>
+            )}
+
             {/* Desktop table */}
             <div className="hidden sm:block rounded-lg border overflow-hidden"
               style={{ borderColor: 'var(--color-border)' }}>
               <table className="w-full text-sm border-separate border-spacing-0">
                 <thead>
                   <tr style={{ background: 'var(--color-bg-secondary)' }}>
+                    {editMode && <th className="w-8 px-2 py-3" />} {/* checkbox column */}
                     <th className="w-8 px-2 py-3" /> {/* drag handle column */}
                     <Th field="code" label="代码" />
                     <Th field="name" label="名称" />
@@ -617,15 +795,19 @@ export default function WatchlistPage() {
                       const pct = q?.change_percent ?? 0;
                       const sparkData = getSparklineData(item.code, q);
                       return (
-                        <SortableDesktopRow
-                          key={item.id}
-                          item={item}
-                          quote={q}
-                          sparkData={sparkData}
-                          pct={pct}
-                          overId={overId}
-                          onRemove={handleRemove}
-                        />
+                    <SortableDesktopRow
+                      key={item.id}
+                      item={item}
+                      quote={q}
+                      sparkData={sparkData}
+                      pct={pct}
+                      overId={overId}
+                      onRemove={handleRemove}
+                      editMode={editMode}
+                      selected={selectedIds.has(item.id)}
+                      onToggleSelect={toggleSelect}
+                      tags={itemTags.get(item.id)}
+                    />
                       );
                     })}
                   </tbody>
@@ -649,12 +831,130 @@ export default function WatchlistPage() {
                       pct={pct}
                       overId={overId}
                       onRemove={handleRemove}
+                      editMode={editMode}
+                      selected={selectedIds.has(item.id)}
+                      onToggleSelect={toggleSelect}
+                      tags={itemTags.get(item.id)}
                     />
                   );
                 })}
               </SortableContext>
             </div>
           </>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteModal && (
+          <div className="modal-backdrop animate-fade-in" onClick={() => setShowDeleteModal(false)}>
+            <div
+              className="glass p-6 max-w-sm w-full mx-4 animate-scale-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg" style={{ background: 'rgba(239,68,68,0.12)' }}>
+                  <Trash2 className="w-5 h-5" style={{ color: '#f87171' }} />
+                </div>
+                <h3 className="text-lg font-semibold">确认删除</h3>
+              </div>
+              <p className="text-sm mb-6" style={{ color: 'var(--color-text-secondary)' }}>
+                确定删除选中的 <span className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>{selectedIds.size}</span> 只股票？此操作不可撤销。
+              </p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="px-4 py-2 rounded-lg text-sm hover:bg-[var(--color-bg-hover)] transition-colors"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleBatchDelete}
+                  className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  style={{ background: '#ef4444', color: '#fff' }}
+                >
+                  确认删除
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Batch Tag Input Modal */}
+        {showTagModal && (
+          <div className="modal-backdrop animate-fade-in" onClick={() => setShowTagModal(false)}>
+            <div
+              className="glass p-6 max-w-sm w-full mx-4 animate-scale-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg" style={{ background: 'rgba(59,130,246,0.12)' }}>
+                    <Tag className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
+                  </div>
+                  <h3 className="text-lg font-semibold">批量添加标签</h3>
+                </div>
+                <button
+                  onClick={() => setShowTagModal(false)}
+                  className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
+                  style={{ color: 'var(--color-text-muted)' }}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-sm mb-3" style={{ color: 'var(--color-text-secondary)' }}>
+                为选中的 <span className="font-semibold" style={{ color: 'var(--color-accent)' }}>{selectedIds.size}</span> 只股票添加标签
+              </p>
+              <input
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleBatchAddTags();
+                }}
+                placeholder="输入标签名，逗号分隔多个"
+                autoFocus
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none transition-colors mb-4"
+                style={{
+                  background: 'var(--color-bg-secondary)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-text-primary)',
+                }}
+              />
+              {tagInput.trim() && (
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {tagInput
+                    .split(/[,，\s]+/)
+                    .map((t) => t.trim())
+                    .filter(Boolean)
+                    .map((tag, i) => (
+                      <span
+                        key={i}
+                        className="badge badge-info"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                </div>
+              )}
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowTagModal(false)}
+                  className="px-4 py-2 rounded-lg text-sm hover:bg-[var(--color-bg-hover)] transition-colors"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleBatchAddTags}
+                  disabled={!tagInput.trim()}
+                  className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  style={{ background: 'var(--color-accent)', color: '#fff' }}
+                >
+                  确认添加
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Footer info */}
