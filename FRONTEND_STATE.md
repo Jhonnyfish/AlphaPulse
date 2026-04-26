@@ -96,7 +96,7 @@
 - [x] InstitutionPage, InvestmentPlansPage, PortfolioRiskPage
 - [x] QuickActionsPage, DiagPage
 
-### 阶段三：现有页面提升 (18/24)
+### 阶段三：现有页面提升 (24/27)
 - [x] 3.1 DashboardPage — ECharts 指数走势图、涨跌家数柱状图、板块热力图、信号摘要卡片、活动时间线
 - [x] 3.1b DashboardPage — 涨跌家数柱状图 + 市场广度指标
 - [x] 3.1c DashboardPage — 板块热力图（ECharts treemap）
@@ -104,8 +104,11 @@
 - [x] 3.1e DashboardPage — 最近活动时间线
 - [x] 3.2a WatchlistPage — 每行添加迷你 Sparkline 走势图
 - [x] 3.2b WatchlistPage — 拖拽排序支持
+- [ ] 3.2c WatchlistPage — 涨跌颜色渐变（涨跌幅越大颜色越深）
+- [ ] 3.2d WatchlistPage — 批量操作（多选删除、批量添加标签）
 - [x] 3.3a CandidatesPage — 分层展示（核心/关注/观察三个区域）
 - [x] 3.3b CandidatesPage — 点击个股弹出分析详情 Modal（不跳转）
+- [ ] 3.3c CandidatesPage — 雷达图展示各维度得分（动量/趋势/资金/技术/估值/情绪）
 - [x] 3.4a PortfolioPage — 持仓行业分布饼图
 - [x] 3.4b PortfolioPage — 收益曲线图 + 风险指标卡片
 - [x] 3.5a TradingJournalPage — 交易日历热力图

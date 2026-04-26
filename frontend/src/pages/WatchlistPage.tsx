@@ -34,12 +34,38 @@ const REFRESH_INTERVAL = 30_000; // 30 seconds
 const formatPrice = (n: number) => n.toFixed(2);
 const formatChange = (n: number) => (n >= 0 ? `+${n.toFixed(2)}` : n.toFixed(2));
 const formatPercent = (n: number) => (n >= 0 ? `+${n.toFixed(2)}%` : `${n.toFixed(2)}%`);
-const changeColor = (n: number) =>
-  n > 0 ? 'var(--color-danger)' : n < 0 ? 'var(--color-success)' : 'var(--color-text-secondary)';
+
+// ─── getChangeColor: 涨跌幅颜色渐变工具函数 ──────────────────────────────
+// Returns { color, background? } — deeper color = stronger change
+interface ChangeStyle {
+  color: string;
+  background?: string;
+}
+
+function getChangeColor(pct: number): ChangeStyle {
+  if (pct >= 5)  return { color: '#fca5a5', background: 'rgba(220,38,38,0.18)' };
+  if (pct >= 3)  return { color: '#ef4444' };
+  if (pct > 0)   return { color: '#fca5a5' };
+  if (pct === 0) return { color: 'var(--color-text-secondary)' };
+  if (pct > -3)  return { color: '#86efac' };
+  if (pct > -5)  return { color: '#22c55e' };
+  return { color: '#86efac', background: 'rgba(22,163,74,0.18)' };
+}
+
+// Legacy helper kept for simple inline usage (returns color string only)
+const changeColor = (n: number): string => getChangeColor(n).color;
 
 // Sparkline line color: red for up, green for down (红涨绿跌)
-const sparklineColor = (pct: number): string =>
-  pct > 0 ? '#ef4444' : pct < 0 ? '#22c55e' : '#94a3b8';
+const sparklineColor = (pct: number): string => getChangeColor(pct).color;
+
+// Convert hex (#rrggbb) to rgba string
+function hexToRgba(hex: string, alpha: number): string {
+  if (!hex.startsWith('#')) return hex;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 
 // ─── Minimal Sparkline component ─────────────────────────────────────────────
 function Sparkline({ data, color }: { data: number[]; color: string }) {
@@ -59,7 +85,7 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: color.replace(')', ',0.25)').replace('rgb', 'rgba') },
+              { offset: 0, color: hexToRgba(color, 0.25) },
               { offset: 1, color: 'transparent' },
             ],
           },
@@ -117,12 +143,20 @@ function SortableDesktopRow({ item, quote, sparkData, pct, overId, onRemove }: S
   } = useSortable({ id: item.id });
 
   const isOver = overId === item.id;
+  const cs = getChangeColor(pct);
 
   const rowStyle: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.4 : 1,
     ...(isOver ? { boxShadow: 'inset 0 2px 0 0 #3b82f6' } : {}),
+  };
+
+  // Cell style for change columns — includes background gradient for strong moves
+  const changeCellStyle: React.CSSProperties = {
+    color: cs.color,
+    transition: 'color 0.3s ease, background 0.3s ease',
+    ...(cs.background ? { background: cs.background } : {}),
   };
 
   return (
@@ -150,13 +184,13 @@ function SortableDesktopRow({ item, quote, sparkData, pct, overId, onRemove }: S
       <td className="px-4 py-3" style={{ color: 'var(--color-text-secondary)' }}>
         {quote?.name || item.name || '—'}
       </td>
-      <td className="px-4 py-3 text-right font-mono" style={{ color: changeColor(pct) }}>
+      <td className="px-4 py-3 text-right font-mono" style={changeCellStyle}>
         {quote ? formatPrice(quote.price) : '—'}
       </td>
-      <td className="px-4 py-3 text-right font-mono" style={{ color: changeColor(pct) }}>
+      <td className="px-4 py-3 text-right font-mono font-medium" style={changeCellStyle}>
         {quote ? formatPercent(pct) : '—'}
       </td>
-      <td className="px-4 py-3 text-right font-mono" style={{ color: changeColor(pct) }}>
+      <td className="px-4 py-3 text-right font-mono" style={changeCellStyle}>
         {quote ? formatChange(quote.change) : '—'}
       </td>
       <td className="px-2 py-1.5">
@@ -193,6 +227,7 @@ function SortableMobileCard({ item, quote, sparkData, pct, overId, onRemove }: S
   } = useSortable({ id: item.id });
 
   const isOver = overId === item.id;
+  const cs = getChangeColor(pct);
 
   const cardStyle: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -233,11 +268,17 @@ function SortableMobileCard({ item, quote, sparkData, pct, overId, onRemove }: S
           <Sparkline data={sparkData} color={sparklineColor(pct)} />
         </div>
       )}
-      <div className="text-right mr-3">
-        <div className="font-mono text-sm font-bold" style={{ color: changeColor(pct) }}>
+      <div
+        className="text-right mr-3 rounded-md px-2 py-1"
+        style={{
+          transition: 'color 0.3s ease, background 0.3s ease',
+          ...(cs.background ? { background: cs.background } : {}),
+        }}
+      >
+        <div className="font-mono text-sm font-bold" style={{ color: cs.color }}>
           {quote ? formatPrice(quote.price) : '—'}
         </div>
-        <div className="font-mono text-xs" style={{ color: changeColor(pct) }}>
+        <div className="font-mono text-xs" style={{ color: cs.color }}>
           {quote ? formatPercent(pct) : '—'}
         </div>
       </div>
