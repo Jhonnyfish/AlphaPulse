@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { strategiesApi, type Strategy } from '@/lib/api';
 import { Zap, Plus, Trash2, Power, PowerOff, RefreshCw } from 'lucide-react';
+import { SkeletonList } from '@/components/ui/Skeleton';
 
 interface AddForm {
   name: string;
@@ -130,9 +131,7 @@ export default function StrategiesPage() {
 
       {/* Loading */}
       {loading && strategies.length === 0 ? (
-        <div className="text-center py-12" style={{ color: 'var(--color-text-muted)' }}>
-          加载中...
-        </div>
+        <SkeletonList rows={5} />
       ) : strategies.length === 0 ? (
         <div
           className="text-center py-16 rounded-lg border"

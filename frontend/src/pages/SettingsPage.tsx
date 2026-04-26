@@ -189,9 +189,7 @@ export default function SettingsPage() {
         )}
 
         {loading ? (
-          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-            加载中...
-          </p>
+          <SkeletonList rows={4} />
         ) : infoItems.length > 0 ? (
           <div className="space-y-1 text-sm">
             {infoItems.map((item) => (

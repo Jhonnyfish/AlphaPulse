@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { dragonTigerApi, type DragonTigerItem } from '@/lib/api';
 import { Crown, RefreshCw, TrendingUp, TrendingDown, Building2, Calendar } from 'lucide-react';
+import { SkeletonInlineTable } from '@/components/ui/Skeleton';
 
 const DAYS_OPTIONS = [1, 3, 5, 10] as const;
 
@@ -138,9 +139,7 @@ export default function DragonTigerPage() {
 
       {/* Loading */}
       {loading && items.length === 0 ? (
-        <div className="text-center py-12" style={{ color: 'var(--color-text-muted)' }}>
-          加载中...
-        </div>
+        <SkeletonInlineTable rows={8} columns={9} />
       ) : items.length === 0 ? (
         <div
           className="text-center py-16 rounded-lg border"
@@ -221,9 +220,7 @@ export default function DragonTigerPage() {
         </div>
 
         {instLoading ? (
-          <div className="text-center py-8" style={{ color: 'var(--color-text-muted)' }}>
-            加载中...
-          </div>
+          <SkeletonInlineTable rows={4} columns={5} />
         ) : institutions.length === 0 ? (
           <div
             className="text-center py-8 rounded-lg border"

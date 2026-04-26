@@ -49,10 +49,10 @@ export default function PortfolioRiskPage() {
             返回组合
           </Link>
         </div>
-        <div className="flex items-center justify-center py-20">
-          <RefreshCw className="w-5 h-5 animate-spin" style={{ color: 'var(--color-text-muted)' }} />
-          <span className="ml-2 text-sm" style={{ color: 'var(--color-text-muted)' }}>加载风险数据...</span>
-        </div>
+        <div className="space-y-4 py-4">
+            <SkeletonStatCards count={4} />
+            <SkeletonInlineTable rows={5} columns={5} />
+          </div>
       </div>
     );
   }

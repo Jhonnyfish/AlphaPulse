@@ -11,11 +11,11 @@ import {
   Minus,
   BarChart3,
   RefreshCw,
-  Loader2,
 } from 'lucide-react';
 import StockSearch from '@/components/StockSearch';
 import { SortableHeader, TableToolbar, Pagination } from '@/components/table';
 import { useTableSort } from '@/hooks/useTableSort';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 /* ── Change percent filter options ────────────────────────────── */
 const CHANGE_FILTERS = [
@@ -431,13 +431,22 @@ export default function MarketPage() {
             <tbody>
               {moversLoading && movers.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={9}
-                    className="text-center py-12"
-                    style={{ color: 'var(--color-text-muted)' }}
-                  >
-                    <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-                    加载中...
+                  <td colSpan={9} className="py-4">
+                    <div className="space-y-2">
+                      {Array.from({ length: 8 }).map((_, i) => (
+                        <div key={i} className="flex gap-4 px-4">
+                          <Skeleton variant="text" width="10%" height={12} />
+                          <Skeleton variant="text" width="15%" height={12} />
+                          <Skeleton variant="text" width="12%" height={12} />
+                          <Skeleton variant="text" width="12%" height={12} />
+                          <Skeleton variant="text" width="10%" height={12} />
+                          <Skeleton variant="text" width="10%" height={12} />
+                          <Skeleton variant="text" width="10%" height={12} />
+                          <Skeleton variant="text" width="10%" height={12} />
+                          <Skeleton variant="text" width="11%" height={12} />
+                        </div>
+                      ))}
+                    </div>
                   </td>
                 </tr>
               ) : table.paginated.length === 0 ? (

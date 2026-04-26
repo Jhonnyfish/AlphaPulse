@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { marketApi, type Sector } from '@/lib/api';
 import { RefreshCw, TrendingUp, TrendingDown, Minus, LayoutGrid, List } from 'lucide-react';
+import { SkeletonGridCard } from '@/components/ui/Skeleton';
 
 // Interpolate color based on change percent
 function heatColor(pct: number): string {
@@ -157,8 +158,10 @@ export default function SectorsPage() {
       )}
 
       {loading && sectors.length === 0 ? (
-        <div className="text-center py-12" style={{ color: 'var(--color-text-muted)' }}>
-          加载中...
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-1">
+          {Array.from({ length: 18 }).map((_, i) => (
+            <SkeletonGridCard key={i} />
+          ))}
         </div>
       ) : sorted.length === 0 ? (
         <div

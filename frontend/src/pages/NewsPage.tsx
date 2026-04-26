@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { marketApi, type NewsItem } from '@/lib/api';
 import { RefreshCw, ExternalLink } from 'lucide-react';
+import { SkeletonList } from '@/components/ui/Skeleton';
 
 export default function NewsPage() {
   const [news, setNews] = useState<NewsItem[]>([]);
@@ -58,9 +59,7 @@ export default function NewsPage() {
       )}
 
       {loading && news.length === 0 ? (
-        <div className="text-center py-12" style={{ color: 'var(--color-text-muted)' }}>
-          加载中...
-        </div>
+        <SkeletonList rows={6} />
       ) : news.length === 0 ? (
         <div
           className="text-center py-16 rounded-lg border"

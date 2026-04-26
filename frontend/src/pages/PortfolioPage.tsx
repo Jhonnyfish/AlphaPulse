@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import EChart from '@/components/charts/EChart';
 import type { EChartsOption } from 'echarts';
+import { SkeletonInlineTable } from '@/components/ui/Skeleton';
 
 interface AddForm {
   code: string;
@@ -431,8 +432,9 @@ export default function PortfolioPage() {
             {positions.length === 0 ? (
               <div className="p-8 text-center">
                 <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                  {loading ? '加载持仓数据...' : '暂无持仓，点击「添加持仓」开始'}
+                  {loading ? null : '暂无持仓，点击「添加持仓」开始'}
                 </p>
+                {loading && <SkeletonInlineTable rows={4} columns={8} />}
               </div>
             ) : (
               <div className="overflow-x-auto">

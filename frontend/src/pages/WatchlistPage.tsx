@@ -24,6 +24,7 @@ import { Link } from 'react-router-dom';
 import ReactECharts from 'echarts-for-react';
 import type { EChartsOption } from 'echarts';
 import StockSearch from '@/components/StockSearch';
+import { SkeletonInlineTable } from '@/components/ui/Skeleton';
 
 const REFRESH_INTERVAL = 30_000; // 30 seconds
 
@@ -536,9 +537,7 @@ export default function WatchlistPage() {
 
         {/* Table / Cards */}
         {loading ? (
-          <div className="text-center py-12" style={{ color: 'var(--color-text-muted)' }}>
-            加载中...
-          </div>
+          <SkeletonInlineTable rows={5} columns={7} />
         ) : items.length === 0 ? (
           <div className="text-center py-16 rounded-lg border"
             style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}>

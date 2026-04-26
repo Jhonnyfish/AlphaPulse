@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Plus, Trash2, TrendingUp, TrendingDown, BookOpen, Calendar, BarChart3, RefreshCw, Award, Frown } from 'lucide-react';
 import EChart from '@/components/charts/EChart';
 import type { EChartsOption } from 'echarts';
+import { SkeletonInlineTable } from '@/components/ui/Skeleton';
 
 interface AddForm {
   code: string;
@@ -881,7 +882,7 @@ export default function TradingJournalPage() {
         {trades.length === 0 ? (
           <div className="p-8 text-center">
             <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-              {loading ? '加载交易记录...' : '暂无交易记录，点击「添加交易」开始'}
+              {loading ? <SkeletonInlineTable rows={5} columns={7} /> : '暂无交易记录，点击「添加交易」开始'}
             </p>
           </div>
         ) : (

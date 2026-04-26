@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { signalApi, alertsApi, type SignalEvent, type Anomaly, type Alert } from '@/lib/api';
 import { Radio, AlertTriangle, Bell, Calendar, RefreshCw } from 'lucide-react';
+import { SkeletonInlineTable } from '@/components/ui/Skeleton';
 
 const TABS = ['信号日历', '信号历史', '异常检测', '系统告警'] as const;
 type Tab = (typeof TABS)[number];
@@ -238,8 +239,8 @@ export default function SignalsPage() {
         </div>
 
         {loading ? (
-          <div className="text-center py-12" style={{ color: 'var(--color-text-muted)' }}>
-            加载中...
+          <div className="p-4">
+            <SkeletonInlineTable rows={6} columns={6} />
           </div>
         ) : tab === '信号日历' ? (
           calendar.length === 0 ? (

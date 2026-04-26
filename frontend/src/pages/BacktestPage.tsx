@@ -244,9 +244,9 @@ export default function BacktestPage() {
 
       {/* Loading */}
       {loading && (
-        <div className="text-center py-16">
-          <Loader2 className="w-8 h-8 mx-auto mb-3 animate-spin" style={{ color: 'var(--color-accent)' }} />
-          <p style={{ color: 'var(--color-text-muted)' }}>正在回测分析中...</p>
+        <div className="space-y-4 py-4">
+          <SkeletonStatCards count={4} />
+          <SkeletonList rows={5} />
         </div>
       )}
 

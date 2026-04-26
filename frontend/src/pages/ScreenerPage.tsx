@@ -263,12 +263,8 @@ export default function ScreenerPage() {
 
       {/* Loading */}
       {loading && (
-        <div
-          className="flex items-center justify-center py-16 text-sm"
-          style={{ color: 'var(--color-text-muted)' }}
-        >
-          <RefreshCw className="w-5 h-5 animate-spin mr-2" />
-          正在筛选...
+        <div className="py-4">
+          <SkeletonInlineTable rows={8} columns={6} />
         </div>
       )}
 

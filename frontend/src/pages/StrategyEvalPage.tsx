@@ -123,10 +123,10 @@ export default function StrategyEvalPage() {
           <Zap className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
           <h1 className="text-xl font-bold">策略评估</h1>
         </div>
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
-          <span className="ml-3" style={{ color: 'var(--color-text-muted)' }}>正在加载策略评估数据...</span>
-        </div>
+        <div className="space-y-4 py-4">
+            <SkeletonStatCards count={3} />
+            <SkeletonList rows={5} />
+          </div>
       </div>
     );
   }

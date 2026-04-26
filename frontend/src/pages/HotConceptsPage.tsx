@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { hotConceptsApi, type HotConcept } from '@/lib/api';
 import { Flame, RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Star, Link2 } from 'lucide-react';
+import { SkeletonGridCard, SkeletonList, SkeletonInlineTable } from '@/components/ui/Skeleton';
 
 interface ConceptStock {
   code: string;
@@ -116,8 +117,10 @@ export default function HotConceptsPage() {
 
       {/* Loading */}
       {loading && concepts.length === 0 ? (
-        <div className="text-center py-12" style={{ color: 'var(--color-text-muted)' }}>
-          加载中...
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonGridCard key={i} />
+          ))}
         </div>
       ) : concepts.length === 0 ? (
         <div
@@ -188,8 +191,8 @@ export default function HotConceptsPage() {
                 {isExpanded && (
                   <div className="border-t" style={{ borderColor: 'var(--color-border)' }}>
                     {expandingLoading ? (
-                      <div className="text-center py-6" style={{ color: 'var(--color-text-muted)' }}>
-                        加载中...
+                      <div className="p-4">
+                        <SkeletonInlineTable rows={4} columns={4} />
                       </div>
                     ) : expandedStocks.length === 0 ? (
                       <div className="text-center py-6 text-xs" style={{ color: 'var(--color-text-muted)' }}>
@@ -244,9 +247,7 @@ export default function HotConceptsPage() {
         </div>
 
         {overlapLoading ? (
-          <div className="text-center py-8" style={{ color: 'var(--color-text-muted)' }}>
-            加载中...
-          </div>
+          <SkeletonList rows={3} />
         ) : overlap.length === 0 ? (
           <div
             className="text-center py-8 rounded-lg border"

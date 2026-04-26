@@ -169,9 +169,9 @@ export default function TradeCalendarPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-10">
-            <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--color-accent)' }} />
-            <span className="ml-2 text-sm" style={{ color: 'var(--color-text-muted)' }}>加载中...</span>
+          <div className="space-y-4">
+            <SkeletonStatCards count={4} />
+            <SkeletonCalendar />
           </div>
         ) : error ? (
           <div className="text-center py-10">
