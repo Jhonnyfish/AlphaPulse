@@ -10,6 +10,7 @@ import {
   Zap, Radio, Grid3X3, Droplets, Search, Sun, Moon,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
+import TickerTape from '@/components/TickerTape';
 
 interface NavItem {
   to: string;
@@ -303,6 +304,9 @@ export default function Layout() {
             </button>
           </div>
         </header>
+
+        {/* Ticker Tape */}
+        <TickerTape />
 
         {/* Content */}
         <main className="flex-1 overflow-auto p-4 sm:p-6">
