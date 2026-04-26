@@ -19,26 +19,26 @@
 ## 阶段一：设计基础设施（优先级最高）
 
 ### 1.1 安装图表库
-- [ ] 安装 `echarts` + `echarts-for-react`
-- [ ] 创建通用 `<EChart>` 封装组件，支持主题、loading、resize
+- [x] 安装 `echarts` + `echarts-for-react`
+- [x] 创建通用 `<EChart>` 封装组件，支持主题、loading、resize
 
 ### 1.2 Glass Morphism 设计系统
-- [ ] 升级 `index.css`：glass morphism 变量、panel glow、网格纹理背景
-- [ ] 创建 `.glass` / `.panel-glow` 基础样式类
-- [ ] 参照原版 `dashboard.css` 的深色科技风配色
-- [ ] 添加 pulse、fade、slide 等 keyframes 动画
-- [ ] 响应式媒体查询
+- [x] 升级 `index.css`：glass morphism 变量、panel glow、网格纹理背景
+- [x] 创建 `.glass` / `.panel-glow` 基础样式类
+- [x] 参照原版 `dashboard.css` 的深色科技风配色
+- [x] 添加 pulse、fade、slide 等 keyframes 动画（9套）
+- [x] 响应式媒体查询（5个断点）
 
 ### 1.3 Toast 通知系统
-- [ ] 创建 `<Toast>` 组件 + `useToast` hook
-- [ ] 支持 success/error/warning/info 类型
-- [ ] 自动消失 + 手动关闭
-- [ ] 右上角堆叠动画
+- [x] 创建 `<Toast>` 组件 + `useToast` hook
+- [x] 支持 success/error/warning/info 类型
+- [x] 自动消失 + 手动关闭
+- [x] 右上角堆叠动画
 
 ### 1.4 骨架屏加载
-- [ ] 创建 `<Skeleton>` 组件（矩形、圆形、文本行）
-- [ ] 创建 `<SkeletonCard>` / `<SkeletonTable>` 组合组件
-- [ ] 每个页面用 skeleton 替代 "加载中..." 文字
+- [x] 创建 `<Skeleton>` 组件（矩形、圆形、文本行）
+- [x] 创建 `<SkeletonCard>` / `<SkeletonTable>` 组合组件
+- [x] 每个页面用 skeleton 替代 "加载中..." 文字
 
 ### 1.5 主题切换
 - [ ] 创建 `ThemeContext`，支持 dark/light 切换
@@ -46,17 +46,17 @@
 - [ ] localStorage 持久化用户偏好
 
 ### 1.6 Command Palette (⌘K)
-- [ ] 全局快捷键 Ctrl/Cmd+K 打开搜索面板
-- [ ] 搜索股票 + 快速导航到页面
-- [ ] 参照原版 `searchModal` 功能
+- [x] 全局快捷键 Ctrl/Cmd+K 打开搜索面板
+- [x] 搜索页面 + 快速导航到页面
+- [x] 键盘导航（↑↓ Enter ESC）+ 鼠标悬停
 
 ### 1.7 Ticker Tape 滚动条
 - [ ] 顶部实时行情滚动条组件
 - [ ] 自选股涨跌数据 + 点击跳转
 
 ### 1.8 全局快捷键
-- [ ] `useKeyboard` hook
-- [ ] R=刷新, S=搜索, 数字键=切换页面
+- [x] `useKeyboard` hook
+- [x] Ctrl/Cmd+K=搜索, R=刷新, D=总览, W=自选股
 - [ ] 帮助面板显示快捷键列表
 
 ---
