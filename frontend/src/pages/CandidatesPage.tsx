@@ -88,34 +88,157 @@ function factorBar(value: number, max: number, color: string) {
   );
 }
 
+/* ─── 6-Dimension Radar Scores (Mock) ─── */
+interface RadarScores {
+  momentum: number;
+  trend: number;
+  fundFlow: number;
+  technical: number;
+  valuation: number;
+  sentiment: number;
+}
+
+function generateRadarScores(c: Candidate): RadarScores {
+  // Derive mock 0-100 scores from existing candidate data with seeded randomness
+  const seed = c.code.split('').reduce((a, ch) => a + ch.charCodeAt(0), 0);
+  const pseudoRand = (offset: number) => {
+    const x = Math.sin(seed + offset) * 10000;
+    return x - Math.floor(x);
+  };
+  const clamp = (v: number) => Math.max(5, Math.min(100, Math.round(v)));
+  // momentum: map from raw (typically -0.5~1.0) → 0-100
+  const momRaw = ((c.momentum + 0.5) / 1.5) * 100;
+  // trend: map from raw (typically -0.3~0.5) → 0-100
+  const trendRaw = ((c.trend + 0.3) / 0.8) * 100;
+  return {
+    momentum: clamp(momRaw * 0.6 + pseudoRand(1) * 40),
+    trend: clamp(trendRaw * 0.5 + pseudoRand(2) * 50),
+    fundFlow: clamp(pseudoRand(3) * 60 + 20),
+    technical: clamp(pseudoRand(4) * 50 + c.score * 10),
+    valuation: clamp(pseudoRand(5) * 40 + 30),
+    sentiment: clamp(pseudoRand(6) * 50 + 15),
+  };
+}
+
+/** Interpolate color: score 0→red(#ef4444), 50→amber(#f59e0b), 100→green(#22c55e) */
+function scoreToRadarColor(score: number): string {
+  const t = Math.max(0, Math.min(100, score)) / 100;
+  if (t <= 0.5) {
+    const u = t * 2;
+    const r = Math.round(239 + (245 - 239) * u);
+    const g = Math.round(68 + (158 - 68) * u);
+    const b = Math.round(68 + (11 - 68) * u);
+    return `rgb(${r},${g},${b})`;
+  } else {
+    const u = (t - 0.5) * 2;
+    const r = Math.round(245 + (34 - 245) * u);
+    const g = Math.round(158 + (197 - 158) * u);
+    const b = Math.round(11 + (94 - 11) * u);
+    return `rgb(${r},${g},${b})`;
+  }
+}
+
+const RADAR_DIMENSIONS = [
+  { key: 'momentum' as const, label: '动量', en: 'Momentum' },
+  { key: 'trend' as const, label: '趋势', en: 'Trend' },
+  { key: 'fundFlow' as const, label: '资金', en: 'Fund Flow' },
+  { key: 'technical' as const, label: '技术', en: 'Technical' },
+  { key: 'valuation' as const, label: '估值', en: 'Valuation' },
+  { key: 'sentiment' as const, label: '情绪', en: 'Sentiment' },
+];
+
 /* ─── Radar Chart ─── */
 function FactorRadar({ candidate }: { candidate: Candidate }) {
+  const scores = generateRadarScores(candidate);
+  const values = RADAR_DIMENSIONS.map(d => scores[d.key]);
+  const avgScore = values.reduce((a, b) => a + b, 0) / values.length;
+  const fillColor = scoreToRadarColor(avgScore);
+
   const option: EChartsOption = {
     radar: {
-      indicator: [
-        { name: '动量', max: 1 },
-        { name: '趋势', max: 0.5 },
-        { name: '波动率', max: 0.1 },
-        { name: '流动性', max: 20 },
-      ],
+      indicator: RADAR_DIMENSIONS.map(d => ({ name: d.label, max: 100 })),
       shape: 'polygon',
-      splitArea: { areaStyle: { color: ['rgba(59,130,246,0.02)', 'rgba(59,130,246,0.05)'] } },
+      center: ['50%', '54%'],
+      radius: '68%',
+      splitNumber: 5,
+      splitArea: {
+        areaStyle: {
+          color: [
+            'rgba(239,68,68,0.03)',
+            'rgba(239,68,68,0.04)',
+            'rgba(245,158,11,0.04)',
+            'rgba(34,197,94,0.04)',
+            'rgba(34,197,94,0.06)',
+          ],
+        },
+      },
       axisLine: { lineStyle: { color: 'rgba(148,163,184,0.15)' } },
       splitLine: { lineStyle: { color: 'rgba(148,163,184,0.1)' } },
-      axisName: { color: '#94a3b8', fontSize: 11 },
+      axisName: {
+        color: '#94a3b8',
+        fontSize: 11,
+        formatter: (name: string) => {
+          const dim = RADAR_DIMENSIONS.find(d => d.label === name);
+          const val = dim ? scores[dim.key] : 0;
+          return `${name}\n{val|${val}}`;
+        },
+        rich: {
+          val: {
+            fontSize: 10,
+            fontWeight: 'bold' as const,
+            color: '#e2e8f0',
+            padding: [2, 0, 0, 0],
+          },
+        },
+      },
+    },
+    tooltip: {
+      trigger: 'item' as const,
+      backgroundColor: 'rgba(15,23,42,0.92)',
+      borderColor: 'rgba(148,163,184,0.2)',
+      textStyle: { color: '#e2e8f0', fontSize: 12 },
+      formatter: (params: Record<string, unknown>) => {
+        const data = params.data as { value?: number[]; name?: string };
+        if (!data?.value) return '';
+        const lines = RADAR_DIMENSIONS.map((dim, i) => {
+          const v = data.value![i];
+          const c = scoreToRadarColor(v);
+          return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c};margin-right:6px"></span>${dim.label}: <b style="color:${c}">${v}</b>`;
+        });
+        return `<div style="font-size:12px;line-height:1.8">${lines.join('<br/>')}</div>`;
+      },
     },
     series: [{
       type: 'radar',
+      symbol: 'circle',
+      symbolSize: 6,
       data: [{
-        value: [candidate.momentum, candidate.trend, candidate.volatility, candidate.liquidity],
+        value: values,
         name: candidate.name,
-        areaStyle: { color: 'rgba(59,130,246,0.15)' },
-        lineStyle: { color: '#3b82f6', width: 2 },
-        itemStyle: { color: '#3b82f6' },
+        areaStyle: {
+          color: {
+            type: 'linear' as const,
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: fillColor.replace('rgb', 'rgba').replace(')', ',0.25)') },
+              { offset: 1, color: fillColor.replace('rgb', 'rgba').replace(')', ',0.06)') },
+            ],
+          },
+        },
+        lineStyle: { color: fillColor, width: 2 },
+        itemStyle: { color: fillColor, borderColor: fillColor, borderWidth: 2 },
+        label: {
+          show: true,
+          formatter: '{c}',
+          fontSize: 10,
+          color: '#e2e8f0',
+          position: 'top' as const,
+          distance: 4,
+        },
       }],
     }],
   };
-  return <EChart option={option} height={220} />;
+  return <EChart option={option} height={260} />;
 }
 
 /* ─── Trade Plan Card ─── */
@@ -447,7 +570,7 @@ export default function CandidatesPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Radar */}
             <div className="rounded-lg p-3" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div className="text-sm font-bold mb-2" style={{ color: 'var(--color-text-primary)' }}>📊 因子雷达</div>
+              <div className="text-sm font-bold mb-2" style={{ color: 'var(--color-text-primary)' }}>📊 六维评分雷达</div>
               <FactorRadar candidate={selected} />
             </div>
 

@@ -78,6 +78,61 @@ function generateMockKline(close: number, days = 60): KlinePoint[] {
   return points;
 }
 
+// --- 6-Dimension Radar Mock Scores ---
+interface RadarScores {
+  momentum: number;
+  trend: number;
+  fundFlow: number;
+  technical: number;
+  valuation: number;
+  sentiment: number;
+}
+
+function generateRadarScoresForModal(c: Candidate): RadarScores {
+  const seed = c.code.split('').reduce((a, ch) => a + ch.charCodeAt(0), 0);
+  const pseudoRand = (offset: number) => {
+    const x = Math.sin(seed + offset) * 10000;
+    return x - Math.floor(x);
+  };
+  const clamp = (v: number) => Math.max(5, Math.min(100, Math.round(v)));
+  const momRaw = ((c.momentum + 0.5) / 1.5) * 100;
+  const trendRaw = ((c.trend + 0.3) / 0.8) * 100;
+  return {
+    momentum: clamp(momRaw * 0.6 + pseudoRand(1) * 40),
+    trend: clamp(trendRaw * 0.5 + pseudoRand(2) * 50),
+    fundFlow: clamp(pseudoRand(3) * 60 + 20),
+    technical: clamp(pseudoRand(4) * 50 + c.score * 10),
+    valuation: clamp(pseudoRand(5) * 40 + 30),
+    sentiment: clamp(pseudoRand(6) * 50 + 15),
+  };
+}
+
+function scoreToColor(score: number): string {
+  const t = Math.max(0, Math.min(100, score)) / 100;
+  if (t <= 0.5) {
+    const u = t * 2;
+    const r = Math.round(239 + (245 - 239) * u);
+    const g = Math.round(68 + (158 - 68) * u);
+    const b = Math.round(68 + (11 - 68) * u);
+    return `rgb(${r},${g},${b})`;
+  } else {
+    const u = (t - 0.5) * 2;
+    const r = Math.round(245 + (34 - 245) * u);
+    const g = Math.round(158 + (197 - 158) * u);
+    const b = Math.round(11 + (94 - 11) * u);
+    return `rgb(${r},${g},${b})`;
+  }
+}
+
+const MODAL_RADAR_DIMS = [
+  { key: 'momentum' as const, label: '动量' },
+  { key: 'trend' as const, label: '趋势' },
+  { key: 'fundFlow' as const, label: '资金' },
+  { key: 'technical' as const, label: '技术' },
+  { key: 'valuation' as const, label: '估值' },
+  { key: 'sentiment' as const, label: '情绪' },
+];
+
 // --- Score bar component ---
 function ScoreBar({ label, value, max = 100, color }: { label: string; value: number; max?: number; color: string }) {
   const pct = Math.min(100, Math.max(0, (value / max) * 100));
@@ -95,6 +150,91 @@ function ScoreBar({ label, value, max = 100, color }: { label: string; value: nu
       </div>
     </div>
   );
+}
+
+// --- Modal Radar Chart ---
+function ModalRadar({ stock }: { stock: Candidate }) {
+  const scores = generateRadarScoresForModal(stock);
+  const values = MODAL_RADAR_DIMS.map(d => scores[d.key]);
+  const avgScore = values.reduce((a, b) => a + b, 0) / values.length;
+  const fillColor = scoreToColor(avgScore);
+
+  const radarOption = {
+    radar: {
+      indicator: MODAL_RADAR_DIMS.map(d => ({ name: d.label, max: 100 })),
+      shape: 'polygon' as const,
+      center: ['50%', '52%'],
+      radius: '65%',
+      splitNumber: 5,
+      splitArea: {
+        areaStyle: {
+          color: [
+            'rgba(239,68,68,0.03)',
+            'rgba(239,68,68,0.04)',
+            'rgba(245,158,11,0.04)',
+            'rgba(34,197,94,0.04)',
+            'rgba(34,197,94,0.06)',
+          ],
+        },
+      },
+      axisLine: { lineStyle: { color: 'rgba(148,163,184,0.15)' } },
+      splitLine: { lineStyle: { color: 'rgba(148,163,184,0.1)' } },
+      axisName: {
+        color: '#94a3b8',
+        fontSize: 10,
+        formatter: (name: string) => {
+          const dim = MODAL_RADAR_DIMS.find(d => d.label === name);
+          const val = dim ? scores[dim.key] : 0;
+          return `${name}\n{val|${val}}`;
+        },
+        rich: {
+          val: {
+            fontSize: 10,
+            fontWeight: 'bold' as const,
+            color: '#e2e8f0',
+            padding: [2, 0, 0, 0],
+          },
+        },
+      },
+    },
+    tooltip: {
+      trigger: 'item' as const,
+      backgroundColor: 'rgba(15,23,42,0.92)',
+      borderColor: 'rgba(148,163,184,0.2)',
+      textStyle: { color: '#e2e8f0', fontSize: 12 },
+    },
+    series: [{
+      type: 'radar' as const,
+      symbol: 'circle',
+      symbolSize: 5,
+      data: [{
+        value: values,
+        name: stock.name,
+        areaStyle: {
+          color: {
+            type: 'linear' as const,
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: fillColor.replace('rgb', 'rgba').replace(')', ',0.25)') },
+              { offset: 1, color: fillColor.replace('rgb', 'rgba').replace(')', ',0.06)') },
+            ],
+          },
+        },
+        lineStyle: { color: fillColor, width: 2 },
+        itemStyle: { color: fillColor, borderColor: fillColor, borderWidth: 2 },
+        label: {
+          show: true,
+          formatter: '{c}',
+          fontSize: 9,
+          color: '#e2e8f0',
+          position: 'top' as const,
+          distance: 3,
+        },
+      }],
+    }],
+  };
+
+  return <EChart option={radarOption} height={220} />;
 }
 
 // --- Main modal ---
@@ -375,10 +515,18 @@ export default function StockDetailModal({ stock, onClose }: StockDetailModalPro
                 </span>
               )}
             </div>
-            <div className="space-y-3">
-              <ScoreBar label="综合评分" value={overallScore} color="#3b82f6" />
-              <ScoreBar label="动量" value={Math.abs(momentumScore)} color={momentumScore >= 0 ? '#ef4444' : '#22c55e'} />
-              <ScoreBar label="趋势" value={Math.abs(trendScore)} color={trendScore >= 0 ? '#ef4444' : '#22c55e'} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Radar chart */}
+              <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>六维评分雷达</div>
+                <ModalRadar stock={stock} />
+              </div>
+              {/* Score bars */}
+              <div className="space-y-3 flex flex-col justify-center">
+                <ScoreBar label="综合评分" value={overallScore} color="#3b82f6" />
+                <ScoreBar label="动量" value={Math.abs(momentumScore)} color={momentumScore >= 0 ? '#ef4444' : '#22c55e'} />
+                <ScoreBar label="趋势" value={Math.abs(trendScore)} color={trendScore >= 0 ? '#ef4444' : '#22c55e'} />
+              </div>
             </div>
             {analysis?.summary && (
               <div className="mt-3 text-xs p-3 rounded-lg" style={{ background: 'rgba(59,130,246,0.08)', color: 'var(--color-text-secondary)', borderLeft: '3px solid #3b82f6' }}>
