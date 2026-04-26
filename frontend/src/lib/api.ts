@@ -492,9 +492,24 @@ export const signalApi = {
   calendar: (params?: { code?: string; days?: number }) =>
     api.get<SignalEvent[]>('/signal-calendar', { params }),
   history: (params?: { code?: string; days?: number }) =>
-    api.get<SignalEvent[]>('/signal-history', { params }),
+    api.get<{ ok: boolean; items: DashboardSignal[] }>('/signal-history', { params }),
   anomalies: (days?: number) => api.get<Anomaly[]>('/anomalies', { params: { days } }),
 };
+
+// --- Dashboard Signals & Activity ---
+export interface DashboardSignal {
+  timestamp: string;
+  code: string;
+  name: string;
+  level: string;
+  message: string;
+}
+
+export interface ActivityEntry {
+  action: string;
+  detail: string;
+  timestamp: string;
+}
 
 // --- Alerts ---
 export interface Alert {
@@ -517,6 +532,8 @@ export interface HeatmapItem {
   change_pct: number;
   volume: number;
   sector: string;
+  price: number;
+  amount: number;
 }
 
 export interface RankingItem {
@@ -569,7 +586,7 @@ export interface WatchlistGroup {
 }
 
 export const watchlistAnalysisApi = {
-  heatmap: () => api.get<HeatmapItem[]>('/watchlist-heatmap'),
+  heatmap: () => api.get<{ ok: boolean; items: HeatmapItem[] }>('/watchlist-heatmap'),
   sectors: () => api.get('/watchlist-sectors'),
   ranking: () => api.get<WatchlistRanking[]>('/watchlist-ranking'),
   fullRanking: () => api.get<RankingResponse>('/watchlist-ranking'),
@@ -621,7 +638,7 @@ export const systemApi = {
   health: () => api.get('/health'),
   info: () => api.get('/system/info'),
   status: () => api.get<SystemStatus>('/system-status'),
-  activityLog: () => api.get('/activity-log'),
+  activityLog: () => api.get<{ entries: ActivityEntry[] }>('/activity-log'),
   slowQueries: () => api.get('/slow-queries'),
   performanceStats: () => api.get('/performance-stats'),
   cacheClear: () => api.post('/cache/clear'),

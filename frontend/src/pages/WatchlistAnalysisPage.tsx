@@ -32,7 +32,8 @@ export default function WatchlistAnalysisPage() {
     setError('');
     try {
       const res = await watchlistAnalysisApi.heatmap();
-      setHeatmap(Array.isArray(res.data) ? res.data : []);
+      const hmData = res.data;
+      setHeatmap(hmData && typeof hmData === 'object' && 'items' in hmData ? hmData.items : []);
     } catch {
       setError('加载热力图数据失败');
     } finally {

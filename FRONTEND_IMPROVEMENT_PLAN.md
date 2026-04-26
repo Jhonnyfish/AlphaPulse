@@ -4,8 +4,15 @@
 后端 103 个 API 已全部迁移完成（22个模块），但 React 前端与原版 Python 单页应用相比存在严重差距：
 - 原版 37 个视图 → React 仅 18 个页面（缺 21 个）
 - 原版 900K+ 字符代码 → React 仅 6K 行
-- 原版有完整的 glass morphism 设计系统 → React 仅有基础 Tailwind
-- 原版有 Canvas 图表、Toast、拖拽、快捷键、主题切换 → React 全部缺失
+
+## 核心架构要求（最重要！）
+**单页面应用——所有视图在同一个页面上，不做二级页面跳转。**
+- 参照原版：37 个 `<div id="view-xxx">` 全部在 DOM 中，通过 classList toggle "active" 切换
+- React 实现：用 `useState` 控制当前 activeView，所有视图组件同时挂载，CSS 控制显示/隐藏
+- **移除 react-router-dom 的页面级路由**，改为视图切换
+- 侧边栏点击 → 切换 activeView state → 内容区显示对应视图，隐藏其他
+- 无 URL 跳转、无页面刷新、无路由导航
+- 详情信息用 Modal/Drawer 弹窗展示，不跳到新页面
 
 ## 原则
 - **后端不再新增 API**，仅保证现有接口可用性
