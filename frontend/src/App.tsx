@@ -37,6 +37,9 @@ import InvestmentPlansPage from '@/pages/InvestmentPlansPage';
 import BacktestPage from '@/pages/BacktestPage';
 import StrategyEvalPage from '@/pages/StrategyEvalPage';
 import TradeCalendarPage from '@/pages/TradeCalendarPage';
+import PatternScannerPage from '@/pages/PatternScannerPage';
+import PortfolioRiskPage from '@/pages/PortfolioRiskPage';
+import QuickActionsPage from '@/pages/QuickActionsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, loading } = useAuth();
@@ -117,6 +120,9 @@ export default function App() {
         <Route path="/backtest" element={<BacktestPage />} />
         <Route path="/strategy-eval" element={<StrategyEvalPage />} />
         <Route path="/trade-calendar" element={<TradeCalendarPage />} />
+        <Route path="/pattern-scanner" element={<PatternScannerPage />} />
+        <Route path="/portfolio-risk" element={<PortfolioRiskPage />} />
+        <Route path="/quick-actions" element={<QuickActionsPage />} />
       </Route>
       <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
     </Routes>

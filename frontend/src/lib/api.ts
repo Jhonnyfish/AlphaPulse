@@ -626,3 +626,33 @@ export const systemApi = {
   performanceStats: () => api.get('/performance-stats'),
   cacheClear: () => api.post('/cache/clear'),
 };
+
+// --- Pattern Scanner ---
+export interface PatternResult {
+  pattern: string;
+  category: string;
+  direction: string;
+  confidence: number;
+  date: string;
+  description: string;
+  code: string;
+  name: string;
+}
+
+export interface PatternScannerResponse {
+  ok: boolean;
+  patterns: PatternResult[];
+  summary: {
+    total: number;
+    bullish: number;
+    bearish: number;
+    neutral: number;
+    by_category: Record<string, number>;
+    scanned: number;
+  };
+  cached: boolean;
+}
+
+export const patternScannerApi = {
+  scan: () => api.get<PatternScannerResponse>('/pattern-scanner'),
+};

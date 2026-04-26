@@ -10,6 +10,7 @@ import {
   Zap, Radio, Grid3X3, Droplets, Search, Sun, Moon, Keyboard,
   Heart, FileText, Monitor, AlertTriangle, Building2, Trophy,
   Gauge, GitBranch, Network, CalendarClock, FlaskConical, CalendarDays,
+  Scan, ShieldAlert, Bolt,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
 import TickerTape from '@/components/TickerTape';
@@ -46,6 +47,7 @@ const navItems: NavItem[] = [
   { to: '/ranking', label: '综合排名', icon: Trophy, group: '选股' },
   { to: '/hot-concepts', label: '热门概念', icon: Flame, group: '选股' },
   { to: '/dragon-tiger', label: '龙虎榜', icon: Crown, group: '选股' },
+  { to: '/pattern-scanner', label: '形态扫描', icon: Scan, group: '选股' },
 
   { to: '/portfolio', label: '持仓', icon: Briefcase, group: '交易' },
   { to: '/journal', label: '交易日志', icon: BookOpen, group: '交易' },
@@ -54,6 +56,7 @@ const navItems: NavItem[] = [
   { to: '/strategy-eval', label: '策略评估', icon: BarChart3, group: '交易' },
   { to: '/trade-calendar', label: '交易日历', icon: CalendarDays, group: '交易' },
   { to: '/signals', label: '信号', icon: Radio, group: '交易' },
+  { to: '/portfolio-risk', label: '组合风险', icon: ShieldAlert, group: '交易' },
 
   { to: '/watchlist-analysis', label: '自选分析', icon: Grid3X3, group: '工具' },
   { to: '/news', label: '资讯', icon: Newspaper, group: '工具' },
@@ -62,6 +65,7 @@ const navItems: NavItem[] = [
   { to: '/anomalies', label: '异常检测', icon: AlertTriangle, group: '工具' },
   { to: '/diag', label: '系统诊断', icon: Monitor, group: '工具' },
   { to: '/settings', label: '设置', icon: Settings, group: '工具' },
+  { to: '/quick-actions', label: '快捷操作', icon: Bolt, group: '工具' },
 ];
 
 // Group nav items by category
