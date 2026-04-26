@@ -96,7 +96,7 @@
 - [x] InstitutionPage, InvestmentPlansPage, PortfolioRiskPage
 - [x] QuickActionsPage, DiagPage
 
-### 阶段三：现有页面提升 (24/27)
+### 阶段三：现有页面提升 (25/27)
 - [x] 3.1 DashboardPage — ECharts 指数走势图、涨跌家数柱状图、板块热力图、信号摘要卡片、活动时间线
 - [x] 3.1b DashboardPage — 涨跌家数柱状图 + 市场广度指标
 - [x] 3.1c DashboardPage — 板块热力图（ECharts treemap）
@@ -104,7 +104,7 @@
 - [x] 3.1e DashboardPage — 最近活动时间线
 - [x] 3.2a WatchlistPage — 每行添加迷你 Sparkline 走势图
 - [x] 3.2b WatchlistPage — 拖拽排序支持
-- [ ] 3.2c WatchlistPage — 涨跌颜色渐变（涨跌幅越大颜色越深）
+- [x] 3.2c WatchlistPage — 涨跌颜色渐变（涨跌幅越大颜色越深）
 - [ ] 3.2d WatchlistPage — 批量操作（多选删除、批量添加标签）
 - [x] 3.3a CandidatesPage — 分层展示（核心/关注/观察三个区域）
 - [x] 3.3b CandidatesPage — 点击个股弹出分析详情 Modal（不跳转）
@@ -140,6 +140,7 @@
 
 ## 变更日志
 - 2026-04-26 22:40 | 3.18 移除 react-router-dom | 新建ViewContext.tsx(ViewName类型+useView hook)，App.tsx改为useState视图切换，Layout.tsx NavLink改为button onClick，12个页面useNavigate/useSearchParams/Link替换为useView+button，npm uninstall react-router-dom，tsc 0 errors | files: ViewContext.tsx, App.tsx, Layout.tsx, main.tsx, CommandPalette.tsx, TickerTape.tsx, AnalyzePage.tsx, KlinePage.tsx, WatchlistPage.tsx, QuickActionsPage.tsx, NewsPage.tsx, PatternScannerPage.tsx, RankingPage.tsx, PortfolioRiskPage.tsx, StrategyEvalPage.tsx, TradeCalendarPage.tsx, WatchlistAnalysisPage.tsx
+- 2026-04-26 23:40 | 3.2c WatchlistPage 涨跌颜色渐变 | 新增getChangeColor工具函数(6级渐变:深红背景≥5%/中红/浅红/浅绿/中绿/深绿背景), hexToRgba辅助, 桌面行+移动卡片统一着色, Sparkline红涨绿跌, 0.3s平滑过渡 | files: WatchlistPage.tsx
 > 每轮完成后追加一行。
 - 2026-04-26 16:00 | 3.2a WatchlistPage | 每行添加迷你 Sparkline 走势图，使用 ECharts 折线图，红涨绿跌，100x30px，支持桌面表格和移动卡片视图 | files: WatchlistPage.tsx
 - 2026-04-26 16:20 | 3.2b WatchlistPage | 使用 @dnd-kit 实现拖拽排序，GripVertical 手柄，拖拽半透明+蓝色插入线，桌面表格和移动卡片双视图支持，arrayMove 本地排序 | files: WatchlistPage.tsx, package.json
