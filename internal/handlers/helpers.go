@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"net/http"
 	"strings"
 
 	apperrors "alphapulse/internal/errors"
@@ -28,6 +29,7 @@ func writeError(c *gin.Context, status int, code, message string) {
 func writeAppError(c *gin.Context, err *apperrors.AppError) {
 	c.JSON(err.Code, gin.H{
 		"error": err.Message,
+		"code":  http.StatusText(err.Code),
 	})
 }
 
