@@ -81,9 +81,9 @@
 ### 2.2 中优先（报告与进阶）
 - [x] **DailyBriefPage** — 每日简报
   - API: GET /daily-brief
-- [ ] **DailyReportPage** — 每日报告
+- [x] **DailyReportPage** — 每日报告
   - API: GET /daily-report/latest, GET /daily-report/list
-- [ ] **PerfStatsPage** — 绩效统计
+- [x] **PerfStatsPage** — 绩效统计
   - API: GET /performance-stats
 - [ ] **BacktestPage** — 策略回测
   - API: GET /backtest
@@ -91,11 +91,11 @@
   - API: GET /strategies（复用策略API）
 - [ ] **TradeCalendarPage** — 交易日历
   - API: GET /calendar
-- [ ] **MultiTrendPage** — 多周期趋势
+- [x] **MultiTrendPage** — 多周期趋势
   - API: GET /multi-trend
 
 ### 2.3 低优先（辅助功能）
-- [ ] **CorrelationPage** — 相关性分析
+- [x] **CorrelationPage** — 相关性分析
   - API: GET /correlation
 - [x] **AnomalyPage** — 异常检测
   - API: GET /anomalies
@@ -103,7 +103,7 @@
   - API: GET /pattern-scanner（待确认后端路由）
 - [x] **InstitutionPage** — 机构动向
   - API: GET /institution-tracker
-- [ ] **InvestmentPlansPage** — 投资计划
+- [x] **InvestmentPlansPage** — 投资计划
   - API: GET /investment-plans
 - [ ] **PortfolioRiskPage** — 组合风险分析
   - API: GET /risk
