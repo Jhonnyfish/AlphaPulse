@@ -9,7 +9,7 @@ import {
   Settings, Briefcase, BookOpen, Target, Filter, Crown, Flame,
   Zap, Radio, Grid3X3, Droplets, Search, Sun, Moon, Keyboard,
   Heart, FileText, Monitor, AlertTriangle, Building2, Trophy,
-  Gauge, GitBranch, Network, CalendarClock, FlaskConical,
+  Gauge, GitBranch, Network, CalendarClock, FlaskConical, CalendarDays,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
 import TickerTape from '@/components/TickerTape';
@@ -51,6 +51,8 @@ const navItems: NavItem[] = [
   { to: '/journal', label: '交易日志', icon: BookOpen, group: '交易' },
   { to: '/strategies', label: '策略', icon: Zap, group: '交易' },
   { to: '/backtest', label: '策略回测', icon: FlaskConical, group: '交易' },
+  { to: '/strategy-eval', label: '策略评估', icon: BarChart3, group: '交易' },
+  { to: '/trade-calendar', label: '交易日历', icon: CalendarDays, group: '交易' },
   { to: '/signals', label: '信号', icon: Radio, group: '交易' },
 
   { to: '/watchlist-analysis', label: '自选分析', icon: Grid3X3, group: '工具' },
