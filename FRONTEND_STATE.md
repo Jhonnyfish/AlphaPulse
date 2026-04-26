@@ -76,6 +76,7 @@
 
 ## 当前进度
 > 每轮 Codex 完成任务后，由 Hermes 更新此区域。
+> 任务粒度：每个 [ ] 应控制在 Codex 1-2 分钟内可完成的范围。
 
 ### 阶段一：设计基础设施 (8/8) ✅ 全部完成
 - [x] ECharts 安装 + EChart 封装组件
@@ -96,21 +97,43 @@
 - [x] QuickActionsPage, DiagPage
 
 ### 阶段三：现有页面提升 (0/18)
-- [ ] 3.1 DashboardPage — ECharts 指数走势图、涨跌家数柱状图、板块热力图、信号摘要卡片、活动时间线
-- [ ] 3.2 WatchlistPage — 迷你走势图(Sparkline)、拖拽排序、涨跌颜色渐变、批量操作
-- [ ] 3.3 CandidatesPage — 分层展示(核心/关注/观察)、雷达图、点击弹窗分析详情
-- [ ] 3.4 PortfolioPage — 持仓饼图、收益曲线、风险指标卡片
-- [ ] 3.5 TradingJournalPage — 交易日历热力图、收益分布直方图、月度统计
-- [ ] 3.6 所有表格 — 排序、筛选、分页
-- [ ] 3.7 所有列表 — skeleton 加载态
-- [ ] 3.8 所有页面 — 空状态提示
+- [ ] 3.1a DashboardPage — ECharts 大盘指数走势图（上证/深证/创业板）
+- [ ] 3.1b DashboardPage — 涨跌家数柱状图 + 市场广度指标
+- [ ] 3.1c DashboardPage — 板块热力图（ECharts treemap）
+- [ ] 3.1d DashboardPage — 信号摘要卡片（活跃信号数、最近告警）+ 动画
+- [ ] 3.1e DashboardPage — 最近活动时间线
+- [ ] 3.2a WatchlistPage — 每行添加迷你 Sparkline 走势图
+- [ ] 3.2b WatchlistPage — 拖拽排序支持
+- [ ] 3.3a CandidatesPage — 分层展示（核心/关注/观察三个区域）
+- [ ] 3.3b CandidatesPage — 点击个股弹出分析详情 Modal（不跳转）
+- [ ] 3.4a PortfolioPage — 持仓行业分布饼图
+- [ ] 3.4b PortfolioPage — 收益曲线图 + 风险指标卡片
+- [ ] 3.5a TradingJournalPage — 交易日历热力图
+- [ ] 3.5b TradingJournalPage — 收益分布直方图 + 月度统计
+- [ ] 3.6 所有数据表格 — 添加排序、筛选、分页功能
+- [ ] 3.7 所有列表页面 — skeleton 加载态替代"加载中..."文字
+- [ ] 3.8 所有页面 — 空状态提示（无数据时显示引导）
 - [ ] 3.9 所有页面 — 错误状态统一处理 + 重试按钮
-- [ ] 3.10 KlinePage — 技术指标叠加、画线工具
-- [ ] 3.11 SectorsPage — 板块资金流向图、板块内个股排名
-- [ ] 3.12 HotConceptsPage — 概念热度趋势图、概念内个股联动
-- [ ] 3.13 DragonTigerPage — 龙虎榜资金分布图、游资跟踪
-- [ ] 3.14 NewsPage — 新闻情感标签、关联个股标记
-- [ ] 3.15 SignalsPage — 信号统计图表、信号强度趋势
-- [ ] 3.16 ScreenerPage — 选股条件可视化、结果对比图
-- [ ] 3.17 ComparePage — 多维对比雷达图、叠加走势对比
+- [ ] 3.10 KlinePage — 技术指标叠加（MA/MACD/KDJ/RSI）
+- [ ] 3.11 SectorsPage — 板块资金流向柱状图
+- [ ] 3.12 HotConceptsPage — 概念热度趋势折线图
+- [ ] 3.13 DragonTigerPage — 龙虎榜资金分布饼图
+- [ ] 3.14 NewsPage — 新闻情感标签 + 关联个股标记
+- [ ] 3.15 SignalsPage — 信号统计图表 + 信号强度趋势
+- [ ] 3.16 ScreenerPage — 选股条件可视化展示
+- [ ] 3.17 ComparePage — 多维对比雷达图
 - [ ] 3.18 全局 — 移除 react-router-dom，改为视图切换架构
+
+## 已安装依赖
+> Hermes 在委托 Codex 前检查此列表，缺的先装好再委托。
+- echarts ^6.0.0
+- echarts-for-react ^3.0.6
+- lightweight-charts ^5.2.0
+- lucide-react ^1.11.0
+- axios ^1.15.2
+- react-router-dom ^7.14.2（待移除）
+- class-variance-authority, clsx, tailwind-merge
+
+## 变更日志
+> 每轮完成后追加一行。
+- （暂无记录）
