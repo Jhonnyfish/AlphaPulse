@@ -71,7 +71,7 @@
   - API: GET /trends
 - [x] **BreadthPage** — 市场广度（涨跌家数、新高新低）
   - API: GET /breadth
-- [ ] **RankingPage** — 综合排名
+- [x] **RankingPage** — 综合排名
   - API: GET /ranking
 - [x] **FlowPanelPage** — 资金流向面板（主力/散户/北向）
   - API: GET /flow
