@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useView, type ViewName } from '@/lib/ViewContext';
 import {
   Search, LayoutDashboard, Star, TrendingUp, CandlestickChart,
   Activity, BarChart3, GitCompareArrows, Droplets, Target, Filter,
@@ -14,30 +14,30 @@ interface PageCommand {
   type: 'page';
   label: string;
   keywords: string[];
-  path: string;
+  view: ViewName;
   icon: LucideIcon;
 }
 
 const pages: PageCommand[] = [
-  { id: 'p-dashboard', type: 'page', label: '总览', keywords: ['dashboard', '总览', '首页'], path: '/dashboard', icon: LayoutDashboard },
-  { id: 'p-watchlist', type: 'page', label: '自选股', keywords: ['watchlist', '自选', '自选股'], path: '/watchlist', icon: Star },
-  { id: 'p-market', type: 'page', label: '行情', keywords: ['market', '行情', '大盘'], path: '/market', icon: TrendingUp },
-  { id: 'p-kline', type: 'page', label: 'K线', keywords: ['kline', 'k线', 'k线图', 'candlestick'], path: '/kline', icon: CandlestickChart },
-  { id: 'p-analyze', type: 'page', label: '个股分析', keywords: ['analyze', '分析', '个股', '深度分析'], path: '/analyze', icon: Activity },
-  { id: 'p-sectors', type: 'page', label: '板块', keywords: ['sectors', '板块', '行业'], path: '/sectors', icon: BarChart3 },
-  { id: 'p-compare', type: 'page', label: '对比', keywords: ['compare', '对比', '比较'], path: '/compare', icon: GitCompareArrows },
-  { id: 'p-flow', type: 'page', label: '资金流向', keywords: ['flow', '资金', '流向', '主力'], path: '/flow', icon: Droplets },
-  { id: 'p-candidates', type: 'page', label: '候选股', keywords: ['candidates', '候选', '候选股'], path: '/candidates', icon: Target },
-  { id: 'p-screener', type: 'page', label: '选股器', keywords: ['screener', '选股', '筛选'], path: '/screener', icon: Filter },
-  { id: 'p-concepts', type: 'page', label: '热门概念', keywords: ['concepts', '概念', '热门'], path: '/hot-concepts', icon: Flame },
-  { id: 'p-dragon', type: 'page', label: '龙虎榜', keywords: ['dragon', '龙虎', '龙虎榜'], path: '/dragon-tiger', icon: Crown },
-  { id: 'p-portfolio', type: 'page', label: '持仓', keywords: ['portfolio', '持仓', '仓位'], path: '/portfolio', icon: Briefcase },
-  { id: 'p-journal', type: 'page', label: '交易日志', keywords: ['journal', '日志', '交易'], path: '/journal', icon: BookOpen },
-  { id: 'p-strategies', type: 'page', label: '策略', keywords: ['strategies', '策略'], path: '/strategies', icon: Zap },
-  { id: 'p-signals', type: 'page', label: '信号', keywords: ['signals', '信号', '买卖'], path: '/signals', icon: Radio },
-  { id: 'p-watchlist-analysis', type: 'page', label: '自选分析', keywords: ['watchlist analysis', '自选分析'], path: '/watchlist-analysis', icon: Grid3X3 },
-  { id: 'p-news', type: 'page', label: '资讯', keywords: ['news', '资讯', '新闻'], path: '/news', icon: Newspaper },
-  { id: 'p-settings', type: 'page', label: '设置', keywords: ['settings', '设置', '配置'], path: '/settings', icon: Settings },
+  { id: 'p-dashboard', type: 'page', label: '总览', keywords: ['dashboard', '总览', '首页'], view: 'dashboard', icon: LayoutDashboard },
+  { id: 'p-watchlist', type: 'page', label: '自选股', keywords: ['watchlist', '自选', '自选股'], view: 'watchlist', icon: Star },
+  { id: 'p-market', type: 'page', label: '行情', keywords: ['market', '行情', '大盘'], view: 'market', icon: TrendingUp },
+  { id: 'p-kline', type: 'page', label: 'K线', keywords: ['kline', 'k线', 'k线图', 'candlestick'], view: 'kline', icon: CandlestickChart },
+  { id: 'p-analyze', type: 'page', label: '个股分析', keywords: ['analyze', '分析', '个股', '深度分析'], view: 'analyze', icon: Activity },
+  { id: 'p-sectors', type: 'page', label: '板块', keywords: ['sectors', '板块', '行业'], view: 'sectors', icon: BarChart3 },
+  { id: 'p-compare', type: 'page', label: '对比', keywords: ['compare', '对比', '比较'], view: 'compare', icon: GitCompareArrows },
+  { id: 'p-flow', type: 'page', label: '资金流向', keywords: ['flow', '资金', '流向', '主力'], view: 'flow', icon: Droplets },
+  { id: 'p-candidates', type: 'page', label: '候选股', keywords: ['candidates', '候选', '候选股'], view: 'candidates', icon: Target },
+  { id: 'p-screener', type: 'page', label: '选股器', keywords: ['screener', '选股', '筛选'], view: 'screener', icon: Filter },
+  { id: 'p-concepts', type: 'page', label: '热门概念', keywords: ['concepts', '概念', '热门'], view: 'hot-concepts', icon: Flame },
+  { id: 'p-dragon', type: 'page', label: '龙虎榜', keywords: ['dragon', '龙虎', '龙虎榜'], view: 'dragon-tiger', icon: Crown },
+  { id: 'p-portfolio', type: 'page', label: '持仓', keywords: ['portfolio', '持仓', '仓位'], view: 'portfolio', icon: Briefcase },
+  { id: 'p-journal', type: 'page', label: '交易日志', keywords: ['journal', '日志', '交易'], view: 'journal', icon: BookOpen },
+  { id: 'p-strategies', type: 'page', label: '策略', keywords: ['strategies', '策略'], view: 'strategies', icon: Zap },
+  { id: 'p-signals', type: 'page', label: '信号', keywords: ['signals', '信号', '买卖'], view: 'signals', icon: Radio },
+  { id: 'p-watchlist-analysis', type: 'page', label: '自选分析', keywords: ['watchlist analysis', '自选分析'], view: 'watchlist-analysis', icon: Grid3X3 },
+  { id: 'p-news', type: 'page', label: '资讯', keywords: ['news', '资讯', '新闻'], view: 'news', icon: Newspaper },
+  { id: 'p-settings', type: 'page', label: '设置', keywords: ['settings', '设置', '配置'], view: 'settings', icon: Settings },
 ];
 
 type Command = PageCommand;
@@ -53,7 +53,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
+  const { navigate } = useView();
 
   // Filter commands
   const filtered = useMemo(() => {
@@ -94,7 +94,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const executeCommand = useCallback(
     (cmd: Command) => {
       if (cmd.type === 'page') {
-        navigate(cmd.path);
+        navigate(cmd.view);
       }
       onClose();
     },
@@ -191,7 +191,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
                   <span className="flex-1">{cmd.label}</span>
                   {cmd.type === 'page' && (
                     <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                      {cmd.path}
+                      {cmd.view}
                     </span>
                   )}
                   {isActive && (

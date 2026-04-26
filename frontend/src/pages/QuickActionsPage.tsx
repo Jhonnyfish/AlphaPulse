@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useView, type ViewName } from '@/lib/ViewContext';
 import {
   Zap,
   RefreshCw,
@@ -33,7 +33,7 @@ import type { LucideIcon } from 'lucide-react';
 interface ActionItem {
   label: string;
   icon: LucideIcon;
-  route?: string;
+  view?: ViewName;
   action?: () => void;
 }
 
@@ -45,7 +45,7 @@ interface ActionGroup {
 }
 
 export default function QuickActionsPage() {
-  const navigate = useNavigate();
+  const { navigate } = useView();
 
   const groups: ActionGroup[] = [
     {
@@ -54,9 +54,9 @@ export default function QuickActionsPage() {
       borderColor: 'var(--color-blue-500)',
       items: [
         { label: '刷新行情', icon: RefreshCw, action: () => window.location.reload() },
-        { label: '市场总览', icon: BarChart3, route: '/dashboard' },
-        { label: '大盘行情', icon: TrendingUp, route: '/market' },
-        { label: 'K线图', icon: Activity, route: '/kline' },
+        { label: '市场总览', icon: BarChart3, view: 'dashboard' },
+        { label: '大盘行情', icon: TrendingUp, view: 'market' },
+        { label: 'K线图', icon: Activity, view: 'kline' },
       ],
     },
     {
@@ -64,14 +64,14 @@ export default function QuickActionsPage() {
       color: 'var(--color-purple-500)',
       borderColor: 'var(--color-purple-500)',
       items: [
-        { label: '个股分析', icon: Search, route: '/analyze' },
-        { label: '板块轮动', icon: Grid3X3, route: '/sectors' },
-        { label: '资金流向', icon: Gauge, route: '/flow' },
-        { label: '趋势分析', icon: TrendingUp, route: '/trends' },
-        { label: '市场广度', icon: Network, route: '/breadth' },
-        { label: '市场情绪', icon: Radio, route: '/sentiment' },
-        { label: '多周期趋势', icon: GitBranch, route: '/multi-trend' },
-        { label: '相关性分析', icon: FlaskConical, route: '/correlation' },
+        { label: '个股分析', icon: Search, view: 'analyze' },
+        { label: '板块轮动', icon: Grid3X3, view: 'sectors' },
+        { label: '资金流向', icon: Gauge, view: 'flow' },
+        { label: '趋势分析', icon: TrendingUp, view: 'trends' },
+        { label: '市场广度', icon: Network, view: 'breadth' },
+        { label: '市场情绪', icon: Radio, view: 'sentiment' },
+        { label: '多周期趋势', icon: GitBranch, view: 'multi-trend' },
+        { label: '相关性分析', icon: FlaskConical, view: 'correlation' },
       ],
     },
     {
@@ -79,12 +79,12 @@ export default function QuickActionsPage() {
       color: 'var(--color-amber-500)',
       borderColor: 'var(--color-amber-500)',
       items: [
-        { label: '候选股', icon: Star, route: '/candidates' },
-        { label: '选股器', icon: Filter, route: '/screener' },
-        { label: '综合排名', icon: Trophy, route: '/ranking' },
-        { label: '热门概念', icon: Flame, route: '/hot-concepts' },
-        { label: '龙虎榜', icon: Crown, route: '/dragon-tiger' },
-        { label: '形态扫描', icon: Target, route: '/pattern-scanner' },
+        { label: '候选股', icon: Star, view: 'candidates' },
+        { label: '选股器', icon: Filter, view: 'screener' },
+        { label: '综合排名', icon: Trophy, view: 'ranking' },
+        { label: '热门概念', icon: Flame, view: 'hot-concepts' },
+        { label: '龙虎榜', icon: Crown, view: 'dragon-tiger' },
+        { label: '形态扫描', icon: Target, view: 'pattern-scanner' },
       ],
     },
     {
@@ -92,13 +92,13 @@ export default function QuickActionsPage() {
       color: 'var(--color-green-500)',
       borderColor: 'var(--color-green-500)',
       items: [
-        { label: '持仓管理', icon: Briefcase, route: '/portfolio' },
-        { label: '交易日志', icon: BookOpen, route: '/journal' },
-        { label: '策略管理', icon: Settings, route: '/strategies' },
-        { label: '策略回测', icon: FlaskConical, route: '/backtest' },
-        { label: '策略评估', icon: Monitor, route: '/strategy-eval' },
-        { label: '交易日历', icon: CalendarClock, route: '/trade-calendar' },
-        { label: '投资计划', icon: FileText, route: '/investment-plans' },
+        { label: '持仓管理', icon: Briefcase, view: 'portfolio' },
+        { label: '交易日志', icon: BookOpen, view: 'journal' },
+        { label: '策略管理', icon: Settings, view: 'strategies' },
+        { label: '策略回测', icon: FlaskConical, view: 'backtest' },
+        { label: '策略评估', icon: Monitor, view: 'strategy-eval' },
+        { label: '交易日历', icon: CalendarClock, view: 'trade-calendar' },
+        { label: '投资计划', icon: FileText, view: 'investment-plans' },
       ],
     },
     {
@@ -106,12 +106,12 @@ export default function QuickActionsPage() {
       color: 'var(--color-rose-500)',
       borderColor: 'var(--color-rose-500)',
       items: [
-        { label: '每日简报', icon: Newspaper, route: '/daily-brief' },
-        { label: '每日报告', icon: FileText, route: '/daily-report' },
-        { label: '绩效统计', icon: BarChart3, route: '/perf-stats' },
-        { label: '系统诊断', icon: Monitor, route: '/diag' },
-        { label: '异常检测', icon: AlertTriangle, route: '/anomalies' },
-        { label: '机构动向', icon: Building2, route: '/institutions' },
+        { label: '每日简报', icon: Newspaper, view: 'daily-brief' },
+        { label: '每日报告', icon: FileText, view: 'daily-report' },
+        { label: '绩效统计', icon: BarChart3, view: 'perf-stats' },
+        { label: '系统诊断', icon: Monitor, view: 'diag' },
+        { label: '异常检测', icon: AlertTriangle, view: 'anomalies' },
+        { label: '机构动向', icon: Building2, view: 'institutions' },
       ],
     },
   ];
@@ -119,8 +119,8 @@ export default function QuickActionsPage() {
   const handleClick = (item: ActionItem) => {
     if (item.action) {
       item.action();
-    } else if (item.route) {
-      navigate(item.route);
+    } else if (item.view) {
+      navigate(item.view);
     }
   };
 

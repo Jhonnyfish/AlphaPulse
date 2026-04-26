@@ -22,7 +22,7 @@ import { watchlistApi, marketApi, type WatchlistItem, type Quote, type SearchSug
 import { Trash2, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown, GripVertical, Star } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
 import ErrorState from '@/components/ErrorState';
-import { Link } from 'react-router-dom';
+
 import ReactECharts from 'echarts-for-react';
 import type { EChartsOption } from 'echarts';
 import StockSearch from '@/components/StockSearch';
@@ -143,9 +143,9 @@ function SortableDesktopRow({ item, quote, sparkData, pct, overId, onRemove }: S
         </button>
       </td>
       <td className="px-4 py-3 font-mono">
-        <Link to={`/kline?code=${item.code}`} className="hover:underline" style={{ color: 'var(--color-accent)' }}>
+        <button onClick={() => onNavigateKline(item.code)} className="hover:underline" style={{ color: 'var(--color-accent)' }}>
           {item.code}
-        </Link>
+        </button>
       </td>
       <td className="px-4 py-3" style={{ color: 'var(--color-text-secondary)' }}>
         {quote?.name || item.name || '—'}
@@ -220,9 +220,9 @@ function SortableMobileCard({ item, quote, sparkData, pct, overId, onRemove }: S
         <GripVertical className="w-4 h-4" />
       </button>
       <div className="flex-1 min-w-0">
-        <Link to={`/kline?code=${item.code}`} className="font-mono text-sm" style={{ color: 'var(--color-accent)' }}>
+        <button onClick={() => onNavigateKline(item.code)} className="font-mono text-sm" style={{ color: 'var(--color-accent)' }}>
           {item.code}
-        </Link>
+        </button>
         <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
           {quote?.name || item.name || '—'}
         </div>

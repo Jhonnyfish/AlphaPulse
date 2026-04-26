@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useView } from '@/lib/ViewContext';
 import {
   createChart,
   CandlestickSeries,
@@ -61,8 +61,8 @@ const CHART_COLORS = {
 /* ── Component ──────────────────────────────────────────────────── */
 
 export default function KlinePage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [code, setCode] = useState(searchParams.get('code') || '');
+  const { viewParams, navigate } = useView();
+  const [code, setCode] = useState(viewParams.code || '');
   const [period, setPeriod] = useState('daily');
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(false);
@@ -483,7 +483,7 @@ export default function KlinePage() {
 
   const handleSearch = (suggestion: SearchSuggestion) => {
     setCode(suggestion.code);
-    setSearchParams({ code: suggestion.code });
+    navigate('kline', { code: suggestion.code });
   };
 
   const toggleSubIndicator = (id: SubIndicator) => {

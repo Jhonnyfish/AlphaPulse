@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { useView } from '@/lib/ViewContext';
 import { portfolioApi, type PortfolioRisk } from '@/lib/api';
 import { Shield, AlertTriangle, CheckCircle, TrendingDown, PieChart, BarChart3, RefreshCw, ArrowLeft } from 'lucide-react';
 
@@ -14,6 +14,7 @@ function getRiskConfig(level: string) {
 }
 
 export default function PortfolioRiskPage() {
+  const { navigate } = useView();
   const [risk, setRisk] = useState<PortfolioRisk | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -40,14 +41,14 @@ export default function PortfolioRiskPage() {
     return (
       <div>
         <div className="flex items-center gap-2 mb-6">
-          <Link
-            to="/portfolio"
+          <button
+            onClick={() => navigate('portfolio')}
             className="flex items-center gap-1 text-sm hover:underline"
             style={{ color: 'var(--color-text-muted)' }}
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             返回组合
-          </Link>
+          </button>
         </div>
         <div className="space-y-4 py-4">
             <SkeletonStatCards count={4} />
@@ -62,14 +63,14 @@ export default function PortfolioRiskPage() {
     return (
       <div>
         <div className="flex items-center gap-2 mb-6">
-          <Link
-            to="/portfolio"
+          <button
+            onClick={() => navigate('portfolio')}
             className="flex items-center gap-1 text-sm hover:underline"
             style={{ color: 'var(--color-text-muted)' }}
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             返回组合
-          </Link>
+          </button>
         </div>
         <div
           className="rounded-xl border p-8 text-center"
@@ -94,14 +95,14 @@ export default function PortfolioRiskPage() {
     return (
       <div>
         <div className="flex items-center gap-2 mb-6">
-          <Link
-            to="/portfolio"
+          <button
+            onClick={() => navigate('portfolio')}
             className="flex items-center gap-1 text-sm hover:underline"
             style={{ color: 'var(--color-text-muted)' }}
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             返回组合
-          </Link>
+          </button>
         </div>
         <div
           className="rounded-xl border p-12 text-center"
@@ -114,13 +115,13 @@ export default function PortfolioRiskPage() {
           <p className="text-sm mb-4" style={{ color: 'var(--color-text-muted)' }}>
             请先添加持仓
           </p>
-          <Link
-            to="/portfolio"
+          <button
+            onClick={() => navigate('portfolio')}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
             style={{ background: 'var(--color-accent)', color: '#fff' }}
           >
             前往持仓管理
-          </Link>
+          </button>
         </div>
       </div>
     );

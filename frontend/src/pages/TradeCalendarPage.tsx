@@ -170,8 +170,8 @@ export default function TradeCalendarPage() {
 
         {loading ? (
           <div className="space-y-4">
-            <SkeletonStatCards count={4} />
-            <SkeletonCalendar />
+            <Skeleton count={4} />
+            <Skeleton />
           </div>
         ) : error ? (
           <div className="text-center py-10">

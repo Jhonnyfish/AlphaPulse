@@ -19,7 +19,7 @@ export default function WatchlistAnalysisPage() {
   // Heatmap
   const [heatmap, setHeatmap] = useState<HeatmapItem[]>([]);
   // Sectors
-  const [sectors, setSectors] = useState<Record<string, number>>([]);
+  const [sectors, setSectors] = useState<Record<string, number>>({});
   // Ranking
   const [ranking, setRanking] = useState<WatchlistRanking[]>([]);
   // Groups

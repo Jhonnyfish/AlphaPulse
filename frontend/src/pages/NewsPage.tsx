@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useView } from '@/lib/ViewContext';
 import { marketApi, type NewsItem } from '@/lib/api';
 import { RefreshCw, ExternalLink, Newspaper, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
@@ -212,7 +212,7 @@ export default function NewsPage() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const navigate = useNavigate();
+  const { navigate } = useView();
 
   const fetchNews = useCallback(async () => {
     setLoading(true);
@@ -353,7 +353,7 @@ export default function NewsPage() {
                             key={stock.code}
                             code={stock.code}
                             name={stock.name}
-                            onClick={() => navigate(`/analyze?code=${stock.code}`)}
+                            onClick={() => navigate('analyze', { code: stock.code })}
                           />
                         ))}
                       </div>

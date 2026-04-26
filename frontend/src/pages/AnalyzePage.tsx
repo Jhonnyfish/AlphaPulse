@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useView } from '@/lib/ViewContext';
 import { analyzeApi, type AnalyzeResult } from '@/lib/api';
 import EChart from '@/components/charts/EChart';
 import StockSearch from '@/components/StockSearch';
@@ -43,9 +43,8 @@ function scoreLabel(score: number): string {
 }
 
 export default function AnalyzePage() {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const code = searchParams.get('code') ?? '';
+  const { viewParams, navigate } = useView();
+  const code = viewParams.code ?? '';
 
   const [data, setData] = useState<AnalyzeResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -77,7 +76,7 @@ export default function AnalyzePage() {
   }, [code, fetchAnalysis]);
 
   const handleSelect = (suggestion: { code: string }) => {
-    navigate(`/analyze?code=${suggestion.code}`);
+    navigate('analyze', { code: suggestion.code });
   };
 
   if (!code) {

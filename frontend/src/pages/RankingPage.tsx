@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useView } from '@/lib/ViewContext';
 import api from '@/lib/api';
 import type { RankingItem, RankingSummary, RankingResponse } from '@/lib/api';
 import ReactECharts from 'echarts-for-react';
@@ -68,7 +68,7 @@ function scoreBg(score: number): string {
 
 /* ---- component ---- */
 export default function RankingPage() {
-  const navigate = useNavigate();
+  const { navigate } = useView();
   const [data, setData] = useState<RankingItem[]>([]);
   const [summary, setSummary] = useState<RankingSummary | null>(null);
   const [fetchedAt, setFetchedAt] = useState('');
@@ -557,7 +557,7 @@ export default function RankingPage() {
                       (e.currentTarget.style.background = 'rgba(148,163,184,0.04)')
                     }
                     onMouseLeave={(e) => (e.currentTarget.style.background = '')}
-                    onClick={() => navigate(`/analyze?code=${item.code}`)}
+                    onClick={() => navigate('analyze', { code: item.code })}
                   >
                     {/* Rank */}
                     <td className="px-3 py-3">

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useView } from '@/lib/ViewContext';
 import { watchlistApi, marketApi, type WatchlistItem, type Quote } from '@/lib/api';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
@@ -15,7 +15,7 @@ export default function TickerTape() {
   const [quotes, setQuotes] = useState<TickerQuote[]>([]);
   const [loading, setLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
+  const { navigate } = useView();
 
   const fetchQuotes = useCallback(async () => {
     try {
@@ -102,7 +102,7 @@ export default function TickerTape() {
         {allQuotes.map((q, i) => (
           <button
             key={`${q.code}-${i}`}
-            onClick={() => navigate(`/kline?code=${q.code}`)}
+            onClick={() => navigate('kline', { code: q.code })}
             className="flex items-center gap-1.5 px-2 py-1 rounded text-xs hover:bg-[var(--color-bg-hover)] transition-colors cursor-pointer"
           >
             <span style={{ color: 'var(--color-text-secondary)' }}>{q.name}</span>

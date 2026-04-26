@@ -124,8 +124,8 @@ export default function StrategyEvalPage() {
           <h1 className="text-xl font-bold">策略评估</h1>
         </div>
         <div className="space-y-4 py-4">
-            <SkeletonStatCards count={3} />
-            <SkeletonList rows={5} />
+            <Skeleton count={3} />
+            <Skeleton rows={5} />
           </div>
       </div>
     );

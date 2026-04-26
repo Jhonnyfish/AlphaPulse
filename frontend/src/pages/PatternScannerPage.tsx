@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useView } from '@/lib/ViewContext';
 import { patternScannerApi, type PatternResult, type PatternScannerResponse } from '@/lib/api';
 import { Scan, TrendingUp, TrendingDown, Minus, RefreshCw, Filter, BarChart3 } from 'lucide-react';
 
@@ -38,7 +38,7 @@ export default function PatternScannerPage() {
   const [error, setError] = useState('');
   const [directionFilter, setDirectionFilter] = useState<DirectionFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
-  const navigate = useNavigate();
+  const { navigate } = useView();
 
   const fetchData = () => {
     setLoading(true);
@@ -229,7 +229,7 @@ export default function PatternScannerPage() {
                   <tr
                     key={`${p.code}-${p.pattern}-${i}`}
                     className="cursor-pointer hover:bg-[var(--color-bg-hover)] transition-colors"
-                    onClick={() => navigate(`/analyze?code=${encodeURIComponent(p.code)}`)}
+                    onClick={() => navigate('analyze', { code: p.code })}
                   >
                     <td className="font-medium">{p.pattern || '—'}</td>
                     <td>

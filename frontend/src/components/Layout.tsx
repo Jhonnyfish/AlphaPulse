@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useKeyboard } from '@/lib/useKeyboard';
 import { useTheme } from '@/lib/theme';
+import { useView, type ViewName } from '@/lib/ViewContext';
 import {
   BarChart3, Star, TrendingUp, Newspaper, LogOut, Activity,
   CandlestickChart, LayoutDashboard, Menu, X, GitCompareArrows,
@@ -17,55 +17,55 @@ import TickerTape from '@/components/TickerTape';
 import KeyboardHelpPanel from '@/components/KeyboardHelpPanel';
 
 interface NavItem {
-  to: string;
+  view: ViewName;
   label: string;
   icon: typeof Activity;
   group: string;
 }
 
 const navItems: NavItem[] = [
-  { to: '/daily-report', label: '每日报告', icon: CalendarClock, group: '工具' },
-  { to: '/perf-stats', label: '绩效统计', icon: Gauge, group: '工具' },
-  { to: '/multi-trend', label: '多周期趋势', icon: GitBranch, group: '分析' },
-  { to: '/correlation', label: '相关性', icon: Network, group: '分析' },
-  { to: '/investment-plans', label: '投资计划', icon: Target, group: '交易' },
-  { to: '/dashboard', label: '总览', icon: LayoutDashboard, group: '核心' },
-  { to: '/watchlist', label: '自选股', icon: Star, group: '核心' },
-  { to: '/market', label: '行情', icon: TrendingUp, group: '核心' },
-  { to: '/kline', label: 'K线', icon: CandlestickChart, group: '核心' },
+  { view: 'daily-report', label: '每日报告', icon: CalendarClock, group: '工具' },
+  { view: 'perf-stats', label: '绩效统计', icon: Gauge, group: '工具' },
+  { view: 'multi-trend', label: '多周期趋势', icon: GitBranch, group: '分析' },
+  { view: 'correlation', label: '相关性', icon: Network, group: '分析' },
+  { view: 'investment-plans', label: '投资计划', icon: Target, group: '交易' },
+  { view: 'dashboard', label: '总览', icon: LayoutDashboard, group: '核心' },
+  { view: 'watchlist', label: '自选股', icon: Star, group: '核心' },
+  { view: 'market', label: '行情', icon: TrendingUp, group: '核心' },
+  { view: 'kline', label: 'K线', icon: CandlestickChart, group: '核心' },
 
-  { to: '/analyze', label: '个股分析', icon: Activity, group: '分析' },
-  { to: '/sectors', label: '板块', icon: BarChart3, group: '分析' },
-  { to: '/compare', label: '对比', icon: GitCompareArrows, group: '分析' },
-  { to: '/flow', label: '资金流向', icon: Droplets, group: '分析' },
-  { to: '/trends', label: '趋势', icon: TrendingUp, group: '分析' },
-  { to: '/breadth', label: '市场广度', icon: Activity, group: '分析' },
-  { to: '/sentiment', label: '市场情绪', icon: Heart, group: '分析' },
+  { view: 'analyze', label: '个股分析', icon: Activity, group: '分析' },
+  { view: 'sectors', label: '板块', icon: BarChart3, group: '分析' },
+  { view: 'compare', label: '对比', icon: GitCompareArrows, group: '分析' },
+  { view: 'flow', label: '资金流向', icon: Droplets, group: '分析' },
+  { view: 'trends', label: '趋势', icon: TrendingUp, group: '分析' },
+  { view: 'breadth', label: '市场广度', icon: Activity, group: '分析' },
+  { view: 'sentiment', label: '市场情绪', icon: Heart, group: '分析' },
 
-  { to: '/candidates', label: '候选股', icon: Target, group: '选股' },
-  { to: '/screener', label: '选股器', icon: Filter, group: '选股' },
-  { to: '/ranking', label: '综合排名', icon: Trophy, group: '选股' },
-  { to: '/hot-concepts', label: '热门概念', icon: Flame, group: '选股' },
-  { to: '/dragon-tiger', label: '龙虎榜', icon: Crown, group: '选股' },
-  { to: '/pattern-scanner', label: '形态扫描', icon: Scan, group: '选股' },
+  { view: 'candidates', label: '候选股', icon: Target, group: '选股' },
+  { view: 'screener', label: '选股器', icon: Filter, group: '选股' },
+  { view: 'ranking', label: '综合排名', icon: Trophy, group: '选股' },
+  { view: 'hot-concepts', label: '热门概念', icon: Flame, group: '选股' },
+  { view: 'dragon-tiger', label: '龙虎榜', icon: Crown, group: '选股' },
+  { view: 'pattern-scanner', label: '形态扫描', icon: Scan, group: '选股' },
 
-  { to: '/portfolio', label: '持仓', icon: Briefcase, group: '交易' },
-  { to: '/journal', label: '交易日志', icon: BookOpen, group: '交易' },
-  { to: '/strategies', label: '策略', icon: Zap, group: '交易' },
-  { to: '/backtest', label: '策略回测', icon: FlaskConical, group: '交易' },
-  { to: '/strategy-eval', label: '策略评估', icon: BarChart3, group: '交易' },
-  { to: '/trade-calendar', label: '交易日历', icon: CalendarDays, group: '交易' },
-  { to: '/signals', label: '信号', icon: Radio, group: '交易' },
-  { to: '/portfolio-risk', label: '组合风险', icon: ShieldAlert, group: '交易' },
+  { view: 'portfolio', label: '持仓', icon: Briefcase, group: '交易' },
+  { view: 'journal', label: '交易日志', icon: BookOpen, group: '交易' },
+  { view: 'strategies', label: '策略', icon: Zap, group: '交易' },
+  { view: 'backtest', label: '策略回测', icon: FlaskConical, group: '交易' },
+  { view: 'strategy-eval', label: '策略评估', icon: BarChart3, group: '交易' },
+  { view: 'trade-calendar', label: '交易日历', icon: CalendarDays, group: '交易' },
+  { view: 'signals', label: '信号', icon: Radio, group: '交易' },
+  { view: 'portfolio-risk', label: '组合风险', icon: ShieldAlert, group: '交易' },
 
-  { to: '/watchlist-analysis', label: '自选分析', icon: Grid3X3, group: '工具' },
-  { to: '/news', label: '资讯', icon: Newspaper, group: '工具' },
-  { to: '/daily-brief', label: '每日简报', icon: FileText, group: '工具' },
-  { to: '/institutions', label: '机构动向', icon: Building2, group: '工具' },
-  { to: '/anomalies', label: '异常检测', icon: AlertTriangle, group: '工具' },
-  { to: '/diag', label: '系统诊断', icon: Monitor, group: '工具' },
-  { to: '/settings', label: '设置', icon: Settings, group: '工具' },
-  { to: '/quick-actions', label: '快捷操作', icon: Bolt, group: '工具' },
+  { view: 'watchlist-analysis', label: '自选分析', icon: Grid3X3, group: '工具' },
+  { view: 'news', label: '资讯', icon: Newspaper, group: '工具' },
+  { view: 'daily-brief', label: '每日简报', icon: FileText, group: '工具' },
+  { view: 'institutions', label: '机构动向', icon: Building2, group: '工具' },
+  { view: 'anomalies', label: '异常检测', icon: AlertTriangle, group: '工具' },
+  { view: 'diag', label: '系统诊断', icon: Monitor, group: '工具' },
+  { view: 'settings', label: '设置', icon: Settings, group: '工具' },
+  { view: 'quick-actions', label: '快捷操作', icon: Bolt, group: '工具' },
 ];
 
 // Group nav items by category
@@ -78,19 +78,17 @@ function groupNavItems(items: NavItem[]): [string, NavItem[]][] {
   return Object.entries(groups);
 }
 
-export default function Layout() {
+interface LayoutProps {
+  children: React.ReactNode;
+}
+
+export default function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const location = useLocation();
-  const navigate = useNavigate();
+  const { activeView, navigate } = useView();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [keyboardHelpOpen, setKeyboardHelpOpen] = useState(false);
-
-  // Close sidebar on route change (mobile)
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [location.pathname]);
 
   // Close sidebar on Escape key
   useEffect(() => {
@@ -100,6 +98,11 @@ export default function Layout() {
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, []);
+
+  // Close sidebar on view change (mobile)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [activeView]);
 
   // Global keyboard shortcuts
   const keyBindings = useMemo(() => [
@@ -117,12 +120,12 @@ export default function Layout() {
     },
     {
       key: 'd',
-      handler: () => navigate('/dashboard'),
+      handler: () => navigate('dashboard'),
       description: '回到总览',
     },
     {
       key: 'w',
-      handler: () => navigate('/watchlist'),
+      handler: () => navigate('watchlist'),
       description: '自选股',
     },
     {
@@ -231,29 +234,30 @@ export default function Layout() {
               >
                 {group}
               </div>
-              {items.map(({ to, label, icon: Icon }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
+              {items.map(({ view, label, icon: Icon }) => {
+                const isActive = activeView === view;
+                return (
+                  <button
+                    key={view}
+                    onClick={() => navigate(view)}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150 w-full text-left ${
                       isActive
                         ? 'font-medium'
                         : 'hover:bg-[var(--color-bg-hover)]'
-                    }`
-                  }
-                  style={({ isActive }) => ({
-                    background: isActive
-                      ? 'linear-gradient(90deg, rgba(59, 130, 246, 0.15), rgba(59, 130, 246, 0.05))'
-                      : undefined,
-                    color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                    borderLeft: isActive ? '2px solid var(--color-accent)' : '2px solid transparent',
-                  })}
-                >
-                  <Icon className="w-4 h-4" style={{ opacity: 0.85 }} />
-                  {label}
-                </NavLink>
-              ))}
+                    }`}
+                    style={{
+                      background: isActive
+                        ? 'linear-gradient(90deg, rgba(59, 130, 246, 0.15), rgba(59, 130, 246, 0.05))'
+                        : undefined,
+                      color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                      borderLeft: isActive ? '2px solid var(--color-accent)' : '2px solid transparent',
+                    }}
+                  >
+                    <Icon className="w-4 h-4" style={{ opacity: 0.85 }} />
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           ))}
         </nav>
@@ -353,7 +357,7 @@ export default function Layout() {
 
         {/* Content */}
         <main className="flex-1 overflow-auto p-4 sm:p-6">
-          <Outlet />
+          {children}
         </main>
       </div>
     </div>

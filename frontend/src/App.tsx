@@ -1,5 +1,6 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useMemo } from 'react';
 import { useAuth } from '@/lib/auth';
+import { ViewContext, type ViewName, type ViewContextValue } from '@/lib/ViewContext';
 import Layout from '@/components/Layout';
 import LoginPage from '@/pages/LoginPage';
 import DashboardPage from '@/pages/DashboardPage';
@@ -41,8 +42,19 @@ import PatternScannerPage from '@/pages/PatternScannerPage';
 import PortfolioRiskPage from '@/pages/PortfolioRiskPage';
 import QuickActionsPage from '@/pages/QuickActionsPage';
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+export default function App() {
   const { token, loading } = useAuth();
+  const [activeView, setActiveView] = useState<ViewName>('dashboard');
+  const [viewParams, setViewParams] = useState<Record<string, string>>({});
+
+  const ctxValue = useMemo<ViewContextValue>(() => ({
+    activeView,
+    viewParams,
+    navigate: (view: ViewName, params?: Record<string, string>) => {
+      setActiveView(view);
+      setViewParams(params ?? {});
+    },
+  }), [activeView, viewParams]);
 
   if (loading) {
     return (
@@ -54,77 +66,51 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!token) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return <>{children}</>;
-}
-
-export default function App() {
-  const { token, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center"
-        style={{ background: 'var(--color-bg-primary)' }}>
-        <span style={{ color: 'var(--color-text-muted)' }}>加载中...</span>
-      </div>
-    );
+    return <LoginPage />;
   }
 
   return (
-    <Routes>
-      <Route
-        path="/login"
-        element={token ? <Navigate to="/dashboard" replace /> : <LoginPage />}
-      />
-      <Route
-        element={
-          <ProtectedRoute>
-            <Layout />
-          </ProtectedRoute>
-        }
-      >
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/watchlist" element={<WatchlistPage />} />
-        <Route path="/market" element={<MarketPage />} />
-        <Route path="/kline" element={<KlinePage />} />
-        <Route path="/sectors" element={<SectorsPage />} />
-        <Route path="/compare" element={<ComparePage />} />
-        <Route path="/news" element={<NewsPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/portfolio" element={<PortfolioPage />} />
-        <Route path="/journal" element={<TradingJournalPage />} />
-        <Route path="/candidates" element={<CandidatesPage />} />
-        <Route path="/screener" element={<ScreenerPage />} />
-        <Route path="/dragon-tiger" element={<DragonTigerPage />} />
-        <Route path="/hot-concepts" element={<HotConceptsPage />} />
-        <Route path="/strategies" element={<StrategiesPage />} />
-        <Route path="/signals" element={<SignalsPage />} />
-        <Route path="/watchlist-analysis" element={<WatchlistAnalysisPage />} />
-        <Route path="/analyze" element={<AnalyzePage />} />
-        <Route path="/flow" element={<FlowPanelPage />} />
-        <Route path="/trends" element={<TrendsPage />} />
-        <Route path="/breadth" element={<BreadthPage />} />
-        <Route path="/sentiment" element={<SentimentPage />} />
-        <Route path="/daily-brief" element={<DailyBriefPage />} />
-        <Route path="/diag" element={<DiagPage />} />
-        <Route path="/anomalies" element={<AnomalyPage />} />
-        <Route path="/institutions" element={<InstitutionPage />} />
-        <Route path="/ranking" element={<RankingPage />} />
-        <Route path="/daily-report" element={<DailyReportPage />} />
-        <Route path="/perf-stats" element={<PerfStatsPage />} />
-        <Route path="/multi-trend" element={<MultiTrendPage />} />
-        <Route path="/correlation" element={<CorrelationPage />} />
-        <Route path="/investment-plans" element={<InvestmentPlansPage />} />
-        <Route path="/backtest" element={<BacktestPage />} />
-        <Route path="/strategy-eval" element={<StrategyEvalPage />} />
-        <Route path="/trade-calendar" element={<TradeCalendarPage />} />
-        <Route path="/pattern-scanner" element={<PatternScannerPage />} />
-        <Route path="/portfolio-risk" element={<PortfolioRiskPage />} />
-        <Route path="/quick-actions" element={<QuickActionsPage />} />
-      </Route>
-      <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
-    </Routes>
+    <ViewContext.Provider value={ctxValue}>
+      <Layout>
+        {activeView === 'dashboard' && <DashboardPage />}
+        {activeView === 'watchlist' && <WatchlistPage />}
+        {activeView === 'market' && <MarketPage />}
+        {activeView === 'kline' && <KlinePage />}
+        {activeView === 'analyze' && <AnalyzePage />}
+        {activeView === 'sectors' && <SectorsPage />}
+        {activeView === 'compare' && <ComparePage />}
+        {activeView === 'news' && <NewsPage />}
+        {activeView === 'settings' && <SettingsPage />}
+        {activeView === 'portfolio' && <PortfolioPage />}
+        {activeView === 'journal' && <TradingJournalPage />}
+        {activeView === 'candidates' && <CandidatesPage />}
+        {activeView === 'screener' && <ScreenerPage />}
+        {activeView === 'dragon-tiger' && <DragonTigerPage />}
+        {activeView === 'hot-concepts' && <HotConceptsPage />}
+        {activeView === 'strategies' && <StrategiesPage />}
+        {activeView === 'signals' && <SignalsPage />}
+        {activeView === 'watchlist-analysis' && <WatchlistAnalysisPage />}
+        {activeView === 'flow' && <FlowPanelPage />}
+        {activeView === 'trends' && <TrendsPage />}
+        {activeView === 'breadth' && <BreadthPage />}
+        {activeView === 'sentiment' && <SentimentPage />}
+        {activeView === 'daily-brief' && <DailyBriefPage />}
+        {activeView === 'diag' && <DiagPage />}
+        {activeView === 'anomalies' && <AnomalyPage />}
+        {activeView === 'institutions' && <InstitutionPage />}
+        {activeView === 'ranking' && <RankingPage />}
+        {activeView === 'daily-report' && <DailyReportPage />}
+        {activeView === 'perf-stats' && <PerfStatsPage />}
+        {activeView === 'multi-trend' && <MultiTrendPage />}
+        {activeView === 'correlation' && <CorrelationPage />}
+        {activeView === 'investment-plans' && <InvestmentPlansPage />}
+        {activeView === 'backtest' && <BacktestPage />}
+        {activeView === 'strategy-eval' && <StrategyEvalPage />}
+        {activeView === 'trade-calendar' && <TradeCalendarPage />}
+        {activeView === 'pattern-scanner' && <PatternScannerPage />}
+        {activeView === 'portfolio-risk' && <PortfolioRiskPage />}
+        {activeView === 'quick-actions' && <QuickActionsPage />}
+      </Layout>
+    </ViewContext.Provider>
   );
 }
