@@ -84,6 +84,12 @@ func (h *InvestmentPlansHandler) savePlans(data investmentPlanData) error {
 }
 
 // List handles GET /api/investment-plans — return all plans.
+// @Summary      获取投资计划列表
+// @Description  返回所有投资计划
+// @Tags         investment-plans
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/investment-plans [get]
 func (h *InvestmentPlansHandler) List(c *gin.Context) {
 	data := loadPlansSafe(h)
 	c.JSON(http.StatusOK, gin.H{
@@ -110,6 +116,14 @@ type upsertRequest struct {
 }
 
 // Upsert handles POST /api/investment-plans — create or update a plan.
+// @Summary      创建或更新投资计划
+// @Description  创建新投资计划或更新已有计划
+// @Tags         investment-plans
+// @Accept       json
+// @Produce      json
+// @Param        body  body  upsertRequest  true  "投资计划数据"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/investment-plans [post]
 func (h *InvestmentPlansHandler) Upsert(c *gin.Context) {
 	var req upsertRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -189,6 +203,13 @@ func (h *InvestmentPlansHandler) Upsert(c *gin.Context) {
 }
 
 // Delete handles DELETE /api/investment-plans/:code — delete a plan.
+// @Summary      删除投资计划
+// @Description  根据股票代码删除对应的投资计划
+// @Tags         investment-plans
+// @Produce      json
+// @Param        code  path  string  true  "股票代码"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/investment-plans/{code} [delete]
 func (h *InvestmentPlansHandler) Delete(c *gin.Context) {
 	rawCode := cleanCode(c.Param("code"))
 	if rawCode == "" {

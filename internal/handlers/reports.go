@@ -188,12 +188,22 @@ func extractDate(filename string) string {
 // ==================== API Handlers ====================
 
 // RedirectToAPI redirects GET /reports to GET /api/reports for backward compatibility.
+// @Summary      重定向到API报告列表
+// @Description  将 /reports 重定向到 /api/reports 以保持向后兼容
+// @Tags         reports
+// @Router       /reports [get]
 func (h *ReportsHandler) RedirectToAPI(c *gin.Context) {
 	c.Redirect(http.StatusMovedPermanently, "/api/reports")
 }
 
 // ListReports returns all reports in the reports directory.
 // GET /api/reports
+// @Summary      获取报告列表
+// @Description  返回 reports 目录下的所有报告文件列表
+// @Tags         reports
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/reports [get]
 func (h *ReportsHandler) ListReports(c *gin.Context) {
 	entries, err := os.ReadDir(h.reportsDir)
 	if err != nil {
@@ -230,6 +240,13 @@ func (h *ReportsHandler) ListReports(c *gin.Context) {
 
 // GetReport returns the content of a specific report.
 // GET /api/reports/:filename
+// @Summary      获取报告详情
+// @Description  根据文件名获取报告的完整内容
+// @Tags         reports
+// @Produce      json
+// @Param        filename  path  string  true  "报告文件名"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/reports/{filename} [get]
 func (h *ReportsHandler) GetReport(c *gin.Context) {
 	filename := c.Param("filename")
 	if filename == "" {
@@ -281,6 +298,12 @@ type reportFile struct {
 
 // DailyReportLatest returns the most recent daily report.
 // GET /api/daily-report/latest
+// @Summary      获取最新日报
+// @Description  返回最近生成的一份日报内容
+// @Tags         reports
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/daily-report/latest [get]
 func (h *ReportsHandler) DailyReportLatest(c *gin.Context) {
 	entries, err := os.ReadDir(h.reportsDir)
 	if err != nil || len(entries) == 0 {
@@ -334,6 +357,12 @@ func (h *ReportsHandler) DailyReportLatest(c *gin.Context) {
 
 // DailyReportList lists all daily reports.
 // GET /api/daily-report/list
+// @Summary      获取日报列表
+// @Description  列出所有已生成的日报
+// @Tags         reports
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/daily-report/list [get]
 func (h *ReportsHandler) DailyReportList(c *gin.Context) {
 	entries, err := os.ReadDir(h.reportsDir)
 	if err != nil {
@@ -372,6 +401,12 @@ func (h *ReportsHandler) DailyReportList(c *gin.Context) {
 
 // DailyReportGenerate generates a new daily report from watchlist analysis.
 // POST /api/daily-report/generate
+// @Summary      生成日报
+// @Description  基于自选股分析生成新的日报（有10分钟冷却时间）
+// @Tags         reports
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/daily-report/generate [post]
 func (h *ReportsHandler) DailyReportGenerate(c *gin.Context) {
 	// 10-minute cooldown
 	h.genMu.Lock()
@@ -545,6 +580,12 @@ func (h *ReportsHandler) DailyReportGenerate(c *gin.Context) {
 
 // DailyBrief returns an aggregate daily market brief.
 // GET /api/daily-brief
+// @Summary      获取每日市场简报
+// @Description  返回包含大盘指数、涨跌家数、板块、自选股的综合市场简报
+// @Tags         reports
+// @Produce      json
+// @Success      200  {object}  dailyBriefPayload
+// @Router       /api/daily-brief [get]
 func (h *ReportsHandler) DailyBrief(c *gin.Context) {
 	// Check cache
 	if cached, ok := h.dailyBriefCache.Get("daily-brief"); ok {

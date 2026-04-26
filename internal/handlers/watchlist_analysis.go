@@ -71,6 +71,12 @@ type HeatmapResponse struct {
 }
 
 // Heatmap returns all watchlist stocks with real-time price data for heatmap rendering.
+// @Summary      获取自选股热力图数据
+// @Description  返回所有自选股的实时价格数据，用于热力图渲染
+// @Tags         watchlist-analysis
+// @Produce      json
+// @Success      200  {object}  HeatmapResponse
+// @Router       /api/watchlist-heatmap [get]
 func (h *WatchlistAnalysisHandler) Heatmap(c *gin.Context) {
 	if cached, ok := h.heatmapCache.Get("all"); ok {
 		c.JSON(http.StatusOK, HeatmapResponse{OK: true, Items: cached})
@@ -170,6 +176,12 @@ func simplifySector(raw string) string {
 }
 
 // Sectors returns sector distribution of watchlist stocks.
+// @Summary      获取自选股板块分布
+// @Description  返回自选股的行业板块分布统计
+// @Tags         watchlist-analysis
+// @Produce      json
+// @Success      200  {object}  SectorsResponse
+// @Router       /api/watchlist-sectors [get]
 func (h *WatchlistAnalysisHandler) Sectors(c *gin.Context) {
 	if cached, ok := h.sectorsCache.Get("all"); ok {
 		c.JSON(http.StatusOK, cached)
@@ -286,6 +298,12 @@ type RankingResponse struct {
 }
 
 // Ranking returns a ranked analysis of all watchlist stocks.
+// @Summary      获取自选股排名分析
+// @Description  对所有自选股进行多维度分析并返回排名结果
+// @Tags         watchlist-analysis
+// @Produce      json
+// @Success      200  {object}  RankingResponse
+// @Router       /api/watchlist-ranking [get]
 func (h *WatchlistAnalysisHandler) Ranking(c *gin.Context) {
 	if cached, ok := h.rankingCache.Get("all"); ok {
 		c.JSON(http.StatusOK, cached)
@@ -455,6 +473,12 @@ type GroupsResponse struct {
 }
 
 // GetGroups returns all watchlist groups and assignments.
+// @Summary      获取自选股分组列表
+// @Description  返回所有自选股分组及股票分配关系
+// @Tags         watchlist-analysis
+// @Produce      json
+// @Success      200  {object}  GroupsResponse
+// @Router       /api/watchlist-groups [get]
 func (h *WatchlistAnalysisHandler) GetGroups(c *gin.Context) {
 	groups, err := h.loadGroups(c.Request.Context())
 	if err != nil {
@@ -483,6 +507,14 @@ type createGroupRequest struct {
 }
 
 // CreateGroup creates a new watchlist group.
+// @Summary      创建自选股分组
+// @Description  创建一个新的自选股分组
+// @Tags         watchlist-analysis
+// @Accept       json
+// @Produce      json
+// @Param        body  body  createGroupRequest  true  "分组数据"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/watchlist-groups [post]
 func (h *WatchlistAnalysisHandler) CreateGroup(c *gin.Context) {
 	var req createGroupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -530,6 +562,15 @@ type updateGroupRequest struct {
 }
 
 // UpdateGroup updates a watchlist group's name or color.
+// @Summary      更新自选股分组
+// @Description  更新指定分组的名称或颜色
+// @Tags         watchlist-analysis
+// @Accept       json
+// @Produce      json
+// @Param        id    path  string              true  "分组ID"
+// @Param        body  body  updateGroupRequest   true  "更新数据"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/watchlist-groups/{id} [put]
 func (h *WatchlistAnalysisHandler) UpdateGroup(c *gin.Context) {
 	groupID := c.Param("id")
 	if groupID == "" {
@@ -575,6 +616,13 @@ func (h *WatchlistAnalysisHandler) UpdateGroup(c *gin.Context) {
 }
 
 // DeleteGroup deletes a watchlist group and unassigns all its stocks.
+// @Summary      删除自选股分组
+// @Description  删除指定分组并解除其下所有股票的分组分配
+// @Tags         watchlist-analysis
+// @Produce      json
+// @Param        id  path  string  true  "分组ID"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/watchlist-groups/{id} [delete]
 func (h *WatchlistAnalysisHandler) DeleteGroup(c *gin.Context) {
 	groupID := c.Param("id")
 	if groupID == "" {
@@ -627,6 +675,14 @@ type assignGroupRequest struct {
 }
 
 // AssignStock assigns or unassigns a stock to/from a group.
+// @Summary      分配股票到分组
+// @Description  将股票分配到指定分组，或取消分配（group_id为空时）
+// @Tags         watchlist-analysis
+// @Accept       json
+// @Produce      json
+// @Param        body  body  assignGroupRequest  true  "分配数据"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/watchlist-groups/assign [post]
 func (h *WatchlistAnalysisHandler) AssignStock(c *gin.Context) {
 	var req assignGroupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

@@ -37,6 +37,13 @@ type updateNoteRequest struct {
 }
 
 // GetNotes handles GET /api/stock-notes/:code — return all notes for a stock.
+// @Summary      获取股票备注列表
+// @Description  获取指定股票代码的所有备注记录
+// @Tags         stock-notes
+// @Produce      json
+// @Param        code  path  string  true  "股票代码"
+// @Success      200  {object}  models.StockNoteListResponse
+// @Router       /api/stock-notes/{code} [get]
 func (h *StockNotesHandler) GetNotes(c *gin.Context) {
 	code := normalizeStockCode(c.Param("code"))
 	if code == "" {
@@ -80,6 +87,14 @@ func (h *StockNotesHandler) GetNotes(c *gin.Context) {
 }
 
 // CreateNote handles POST /api/stock-notes — create a new note.
+// @Summary      创建股票备注
+// @Description  为指定股票创建一条新备注
+// @Tags         stock-notes
+// @Accept       json
+// @Produce      json
+// @Param        body  body  createNoteRequest  true  "备注数据"
+// @Success      200  {object}  models.StockNoteResponse
+// @Router       /api/stock-notes [post]
 func (h *StockNotesHandler) CreateNote(c *gin.Context) {
 	var req createNoteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -136,6 +151,15 @@ func (h *StockNotesHandler) CreateNote(c *gin.Context) {
 }
 
 // UpdateNote handles PUT /api/stock-notes/:id — update a note.
+// @Summary      更新股票备注
+// @Description  更新指定ID的备注内容和标签
+// @Tags         stock-notes
+// @Accept       json
+// @Produce      json
+// @Param        id    path  string            true  "备注ID"
+// @Param        body  body  updateNoteRequest  true  "更新数据"
+// @Success      200  {object}  models.StockNoteResponse
+// @Router       /api/stock-notes/{id} [put]
 func (h *StockNotesHandler) UpdateNote(c *gin.Context) {
 	noteID := c.Param("id")
 	if noteID == "" {
@@ -183,6 +207,13 @@ func (h *StockNotesHandler) UpdateNote(c *gin.Context) {
 }
 
 // DeleteNote handles DELETE /api/stock-notes/:id — delete a note.
+// @Summary      删除股票备注
+// @Description  删除指定ID的备注记录
+// @Tags         stock-notes
+// @Produce      json
+// @Param        id  path  string  true  "备注ID"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/stock-notes/{id} [delete]
 func (h *StockNotesHandler) DeleteNote(c *gin.Context) {
 	noteID := c.Param("id")
 	if noteID == "" {
@@ -212,6 +243,12 @@ func (h *StockNotesHandler) DeleteNote(c *gin.Context) {
 }
 
 // AllTags handles GET /api/stock-notes/tags/all — return all unique tags for the user.
+// @Summary      获取所有标签
+// @Description  返回当前用户所有备注中使用过的唯一标签列表
+// @Tags         stock-notes
+// @Produce      json
+// @Success      200  {object}  models.StockNoteTagsResponse
+// @Router       /api/stock-notes/tags/all [get]
 func (h *StockNotesHandler) AllTags(c *gin.Context) {
 	userID := c.GetString("user_id")
 	rows, err := h.db.Query(c.Request.Context(),

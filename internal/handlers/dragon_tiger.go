@@ -31,6 +31,12 @@ func NewDragonTigerHandler(eastMoney *services.EastMoneyService) *DragonTigerHan
 	}
 }
 
+// @Summary      获取龙虎榜数据
+// @Description  获取最新的龙虎榜交易数据，包含净买入金额和机构信息
+// @Tags         dragon-tiger
+// @Produce      json
+// @Success      200  {object}  models.DragonTigerResponse
+// @Router       /api/dragon-tiger [get]
 func (h *DragonTigerHandler) GetDragonTiger(c *gin.Context) {
 	if cached, ok := h.dragonTigerCache.Get("latest"); ok {
 		cached.Cached = true
@@ -63,6 +69,13 @@ func (h *DragonTigerHandler) GetDragonTiger(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// @Summary      获取龙虎榜历史数据
+// @Description  获取指定天数范围内的龙虎榜历史交易记录
+// @Tags         dragon-tiger
+// @Produce      json
+// @Param        days  query  int  false  "查询天数，默认5天"
+// @Success      200  {object}  models.DragonTigerHistoryResponse
+// @Router       /api/dragon-tiger-history [get]
 func (h *DragonTigerHandler) GetHistory(c *gin.Context) {
 	days, ok := parseDragonTigerDays(c)
 	if !ok {
@@ -87,6 +100,13 @@ func (h *DragonTigerHandler) GetHistory(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// @Summary      机构追踪
+// @Description  获取机构席位交易追踪数据
+// @Tags         dragon-tiger
+// @Produce      json
+// @Param        days  query  int  false  "查询天数，默认5天"
+// @Success      200  {object}  models.InstitutionTrackerResponse
+// @Router       /api/institution-tracker [get]
 func (h *DragonTigerHandler) GetInstitutionTracker(c *gin.Context) {
 	days, ok := parseDragonTigerDays(c)
 	if !ok {
