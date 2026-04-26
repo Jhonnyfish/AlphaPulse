@@ -3,19 +3,20 @@ import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import {
-  Settings,
-  Server,
-  BookOpen,
-  Trash2,
-  User,
-  RefreshCw,
-  ExternalLink,
-  CheckCircle,
-  XCircle,
-  Sun,
-  Moon,
-  Monitor,
+ Settings,
+ Server,
+ BookOpen,
+ Trash2,
+ User,
+ RefreshCw,
+ ExternalLink,
+ CheckCircle,
+ XCircle,
+ Sun,
+ Moon,
+ Monitor,
 } from 'lucide-react';
+import ErrorState from '@/components/ErrorState';
 
 interface SystemInfo {
   version: string;
@@ -180,11 +181,19 @@ export default function SettingsPage() {
         </div>
 
         {error && (
-          <div
-            className="text-sm px-3 py-2 rounded-lg mb-3"
-            style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--color-danger)' }}
-          >
-            {error}
+          <div className="mb-3">
+            <ErrorState
+              title="加载失败"
+              description={error}
+              onRetry={() => {
+                setLoading(true);
+                setError('');
+                api.get<SystemInfo>('/system/info')
+                  .then((res) => setSystemInfo(res.data))
+                  .catch(() => setError('加载系统信息失败'))
+                  .finally(() => setLoading(false));
+              }}
+            />
           </div>
         )}
 

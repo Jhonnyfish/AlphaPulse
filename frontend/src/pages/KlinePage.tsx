@@ -4,6 +4,7 @@ import { createChart, CandlestickSeries, HistogramSeries, type IChartApi } from 
 import { marketApi, type KlinePoint, type Quote, type SearchSuggestion } from '@/lib/api';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import StockSearch from '@/components/StockSearch';
+import ErrorState from '@/components/ErrorState';
 
 const PERIODS = [
   { value: 'daily', label: '日K', days: 120 },
@@ -206,11 +207,12 @@ export default function KlinePage() {
       )}
 
       {error && (
-        <div
-          className="text-sm px-3 py-2 rounded-lg mb-4 max-w-md"
-          style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--color-danger)' }}
-        >
-          {error}
+        <div className="mb-4">
+          <ErrorState
+            title="加载失败"
+            description={error}
+            onRetry={() => { setError(''); if (code) loadKline(code, period); }}
+          />
         </div>
       )}
 

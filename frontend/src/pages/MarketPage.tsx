@@ -15,6 +15,7 @@ import {
 import EmptyState from '@/components/EmptyState';
 import StockSearch from '@/components/StockSearch';
 import { SortableHeader, TableToolbar, Pagination } from '@/components/table';
+import ErrorState from '@/components/ErrorState';
 import { useTableSort } from '@/hooks/useTableSort';
 import { SkeletonInlineTable } from '@/components/ui/Skeleton';
 
@@ -330,11 +331,12 @@ export default function MarketPage() {
         </div>
 
         {moversError && (
-          <div
-            className="text-sm px-3 py-2 rounded-lg mb-4"
-            style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--color-danger)' }}
-          >
-            {moversError}
+          <div className="mb-4">
+            <ErrorState
+              title="加载失败"
+              description={moversError}
+              onRetry={fetchMovers}
+            />
           </div>
         )}
 

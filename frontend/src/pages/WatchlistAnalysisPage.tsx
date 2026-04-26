@@ -6,6 +6,7 @@ import {
   type WatchlistGroup,
 } from '@/lib/api';
 import { Grid3X3, PieChart, Trophy, FolderOpen, Plus, Trash2, Edit2, RefreshCw } from 'lucide-react';
+import ErrorState from '@/components/ErrorState';
 
 const TABS = ['热力图', '板块分布', '排名', '分组管理'] as const;
 type Tab = (typeof TABS)[number];
@@ -173,9 +174,17 @@ export default function WatchlistAnalysisPage() {
       </div>
 
       {error && (
-        <div className="bg-red-900/30 border border-red-700 text-red-300 px-4 py-2 rounded-lg text-sm">
-          {error}
-        </div>
+        <ErrorState
+          title="加载失败"
+          description={error}
+          onRetry={() => {
+            setError('');
+            if (tab === '热力图') fetchHeatmap();
+            else if (tab === '板块分布') fetchSectors();
+            else if (tab === '排名') fetchRanking();
+            else fetchGroups();
+          }}
+        />
       )}
 
       {/* Heatmap Tab */}

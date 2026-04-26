@@ -5,13 +5,14 @@ import {
   type BacktestResult,
 } from '@/lib/api';
 import {
-  Search,
-  Play,
-  Loader2,
-  AlertCircle,
-  TrendingUp,
-  BarChart3,
+ Search,
+ Play,
+ Loader2,
+ AlertCircle,
+ TrendingUp,
+ BarChart3,
 } from 'lucide-react';
+import ErrorState from '@/components/ErrorState';
 
 type Tab = 'sector' | 'backtest';
 
@@ -153,15 +154,12 @@ export default function ComparePage() {
           </div>
 
           {sectorError && (
-            <div
-              className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg mb-4 max-w-md"
-              style={{
-                background: 'rgba(239,68,68,0.1)',
-                color: 'var(--color-danger)',
-              }}
-            >
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              {sectorError}
+            <div className="mb-4">
+              <ErrorState
+                title="查询失败"
+                description={sectorError}
+                onRetry={() => { setSectorError(''); handleSectorSearch(); }}
+              />
             </div>
           )}
 
@@ -338,15 +336,12 @@ export default function ComparePage() {
           </div>
 
           {btError && (
-            <div
-              className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg mb-4 max-w-md"
-              style={{
-                background: 'rgba(239,68,68,0.1)',
-                color: 'var(--color-danger)',
-              }}
-            >
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              {btError}
+            <div className="mb-4">
+              <ErrorState
+                title="回测失败"
+                description={btError}
+                onRetry={() => { setBtError(''); handleBacktest(); }}
+              />
             </div>
           )}
 

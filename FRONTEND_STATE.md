@@ -112,7 +112,7 @@
 - [x] 3.5b TradingJournalPage — 收益分布直方图 + 月度统计
 - [x] 3.6 所有数据表格 — 添加排序、筛选、分页功能（MarketPage 已实现，可复用组件已抽取）
 - [x] 3.7 所有列表页面 — skeleton 加载态替代"加载中..."文字
-- [ ] 3.8 所有页面 — 空状态提示（无数据时显示引导）
+- [x] 3.8 所有页面 — 空状态提示（无数据时显示引导）
 - [ ] 3.9 所有页面 — 错误状态统一处理 + 重试按钮
 - [ ] 3.10 KlinePage — 技术指标叠加（MA/MACD/KDJ/RSI）
 - [ ] 3.11 SectorsPage — 板块资金流向柱状图
@@ -147,3 +147,4 @@
 - 2026-04-26 18:20 | 3.5b TradingJournalPage | 添加收益分布直方图(ECharts bar, 12区间红绿渐变) + 月度统计卡片(12个月响应式grid, 交易次数/总盈亏/胜率/平均收益率)，同源mock数据，glass morphism风格 | files: TradingJournalPage.tsx
 - 2026-04-26 18:40 | 3.6 MarketPage 数据表格 | 列排序(升序/降序/无排序+箭头图标)、搜索筛选(代码/名称模糊搜索)、涨跌幅快筛(全部/涨/跌/涨停/跌停)、分页(20条/页+智能页码)；抽取4个可复用组件：useTableSort hook、SortableHeader、TableToolbar、Pagination | files: MarketPage.tsx, hooks/useTableSort.ts, components/table/{SortableHeader,TableToolbar,Pagination,index}.ts
 - 2026-04-26 19:00 | 3.7 skeleton 加载态 | 增强Skeleton组件(新增SkeletonGridCard/SkeletonList/SkeletonInlineTable/SkeletonCalendar/SkeletonStatCards)；18个页面替换"加载中..."文字为对应骨架屏 | files: Skeleton.tsx, MarketPage, WatchlistPage, NewsPage, SignalsPage, SectorsPage, DragonTigerPage, HotConceptsPage, StrategiesPage, PortfolioPage, TradingJournalPage, TradeCalendarPage, StrategyEvalPage, ScreenerPage, BacktestPage, PortfolioRiskPage, SettingsPage
+- 2026-04-26 19:20 | 3.8 空状态提示 | 创建 EmptyState 可复用组件(glass morphism, 48px图标, 标题+描述+可选按钮, fadeIn动画)；12个页面添加无数据空状态引导(MarketPage/WatchlistPage/CandidatesPage/PortfolioPage/TradingJournalPage/NewsPage/SignalsPage/SectorsPage/HotConceptsPage/DragonTigerPage/StrategiesPage/ScreenerPage) | files: EmptyState.tsx, MarketPage, WatchlistPage, CandidatesPage, PortfolioPage, TradingJournalPage, NewsPage, SignalsPage, SectorsPage, HotConceptsPage, DragonTigerPage, StrategiesPage, ScreenerPage

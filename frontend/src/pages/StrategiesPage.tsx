@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { strategiesApi, type Strategy } from '@/lib/api';
 import EmptyState from '@/components/EmptyState';
+import ErrorState from '@/components/ErrorState';
 import { Zap, Plus, Trash2, Power, PowerOff, RefreshCw } from 'lucide-react';
 import { SkeletonList } from '@/components/ui/Skeleton';
 
@@ -122,11 +123,12 @@ export default function StrategiesPage() {
       </div>
 
       {error && (
-        <div
-          className="text-sm px-3 py-2 rounded-lg mb-4 max-w-md"
-          style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--color-danger)' }}
-        >
-          {error}
+        <div className="mb-4">
+          <ErrorState
+            title="加载失败"
+            description={error}
+            onRetry={() => { setError(''); fetchData(); }}
+          />
         </div>
       )}
 

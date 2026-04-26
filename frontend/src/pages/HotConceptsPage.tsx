@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { hotConceptsApi, type HotConcept } from '@/lib/api';
 import EmptyState from '@/components/EmptyState';
+import ErrorState from '@/components/ErrorState';
 import { Flame, RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Star, Link2 } from 'lucide-react';
 import { SkeletonGridCard, SkeletonList, SkeletonInlineTable } from '@/components/ui/Skeleton';
 
@@ -108,11 +109,12 @@ export default function HotConceptsPage() {
 
       {/* Error */}
       {error && (
-        <div
-          className="text-sm px-3 py-2 rounded-lg mb-4 max-w-md"
-          style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--color-danger)' }}
-        >
-          {error}
+        <div className="mb-4">
+          <ErrorState
+            title="加载失败"
+            description={error}
+            onRetry={() => { setError(''); fetchConcepts(); fetchOverlap(); }}
+          />
         </div>
       )}
 

@@ -10,6 +10,7 @@ import {
   type KlinePoint,
 } from '@/lib/api';
 import EChart from '@/components/charts/EChart';
+import ErrorState from '@/components/ErrorState';
 import type { EChartsOption } from 'echarts';
 import {
   Activity,
@@ -96,6 +97,7 @@ export default function DashboardPage() {
   const [signals, setSignals] = useState<DashboardSignal[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
@@ -103,6 +105,7 @@ export default function DashboardPage() {
   /* ─── data fetching ─── */
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const [overviewRes, sectorsRes, signalsRes, activityRes] =
         await Promise.allSettled([
@@ -151,8 +154,10 @@ export default function DashboardPage() {
       }
 
       setLastUpdated(new Date());
-    } catch {
-      // errors handled per-item
+    } catch (err) {
+      if (!overview) {
+        setError(err instanceof Error ? err.message : '加载数据失败');
+      }
     } finally {
       setLoading(false);
     }
@@ -397,6 +402,13 @@ export default function DashboardPage() {
       </div>
 
       {/* ─── Grid layout: 2 cols on lg, 1 col on small ─── */}
+      {error && (
+        <ErrorState
+          title="加载失败"
+          description={error}
+          onRetry={fetchData}
+        />
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* ═══════ 1. 指数走势图 ═══════ */}
         <GlassCard className="p-5 lg:col-span-2">

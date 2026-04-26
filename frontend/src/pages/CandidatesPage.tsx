@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { candidatesApi } from '@/lib/api';
 import { Target, RefreshCw, TrendingUp, Star, Eye, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
+import ErrorState from '@/components/ErrorState';
 import StockDetailModal from '@/components/StockDetailModal';
 
 interface Candidate {
@@ -318,12 +319,11 @@ export default function CandidatesPage() {
 
       {/* Error */}
       {error && (
-        <div
-          className="px-4 py-3 rounded-lg text-sm"
-          style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}
-        >
-          {error}
-        </div>
+        <ErrorState
+          title="加载失败"
+          description={error}
+          onRetry={() => { setError(''); fetchData(); }}
+        />
       )}
 
       {/* Loading */}
