@@ -1,11 +1,31 @@
 import { useState, useEffect, useCallback } from 'react';
 import { dragonTigerApi, type DragonTigerItem } from '@/lib/api';
-import { Crown, RefreshCw, TrendingUp, TrendingDown, Building2, Calendar, Trophy } from 'lucide-react';
+import { Crown, RefreshCw, TrendingUp, TrendingDown, Building2, Calendar, Trophy, PieChart } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
 import ErrorState from '@/components/ErrorState';
 import { SkeletonInlineTable } from '@/components/ui/Skeleton';
+import EChart from '@/components/charts/EChart';
+import type { EChartsOption } from 'echarts';
 
 const DAYS_OPTIONS = [1, 3, 5, 10] as const;
+
+/* ── Mock data: 龙虎榜资金来源分布 ───────────────────── */
+const FUND_DISTRIBUTION_MOCK = [
+  { name: '机构专用', value: 45.2, amount: 5280000000 },
+  { name: '知名游资', value: 23.8, amount: 2780000000 },
+  { name: '沪股通/深股通', value: 12.5, amount: 1460000000 },
+  { name: '量化基金', value: 8.3, amount: 970000000 },
+  { name: '营业部席位', value: 6.7, amount: 783000000 },
+  { name: '其他', value: 3.5, amount: 409000000 },
+];
+
+const PIE_COLORS = ['#3b82f6', '#ef4444', '#22d3ee', '#f59e0b', '#a855f7', '#64748b'];
+
+const formatPieAmount = (v: number) => {
+  if (Math.abs(v) >= 1e8) return (v / 1e8).toFixed(2) + '亿';
+  if (Math.abs(v) >= 1e4) return (v / 1e4).toFixed(0) + '万';
+  return v.toFixed(0);
+};
 
 export default function DragonTigerPage() {
   const [items, setItems] = useState<DragonTigerItem[]>([]);
@@ -63,6 +83,73 @@ export default function DragonTigerPage() {
   const buyCount = items.filter((i) => i.net_amount > 0).length;
   const sellCount = items.filter((i) => i.net_amount < 0).length;
 
+  // Pie chart option
+  const pieOption: EChartsOption = {
+    tooltip: {
+      trigger: 'item',
+      formatter: (params: unknown) => {
+        const p = params as { name: string; value: number; dataIndex: number };
+        const item = FUND_DISTRIBUTION_MOCK[p.dataIndex];
+        return `
+          <div style="font-size:13px;font-weight:600;margin-bottom:6px">${p.name}</div>
+          <div style="display:flex;justify-content:space-between;gap:16px">
+            <span style="color:#94a3b8">金额</span>
+            <span style="color:#f1f5f9;font-weight:500">${formatPieAmount(item.amount)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:16px">
+            <span style="color:#94a3b8">占比</span>
+            <span style="color:#f1f5f9;font-weight:500">${p.value}%</span>
+          </div>
+        `;
+      },
+    },
+    legend: {
+      orient: 'vertical',
+      right: '5%',
+      top: 'center',
+      icon: 'circle',
+      itemWidth: 10,
+      itemHeight: 10,
+      itemGap: 14,
+      textStyle: {
+        color: '#94a3b8',
+        fontSize: 12,
+        rich: {
+          name: { width: 80, fontSize: 12, color: '#94a3b8' },
+          pct: { fontSize: 12, color: '#e2e8f0', fontWeight: 600, align: 'right' },
+        },
+      },
+      formatter: (name: string) => {
+        const item = FUND_DISTRIBUTION_MOCK.find((d) => d.name === name);
+        return `{name|${name}}  {pct|${item?.value ?? 0}%}`;
+      },
+    },
+    series: [
+      {
+        type: 'pie',
+        radius: ['45%', '72%'],
+        center: ['35%', '50%'],
+        avoidLabelOverlap: false,
+        itemStyle: {
+          borderColor: '#0f172a',
+          borderWidth: 2,
+          borderRadius: 6,
+        },
+        label: { show: false },
+        emphasis: {
+          scaleSize: 8,
+          label: { show: false },
+          itemStyle: { shadowBlur: 20, shadowColor: 'rgba(0,0,0,0.4)' },
+        },
+        data: FUND_DISTRIBUTION_MOCK.map((d, i) => ({
+          name: d.name,
+          value: d.value,
+          itemStyle: { color: PIE_COLORS[i] },
+        })),
+      },
+    ],
+  };
+
   return (
     <div>
       {/* Header */}
@@ -106,6 +193,29 @@ export default function DragonTigerPage() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Fund Distribution Pie Chart */}
+      <div
+        className="glass-panel p-5 mb-4 animate-fade-in"
+        style={{
+          background: 'var(--color-bg-card)',
+          border: '1px solid var(--color-border)',
+          backdropFilter: 'blur(18px)',
+          WebkitBackdropFilter: 'blur(18px)',
+        }}
+      >
+        <div className="flex items-center gap-2 mb-1">
+          <PieChart className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+          <h2 className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>
+            龙虎榜资金来源分布
+          </h2>
+          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>({days}天)</span>
+        </div>
+        <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
+          各类资金席位买入占比统计
+        </p>
+        <EChart option={pieOption} height={300} />
       </div>
 
       {/* Summary bar */}
