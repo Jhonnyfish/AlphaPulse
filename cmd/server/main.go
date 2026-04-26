@@ -96,7 +96,8 @@ func main() {
 	sectorRotationHandler := handlers.NewSectorRotationHandler(eastMoneyService, db, logger.L())
 	investmentPlansHandler := handlers.NewInvestmentPlansHandler(logger.L())
 	watchlistAnalysisHandler := handlers.NewWatchlistAnalysisHandler(db, tencentService, eastMoneyService, analyzeHandler, logger.L())
-	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats())
+	perfTracker := services.NewPerfTracker()
+	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats(), perfTracker)
 	signalHandler := handlers.NewSignalHandler(alpha300Service, tencentService, eastMoneyService, logger.L())
 	reportsHandler := handlers.NewReportsHandler(db, tencentService, eastMoneyService, analyzeHandler, watchlistHandler, logger.L())
 	alertsHandler := handlers.NewAlertsHandler(db, analyzeHandler, logger.L())
@@ -107,6 +108,7 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(middleware.RequestLogger())
+	router.Use(middleware.TimingMiddleware(perfTracker))
 	router.Use(middleware.CORS())
 
 	authMiddleware := middleware.AuthRequired(cfg.JWTSecret)

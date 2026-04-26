@@ -1415,7 +1415,7 @@ const docTemplate = `{
         },
         "/api/performance-stats": {
             "get": {
-                "description": "返回性能统计数据",
+                "description": "返回各端点性能统计数据",
                 "produces": [
                     "application/json"
                 ],
@@ -1427,8 +1427,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/services.PerformanceStatsResponse"
                         }
                     }
                 }
@@ -1925,7 +1924,7 @@ const docTemplate = `{
         },
         "/api/slow-queries": {
             "get": {
-                "description": "返回慢查询记录",
+                "description": "返回慢查询记录和统计",
                 "produces": [
                     "application/json"
                 ],
@@ -1937,8 +1936,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/services.SlowQueriesResponse"
                         }
                     }
                 }
@@ -4843,6 +4841,153 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.EndpointPerformanceStat": {
+            "type": "object",
+            "properties": {
+                "avg_duration_ms": {
+                    "type": "number"
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "endpoint": {
+                    "type": "string"
+                },
+                "max_duration_ms": {
+                    "type": "number"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "p50_duration_ms": {
+                    "type": "number"
+                },
+                "p95_duration_ms": {
+                    "type": "number"
+                },
+                "p99_duration_ms": {
+                    "type": "number"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "slow_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.PerformanceStatsResponse": {
+            "type": "object",
+            "properties": {
+                "endpoints": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.EndpointPerformanceStat"
+                    }
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "summary": {
+                    "$ref": "#/definitions/services.PerformanceSummary"
+                },
+                "total_requests": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.PerformanceSummary": {
+            "type": "object",
+            "properties": {
+                "avg_duration_ms": {
+                    "type": "number"
+                },
+                "max_duration_ms": {
+                    "type": "number"
+                },
+                "p50_duration_ms": {
+                    "type": "number"
+                },
+                "p95_duration_ms": {
+                    "type": "number"
+                },
+                "p99_duration_ms": {
+                    "type": "number"
+                },
+                "slow_count": {
+                    "type": "integer"
+                },
+                "slowest_endpoint": {
+                    "type": "string"
+                },
+                "total_endpoints": {
+                    "type": "integer"
+                },
+                "total_requests": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.SlowQueriesResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.SlowQueryEntry"
+                    }
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "stats": {
+                    "$ref": "#/definitions/services.SlowQueriesStats"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.SlowQueriesStats": {
+            "type": "object",
+            "properties": {
+                "avg_duration_ms": {
+                    "type": "number"
+                },
+                "max_duration_ms": {
+                    "type": "number"
+                },
+                "slowest_endpoint": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.SlowQueryEntry": {
+            "type": "object",
+            "properties": {
+                "client_ip": {
+                    "type": "string"
+                },
+                "duration_ms": {
+                    "type": "number"
+                },
+                "endpoint": {
+                    "type": "string"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "status_code": {
+                    "type": "integer"
+                },
+                "timestamp": {
                     "type": "string"
                 }
             }

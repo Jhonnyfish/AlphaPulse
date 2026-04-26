@@ -10,6 +10,7 @@ import (
 
 	"alphapulse/internal/cache"
 	apperrors "alphapulse/internal/errors"
+	"alphapulse/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -24,15 +25,16 @@ type SystemHandler struct {
 	started  time.Time
 	cacheMap map[string]cache.Sizer
 	log      *zap.Logger
+	tracker  *services.PerfTracker
 }
-
-func NewSystemHandler(db *pgxpool.Pool, version string, started time.Time, cacheMap map[string]cache.Sizer) *SystemHandler {
+func NewSystemHandler(db *pgxpool.Pool, version string, started time.Time, cacheMap map[string]cache.Sizer, tracker *services.PerfTracker) *SystemHandler {
 	return &SystemHandler{
 		db:       db,
 		version:  version,
 		started:  started,
 		cacheMap: cacheMap,
 		log:      zap.L(),
+		tracker:  tracker,
 	}
 }
 
@@ -266,41 +268,30 @@ func (h *SystemHandler) ActivityLog(c *gin.Context) {
 	})
 }
 
-// SlowQueries handles GET /api/slow-queries — placeholder for slow query tracking.
+// SlowQueries handles GET /api/slow-queries — returns slow query log and stats.
 //
 // @Summary      慢查询
-// @Description  返回慢查询记录
+// @Description  返回慢查询记录和统计
 // @Tags         system
 // @Produce      json
-// @Success      200  {object}  map[string]interface{}
+// @Success      200  {object}  services.SlowQueriesResponse
 // @Router       /api/slow-queries [get]
 func (h *SystemHandler) SlowQueries(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"ok":    true,
-		"items": []interface{}{},
-		"total": 0,
-		"stats": gin.H{
-			"avg_duration_ms":  0,
-			"max_duration_ms":  0,
-			"slowest_endpoint": "N/A",
-		},
-	})
+	resp := h.tracker.GetSlowQueries()
+	c.JSON(http.StatusOK, resp)
 }
 
-// PerformanceStats handles GET /api/performance-stats — placeholder.
+// PerformanceStats handles GET /api/performance-stats — per-endpoint performance data.
 //
 // @Summary      性能统计
-// @Description  返回性能统计数据
+// @Description  返回各端点性能统计数据
 // @Tags         system
 // @Produce      json
-// @Success      200  {object}  map[string]interface{}
+// @Success      200  {object}  services.PerformanceStatsResponse
 // @Router       /api/performance-stats [get]
 func (h *SystemHandler) PerformanceStats(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"ok":             true,
-		"endpoints":      []interface{}{},
-		"total_requests": 0,
-	})
+	resp := h.tracker.GetPerformanceStats()
+	c.JSON(http.StatusOK, resp)
 }
 
 // Status handles GET /api/status — simple status probe.
