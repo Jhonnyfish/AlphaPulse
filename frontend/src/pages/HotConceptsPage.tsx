@@ -1,9 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { hotConceptsApi, type HotConcept } from '@/lib/api';
 import EmptyState from '@/components/EmptyState';
 import ErrorState from '@/components/ErrorState';
 import { Flame, RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Star, Link2 } from 'lucide-react';
+import { TrendingUp as TrendingUpIcon } from 'lucide-react';
 import { SkeletonGridCard, SkeletonList, SkeletonInlineTable } from '@/components/ui/Skeleton';
+import EChart from '@/components/charts/EChart';
+import type { EChartsOption } from 'echarts';
 
 interface ConceptStock {
   code: string;
@@ -82,6 +85,115 @@ export default function HotConceptsPage() {
     n > 0 ? 'var(--color-danger)' : n < 0 ? 'var(--color-success)' : 'var(--color-text-secondary)';
 
   const sorted = [...concepts].sort((a, b) => b.change_pct - a.change_pct);
+
+  // ── Mock trend data for top concepts ──────────────────────
+  const trendColors = [
+    '#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#a855f7',
+    '#ec4899', '#22d3ee', '#f97316',
+  ];
+
+  const generateMockDates = useCallback((days: number) => {
+    const dates: string[] = [];
+    const now = new Date();
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      dates.push(
+        `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      );
+    }
+    return dates;
+  }, []);
+
+  const mockTrendData = useMemo(() => {
+    if (concepts.length === 0) return null;
+    const topConcepts = [...concepts]
+      .sort((a, b) => b.stock_count - a.stock_count)
+      .slice(0, 6);
+    const dates = generateMockDates(10);
+
+    return {
+      dates,
+      series: topConcepts.map((concept, idx) => {
+        const baseHeat = 30 + Math.random() * 40;
+        const volatility = 5 + Math.random() * 10;
+        const values: number[] = [];
+        let current = baseHeat;
+        for (let i = 0; i < dates.length; i++) {
+          const drift =
+            i === dates.length - 1
+              ? concept.change_pct * 0.5
+              : (Math.random() - 0.48) * volatility;
+          current = Math.max(0, Math.min(100, current + drift));
+          values.push(Math.round(current * 10) / 10);
+        }
+        return {
+          name: concept.name,
+          values,
+          color: trendColors[idx % trendColors.length],
+        };
+      }),
+    };
+  }, [concepts, generateMockDates]);
+
+  const trendChartOption = useMemo<EChartsOption | null>(() => {
+    if (!mockTrendData) return null;
+    return {
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(15, 23, 42, 0.92)',
+        borderColor: 'rgba(148, 163, 184, 0.2)',
+        textStyle: { color: '#e2e8f0', fontSize: 12 },
+        axisPointer: { type: 'cross', crossStyle: { color: '#64748b' } },
+      },
+      legend: {
+        type: 'scroll',
+        top: 0,
+        textStyle: { color: '#94a3b8', fontSize: 11 },
+        pageTextStyle: { color: '#94a3b8' },
+        pageIconColor: '#3b82f6',
+        pageIconInactiveColor: '#64748b',
+      },
+      grid: { top: 40, left: 12, right: 16, bottom: 8, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: mockTrendData.dates,
+        boundaryGap: false,
+        axisLabel: { color: '#94a3b8', fontSize: 11 },
+        axisLine: { lineStyle: { color: '#334155' } },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        type: 'value',
+        name: '热度',
+        nameTextStyle: { color: '#94a3b8', fontSize: 11 },
+        axisLabel: { color: '#94a3b8', fontSize: 11 },
+        axisLine: { show: false },
+        splitLine: { lineStyle: { color: 'rgba(51, 65, 85, 0.4)' } },
+      },
+      series: mockTrendData.series.map((s) => ({
+        name: s.name,
+        type: 'line' as const,
+        data: s.values,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 6,
+        lineStyle: { width: 2, color: s.color },
+        itemStyle: { color: s.color },
+        emphasis: { focus: 'series' as const, lineStyle: { width: 3 } },
+        areaStyle: {
+          color: {
+            type: 'linear' as const,
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: s.color + '20' },
+              { offset: 1, color: s.color + '02' },
+            ],
+          },
+        },
+      })),
+    };
+  }, [mockTrendData]);
 
   return (
     <div>
@@ -237,6 +349,29 @@ export default function HotConceptsPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Concept Trend Chart */}
+      {trendChartOption && concepts.length > 0 && (
+        <div
+          className="rounded-xl border mb-6 overflow-hidden"
+          style={{
+            background: 'linear-gradient(135deg, rgba(15,23,42,0.85), rgba(30,41,59,0.65))',
+            borderColor: 'var(--color-border)',
+            backdropFilter: 'blur(12px)',
+          }}
+        >
+          <div className="flex items-center gap-2 px-5 pt-4 pb-1">
+            <TrendingUpIcon className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+            <h2 className="text-sm font-bold">概念热度趋势</h2>
+            <span className="text-xs ml-1" style={{ color: 'var(--color-text-muted)' }}>
+              Top {mockTrendData?.series.length ?? 0} · 近 10 日
+            </span>
+          </div>
+          <div className="px-3 pb-3">
+            <EChart option={trendChartOption} height={350} />
+          </div>
         </div>
       )}
 
