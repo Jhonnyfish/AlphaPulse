@@ -1,0 +1,753 @@
+import { tradingJournalApi, type TradeRecord, type TradeStats, type TradeCalendarDay } from '@/lib/api';
+import { useState, useEffect, useCallback } from 'react';
+import { Plus, Trash2, TrendingUp, TrendingDown, BookOpen, Calendar, BarChart3, RefreshCw, Award, Frown } from 'lucide-react';
+
+interface AddForm {
+  code: string;
+  name: string;
+  direction: 'buy' | 'sell';
+  price: string;
+  quantity: string;
+  trade_date: string;
+  strategy: string;
+  reason: string;
+  emotion: string;
+  notes: string;
+}
+
+const emptyForm: AddForm = {
+  code: '',
+  name: '',
+  direction: 'buy',
+  price: '',
+  quantity: '',
+  trade_date: new Date().toISOString().slice(0, 10),
+  strategy: '',
+  reason: '',
+  emotion: '',
+  notes: '',
+};
+
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+
+export default function TradingJournalPage() {
+  const [trades, setTrades] = useState<TradeRecord[]>([]);
+  const [stats, setStats] = useState<TradeStats | null>(null);
+  const [calendarDays, setCalendarDays] = useState<TradeCalendarDay[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState<AddForm>(emptyForm);
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const now = new Date();
+  const [calYear, setCalYear] = useState(now.getFullYear());
+  const [calMonth, setCalMonth] = useState(now.getMonth() + 1);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [tradesRes, statsRes, calRes] = await Promise.allSettled([
+        tradingJournalApi.list(),
+        tradingJournalApi.stats(),
+        tradingJournalApi.calendar({ year: calYear, month: calMonth }),
+      ]);
+      if (tradesRes.status === 'fulfilled') setTrades(tradesRes.value.data);
+      if (statsRes.status === 'fulfilled') setStats(statsRes.value.data);
+      if (calRes.status === 'fulfilled') setCalendarDays(calRes.value.data);
+    } catch {
+      setError('加载数据失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [calYear, calMonth]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleAdd = async () => {
+    if (!form.code || !form.price || !form.quantity || !form.trade_date) return;
+    setSubmitting(true);
+    try {
+      const price = Number(form.price);
+      const quantity = Number(form.quantity);
+      const parts: string[] = [];
+      if (form.reason) parts.push(`原因: ${form.reason}`);
+      if (form.emotion) parts.push(`情绪: ${form.emotion}`);
+      if (form.notes) parts.push(form.notes);
+
+      await tradingJournalApi.create({
+        code: form.code.trim().toUpperCase(),
+        name: form.name.trim(),
+        direction: form.direction,
+        price,
+        quantity,
+        amount: price * quantity,
+        trade_date: form.trade_date,
+        profit_loss: 0,
+        profit_loss_pct: 0,
+        strategy: form.strategy.trim(),
+        notes: parts.length > 0 ? parts.join(' | ') : undefined,
+      });
+      setShowModal(false);
+      setForm(emptyForm);
+      await fetchData();
+    } catch {
+      setError('添加交易失败');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await tradingJournalApi.remove(id);
+      await fetchData();
+    } catch {
+      setError('删除交易失败');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const pnlColor = (n: number) =>
+    n > 0
+      ? 'var(--color-danger)'
+      : n < 0
+        ? 'var(--color-success)'
+        : 'var(--color-text-secondary)';
+
+  const formatPct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
+  const formatNum = (n: number) =>
+    n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // Calendar helpers
+  const firstDay = new Date(calYear, calMonth - 1, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth, 0).getDate();
+  const calMap = new Map(calendarDays.map((d) => [d.date, d]));
+
+  const prevMonth = () => {
+    if (calMonth === 1) { setCalMonth(12); setCalYear((y) => y - 1); }
+    else setCalMonth((m) => m - 1);
+  };
+  const nextMonth = () => {
+    if (calMonth === 12) { setCalMonth(1); setCalYear((y) => y + 1); }
+    else setCalMonth((m) => m + 1);
+  };
+
+  const calendarCells: (number | null)[] = [];
+  for (let i = 0; i < firstDay; i++) calendarCells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) calendarCells.push(d);
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <BookOpen className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
+          <h1 className="text-xl font-bold">交易日志</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors"
+            style={{ background: 'var(--color-accent)', color: '#fff' }}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            添加交易
+          </button>
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm hover:bg-[var(--color-bg-hover)] transition-colors"
+            style={{ color: 'var(--color-text-secondary)' }}
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            刷新
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div
+          className="text-sm px-3 py-2 rounded-lg mb-4 max-w-md"
+          style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--color-danger)' }}
+        >
+          {error}
+        </div>
+      )}
+
+      {/* Statistics cards */}
+      {stats && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+          <div
+            className="rounded-xl border p-4"
+            style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
+          >
+            <div className="flex items-center gap-1.5 text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>
+              <BarChart3 className="w-3 h-3" />
+              总交易
+            </div>
+            <div className="text-lg font-bold font-mono">{stats.total_trades}</div>
+          </div>
+          <div
+            className="rounded-xl border p-4"
+            style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
+          >
+            <div className="flex items-center gap-1.5 text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>
+              <Award className="w-3 h-3" />
+              胜率
+            </div>
+            <div className="text-lg font-bold font-mono" style={{ color: pnlColor(stats.win_rate * 2 - 1) }}>
+              {(stats.win_rate * 100).toFixed(1)}%
+            </div>
+          </div>
+          <div
+            className="rounded-xl border p-4"
+            style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
+          >
+            <div className="flex items-center gap-1.5 text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>
+              <TrendingUp className="w-3 h-3" style={{ color: 'var(--color-danger)' }} />
+              平均盈利%
+            </div>
+            <div className="text-lg font-bold font-mono" style={{ color: 'var(--color-danger)' }}>
+              {formatPct(stats.avg_profit_pct)}
+            </div>
+          </div>
+          <div
+            className="rounded-xl border p-4"
+            style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
+          >
+            <div className="flex items-center gap-1.5 text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>
+              <TrendingDown className="w-3 h-3" style={{ color: 'var(--color-success)' }} />
+              平均亏损%
+            </div>
+            <div className="text-lg font-bold font-mono" style={{ color: 'var(--color-success)' }}>
+              {formatPct(stats.avg_loss_pct)}
+            </div>
+          </div>
+          <div
+            className="rounded-xl border p-4"
+            style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
+          >
+            <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>总盈亏</div>
+            <div className="text-lg font-bold font-mono" style={{ color: pnlColor(stats.total_profit_loss) }}>
+              {formatNum(stats.total_profit_loss)}
+            </div>
+          </div>
+          <div
+            className="rounded-xl border p-4"
+            style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
+          >
+            <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>盈亏比</div>
+            <div className="text-lg font-bold font-mono">{stats.profit_factor.toFixed(2)}</div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {/* Calendar */}
+        <div
+          className="rounded-xl border p-4 lg:col-span-1"
+          style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5">
+              <Calendar className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+              <span className="text-sm font-medium">交易日历</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={prevMonth}
+                className="px-2 py-0.5 rounded text-xs hover:bg-[var(--color-bg-hover)] transition-colors"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
+                &lt;
+              </button>
+              <span className="text-xs font-mono" style={{ color: 'var(--color-text-secondary)' }}>
+                {calYear}-{String(calMonth).padStart(2, '0')}
+              </span>
+              <button
+                onClick={nextMonth}
+                className="px-2 py-0.5 rounded text-xs hover:bg-[var(--color-bg-hover)] transition-colors"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
+                &gt;
+              </button>
+            </div>
+          </div>
+
+          {/* Weekday headers */}
+          <div className="grid grid-cols-7 gap-1 mb-1">
+            {WEEKDAYS.map((d) => (
+              <div
+                key={d}
+                className="text-center text-[10px] py-1"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
+                {d}
+              </div>
+            ))}
+          </div>
+
+          {/* Day cells */}
+          <div className="grid grid-cols-7 gap-1">
+            {calendarCells.map((day, i) => {
+              if (day === null) return <div key={`e${i}`} />;
+              const dateStr = `${calYear}-${String(calMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              const calDay = calMap.get(dateStr);
+              const isToday =
+                calYear === now.getFullYear() &&
+                calMonth === now.getMonth() + 1 &&
+                day === now.getDate();
+
+              let cellBg = 'transparent';
+              let cellColor = 'var(--color-text-secondary)';
+              if (calDay) {
+                if (calDay.profit_loss > 0) {
+                  cellBg = 'rgba(239,68,68,0.15)';
+                  cellColor = 'var(--color-danger)';
+                } else if (calDay.profit_loss < 0) {
+                  cellBg = 'rgba(34,197,94,0.15)';
+                  cellColor = 'var(--color-success)';
+                } else {
+                  cellBg = 'rgba(59,130,246,0.1)';
+                  cellColor = 'var(--color-accent)';
+                }
+              }
+
+              return (
+                <div
+                  key={day}
+                  className="text-center py-1.5 rounded-md text-xs relative"
+                  style={{
+                    background: cellBg,
+                    color: cellColor,
+                    fontWeight: isToday ? 700 : calDay ? 500 : 400,
+                    outline: isToday ? '1px solid var(--color-accent)' : undefined,
+                  }}
+                  title={calDay ? `${dateStr} | 交易${calDay.trade_count}笔 | 盈亏 ${formatNum(calDay.profit_loss)}` : dateStr}
+                >
+                  {day}
+                  {calDay && calDay.trade_count > 0 && (
+                    <div className="text-[8px] leading-none mt-0.5">{calDay.trade_count}笔</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Best / worst trade cards */}
+        {stats && (stats.best_trade || stats.worst_trade) && (
+          <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {stats.best_trade && (
+              <div
+                className="rounded-xl border p-4"
+                style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp className="w-4 h-4" style={{ color: 'var(--color-danger)' }} />
+                  <span className="text-sm font-medium">最佳交易</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono" style={{ color: 'var(--color-accent)' }}>
+                        {stats.best_trade.code}
+                      </span>
+                      <span className="text-sm">{stats.best_trade.name}</span>
+                    </div>
+                    <span className="font-mono text-sm font-bold" style={{ color: 'var(--color-danger)' }}>
+                      {formatPct(stats.best_trade.profit_loss_pct)}
+                    </span>
+                  </div>
+                  <div className="text-xs space-y-1" style={{ color: 'var(--color-text-muted)' }}>
+                    <div className="flex justify-between">
+                      <span>方向</span>
+                      <span style={{ color: 'var(--color-text-secondary)' }}>
+                        {stats.best_trade.direction === 'buy' ? '买入' : '卖出'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>盈亏</span>
+                      <span className="font-mono" style={{ color: 'var(--color-danger)' }}>
+                        {formatNum(stats.best_trade.profit_loss)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>策略</span>
+                      <span style={{ color: 'var(--color-text-secondary)' }}>
+                        {stats.best_trade.strategy || '-'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>日期</span>
+                      <span className="font-mono" style={{ color: 'var(--color-text-secondary)' }}>
+                        {stats.best_trade.trade_date}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {stats.worst_trade && (
+              <div
+                className="rounded-xl border p-4"
+                style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <Frown className="w-4 h-4" style={{ color: 'var(--color-success)' }} />
+                  <span className="text-sm font-medium">最差交易</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono" style={{ color: 'var(--color-accent)' }}>
+                        {stats.worst_trade.code}
+                      </span>
+                      <span className="text-sm">{stats.worst_trade.name}</span>
+                    </div>
+                    <span className="font-mono text-sm font-bold" style={{ color: 'var(--color-success)' }}>
+                      {formatPct(stats.worst_trade.profit_loss_pct)}
+                    </span>
+                  </div>
+                  <div className="text-xs space-y-1" style={{ color: 'var(--color-text-muted)' }}>
+                    <div className="flex justify-between">
+                      <span>方向</span>
+                      <span style={{ color: 'var(--color-text-secondary)' }}>
+                        {stats.worst_trade.direction === 'buy' ? '买入' : '卖出'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>盈亏</span>
+                      <span className="font-mono" style={{ color: 'var(--color-success)' }}>
+                        {formatNum(stats.worst_trade.profit_loss)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>策略</span>
+                      <span style={{ color: 'var(--color-text-secondary)' }}>
+                        {stats.worst_trade.strategy || '-'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>日期</span>
+                      <span className="font-mono" style={{ color: 'var(--color-text-secondary)' }}>
+                        {stats.worst_trade.trade_date}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Trades table */}
+      <div
+        className="rounded-xl border overflow-hidden"
+        style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
+      >
+        <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: 'var(--color-border)' }}>
+          <span className="text-sm font-medium">交易记录</span>
+          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            {trades.length} 条记录
+          </span>
+        </div>
+
+        {trades.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              {loading ? '加载交易记录...' : '暂无交易记录，点击「添加交易」开始'}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr
+                  className="text-xs"
+                  style={{ color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}
+                >
+                  <th className="text-left px-4 py-2.5 font-medium">代码</th>
+                  <th className="text-left px-4 py-2.5 font-medium">名称</th>
+                  <th className="text-center px-4 py-2.5 font-medium">方向</th>
+                  <th className="text-right px-4 py-2.5 font-medium">价格</th>
+                  <th className="text-right px-4 py-2.5 font-medium">数量</th>
+                  <th className="text-right px-4 py-2.5 font-medium">金额</th>
+                  <th className="text-left px-4 py-2.5 font-medium">日期</th>
+                  <th className="text-right px-4 py-2.5 font-medium">盈亏</th>
+                  <th className="text-right px-4 py-2.5 font-medium">盈亏%</th>
+                  <th className="text-left px-4 py-2.5 font-medium">策略</th>
+                  <th className="text-left px-4 py-2.5 font-medium">备注</th>
+                  <th className="text-center px-4 py-2.5 font-medium">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trades.map((t) => (
+                  <tr
+                    key={t.id}
+                    className="transition-colors hover:bg-[var(--color-bg-hover)]"
+                    style={{ borderBottom: '1px solid var(--color-border)' }}
+                  >
+                    <td className="px-4 py-2.5 font-mono text-xs" style={{ color: 'var(--color-accent)' }}>
+                      {t.code}
+                    </td>
+                    <td className="px-4 py-2.5">{t.name}</td>
+                    <td className="px-4 py-2.5 text-center">
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                        style={{
+                          background: t.direction === 'buy'
+                            ? 'rgba(239,68,68,0.15)'
+                            : 'rgba(34,197,94,0.15)',
+                          color: t.direction === 'buy'
+                            ? 'var(--color-danger)'
+                            : 'var(--color-success)',
+                        }}
+                      >
+                        {t.direction === 'buy' ? (
+                          <><TrendingUp className="w-3 h-3" /> 买入</>
+                        ) : (
+                          <><TrendingDown className="w-3 h-3" /> 卖出</>
+                        )}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono">{t.price.toFixed(2)}</td>
+                    <td className="px-4 py-2.5 text-right font-mono">{t.quantity}</td>
+                    <td className="px-4 py-2.5 text-right font-mono">{formatNum(t.amount)}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                      {t.trade_date}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono font-medium" style={{ color: pnlColor(t.profit_loss) }}>
+                      {formatNum(t.profit_loss)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono font-medium" style={{ color: pnlColor(t.profit_loss_pct) }}>
+                      {formatPct(t.profit_loss_pct)}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                      {t.strategy || '-'}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs max-w-[120px] truncate" style={{ color: 'var(--color-text-muted)' }}>
+                      {t.notes || '-'}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      <button
+                        onClick={() => handleDelete(t.id)}
+                        disabled={deletingId === t.id}
+                        className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors disabled:opacity-50"
+                        style={{ color: 'var(--color-text-muted)' }}
+                        title="删除"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Add trade modal */}
+      {showModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}
+        >
+          <div
+            className="rounded-xl border p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
+            style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
+          >
+            <h2 className="text-base font-bold mb-4">添加交易</h2>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>股票代码 *</label>
+                  <input
+                    value={form.code}
+                    onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+                    placeholder="如 600519"
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                    style={{
+                      background: 'var(--color-bg-primary)',
+                      border: '1px solid var(--color-border)',
+                      color: 'var(--color-text-primary)',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>股票名称</label>
+                  <input
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="如 贵州茅台"
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                    style={{
+                      background: 'var(--color-bg-primary)',
+                      border: '1px solid var(--color-border)',
+                      color: 'var(--color-text-primary)',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>方向 *</label>
+                  <select
+                    value={form.direction}
+                    onChange={(e) => setForm((f) => ({ ...f, direction: e.target.value as 'buy' | 'sell' }))}
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                    style={{
+                      background: 'var(--color-bg-primary)',
+                      border: '1px solid var(--color-border)',
+                      color: 'var(--color-text-primary)',
+                    }}
+                  >
+                    <option value="buy">买入</option>
+                    <option value="sell">卖出</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>价格 *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={form.price}
+                    onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+                    placeholder="元"
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-none font-mono"
+                    style={{
+                      background: 'var(--color-bg-primary)',
+                      border: '1px solid var(--color-border)',
+                      color: 'var(--color-text-primary)',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>数量 *</label>
+                  <input
+                    type="number"
+                    value={form.quantity}
+                    onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
+                    placeholder="股"
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-none font-mono"
+                    style={{
+                      background: 'var(--color-bg-primary)',
+                      border: '1px solid var(--color-border)',
+                      color: 'var(--color-text-primary)',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>交易日期 *</label>
+                  <input
+                    type="date"
+                    value={form.trade_date}
+                    onChange={(e) => setForm((f) => ({ ...f, trade_date: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                    style={{
+                      background: 'var(--color-bg-primary)',
+                      border: '1px solid var(--color-border)',
+                      color: 'var(--color-text-primary)',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>策略</label>
+                  <input
+                    value={form.strategy}
+                    onChange={(e) => setForm((f) => ({ ...f, strategy: e.target.value }))}
+                    placeholder="如 均线突破"
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                    style={{
+                      background: 'var(--color-bg-primary)',
+                      border: '1px solid var(--color-border)',
+                      color: 'var(--color-text-primary)',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>交易原因</label>
+                <input
+                  value={form.reason}
+                  onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
+                  placeholder="为什么做这笔交易"
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                  style={{
+                    background: 'var(--color-bg-primary)',
+                    border: '1px solid var(--color-border)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>情绪状态</label>
+                <input
+                  value={form.emotion}
+                  onChange={(e) => setForm((f) => ({ ...f, emotion: e.target.value }))}
+                  placeholder="如 冷静、贪婪、恐慌"
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                  style={{
+                    background: 'var(--color-bg-primary)',
+                    border: '1px solid var(--color-border)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>备注</label>
+                <textarea
+                  value={form.notes}
+                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                  placeholder="其他备注..."
+                  rows={2}
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none"
+                  style={{
+                    background: 'var(--color-bg-primary)',
+                    border: '1px solid var(--color-border)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 mt-5">
+              <button
+                onClick={() => { setShowModal(false); setForm(emptyForm); }}
+                className="px-4 py-2 rounded-lg text-sm transition-colors hover:bg-[var(--color-bg-hover)]"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
+                取消
+              </button>
+              <button
+                onClick={handleAdd}
+                disabled={submitting || !form.code || !form.price || !form.quantity || !form.trade_date}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                style={{ background: 'var(--color-accent)', color: '#fff' }}
+              >
+                {submitting ? '提交中...' : '确认添加'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
