@@ -120,7 +120,7 @@
 - [x] 3.13 DragonTigerPage — 龙虎榜资金分布饼图
 - [x] 3.14 NewsPage — 新闻情感标签 + 关联个股标记
 - [x] 3.15 SignalsPage — 信号统计图表 + 信号强度趋势
-- [ ] 3.16 ScreenerPage — 选股条件可视化展示
+- [x] 3.16 ScreenerPage — 选股条件可视化展示
 - [ ] 3.17 ComparePage — 多维对比雷达图
 - [ ] 3.18 全局 — 移除 react-router-dom，改为视图切换架构
 
@@ -155,3 +155,4 @@
 - 2026-04-26 21:00 | 3.13 DragonTigerPage 龙虎榜资金分布饼图 | 添加ECharts环形饼图展示6类资金来源分布(机构专用45.2%/知名游资23.8%/沪深股通12.5%/量化基金8.3%/营业部席位6.7%/其他3.5%)，6色配色，glass morphism卡片，PieChart图标标题，300px高度，tooltip显示金额+占比，mock数据 | files: DragonTigerPage.tsx
 - 2026-04-26 21:20 | 3.14 NewsPage | 新闻情感标签+关联个股 | 添加情感badge(利好绿/利空红/中性灰+图标)、关键词情感推断(44个关键词)、关联个股pill badge(代码提取+行业匹配,最多3个,点击导航analyze)、glass morphism风格 | files: NewsPage.tsx
 - 2026-04-26 21:40 | 3.15 SignalsPage | 信号统计饼图+信号强度趋势折线图 | 添加ECharts环形饼图(4类信号:买入绿/卖出红/持有蓝/观望灰,中心总数) + 30天信号强度均值趋势折线图(渐变面积填充, min/max/trend摘要)，响应式并排布局, glass morphism卡片, 保留现有信号列表功能不变 | files: SignalsPage.tsx
+- 2026-04-26 22:00 | 3.16 ScreenerPage | 选股条件可视化 | 添加筛选条件彩色标签(蓝底+图标,点击移除)、行业分布环形饼图(ECharts Top10+其他)、评分分布柱状图(ECharts 7区间红→蓝渐变)、glass morphism面板、替换react-router-dom Link为button、去除SkeletonInlineTable引用改用animate-pulse骨架屏 | files: ScreenerPage.tsx
