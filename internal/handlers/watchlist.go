@@ -3,8 +3,10 @@ package handlers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"alphapulse/internal/models"
 	"alphapulse/internal/services"
@@ -15,7 +17,13 @@ import (
 )
 
 type WatchlistHandler struct {
-	db *pgxpool.Pool
+	db           *pgxpool.Pool
+	alpha300Svc  *services.Alpha300Service // optional, set via SetAlpha300
+}
+
+// SetAlpha300 injects the Alpha300 service for watchlist sync.
+func (h *WatchlistHandler) SetAlpha300(svc *services.Alpha300Service) {
+	h.alpha300Svc = svc
 }
 
 type addWatchlistRequest struct {
@@ -159,6 +167,83 @@ func (h *WatchlistHandler) BatchAdd(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"added": added})
+}
+
+// Sync handles POST /api/watchlist/sync — sync Alpha300 candidates into the watchlist.
+//
+//	@Summary		Sync Alpha300 watchlist
+//	@Description	Fetches Alpha300 ranking candidates and upserts them into the watchlist
+//	@Tags			watchlist
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			body	body		object{limit=int}	false	"Sync options"
+//	@Success		200		{object}	map[string]interface{}
+//	@Router			/api/watchlist/sync [post]
+func (h *WatchlistHandler) Sync(c *gin.Context) {
+	if h.alpha300Svc == nil {
+		writeError(c, http.StatusServiceUnavailable, "ALPHA300_NOT_CONFIGURED", "Alpha300 service not configured")
+		return
+	}
+
+	var req struct {
+		Limit int `json:"limit"`
+	}
+	// Body is optional
+	_ = c.ShouldBindJSON(&req)
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 30
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+
+	candidates, err := h.alpha300Svc.FetchCandidates(ctx, limit)
+	if err != nil {
+		writeError(c, http.StatusBadGateway, "ALPHA300_FETCH_FAILED", "failed to fetch Alpha300 candidates")
+		return
+	}
+
+	tx, err := h.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "TX_START_FAILED", "failed to start transaction")
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	added := 0
+	for _, cand := range candidates {
+		code := cleanCode(cand.Code)
+		if code == "" {
+			continue
+		}
+		tag, err := tx.Exec(ctx,
+			`INSERT INTO watchlist (code, name, group_name)
+			 VALUES ($1, $2, 'alpha300')
+			 ON CONFLICT (code) DO UPDATE
+			 SET name = COALESCE(NULLIF(EXCLUDED.name, ''), watchlist.name)`,
+			code, cand.Name)
+		if err != nil {
+			continue
+		}
+		added += int(tag.RowsAffected())
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		writeError(c, http.StatusInternalServerError, "TX_COMMIT_FAILED", "failed to commit sync")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"ok":      true,
+		"message": fmt.Sprintf("Synced %d Alpha300 stock(s).", added),
+		"data": gin.H{
+			"count":      added,
+			"candidates": len(candidates),
+			"limit":      limit,
+		},
+	})
 }
 
 func (h *WatchlistHandler) upsertWatchlistItem(ctx context.Context, req addWatchlistRequest) (models.WatchlistItem, error) {

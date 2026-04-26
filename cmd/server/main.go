@@ -79,6 +79,8 @@ func main() {
 	reportsHandler := handlers.NewReportsHandler(db, tencentService, eastMoneyService, analyzeHandler, watchlistHandler, logger.L())
 	alertsHandler := handlers.NewAlertsHandler(db, analyzeHandler, logger.L())
 	docsHandler := handlers.NewDocsHandler()
+	dashboardHandler := handlers.NewDashboardHandler(db, tencentService, watchlistHandler, logger.L())
+	watchlistHandler.SetAlpha300(alpha300Service)
 
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -285,6 +287,12 @@ func main() {
 
 	// Smart alerts (Module 22)
 	api.GET("/alerts", authMiddleware, alertsHandler.Alerts)
+
+	// Dashboard summary (composite endpoint)
+	api.GET("/dashboard-summary", authMiddleware, dashboardHandler.DashboardSummary)
+
+	// Watchlist sync (Alpha300 pool)
+	watchlistGroup.POST("/sync", watchlistHandler.Sync)
 
 	// Stock info (comprehensive single stock data)
 	api.GET("/stockinfo", authMiddleware, analyzeHandler.StockInfo)
