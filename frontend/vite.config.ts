@@ -13,6 +13,12 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    strictPort: true,
+    hmr: {
+      host: '100.100.116.63',
+      port: 5173,
+    },
+    allowedHosts: 'all',
     proxy: {
       '/api': {
         target: 'http://localhost:8899',
