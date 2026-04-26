@@ -41,9 +41,9 @@
 - [x] 每个页面用 skeleton 替代 "加载中..." 文字
 
 ### 1.5 主题切换
-- [ ] 创建 `ThemeContext`，支持 dark/light 切换
-- [ ] 在 Layout 中加入主题切换按钮
-- [ ] localStorage 持久化用户偏好
+- [x] 创建 `ThemeContext`，支持 dark/light 切换
+- [x] 在 Layout 中加入主题切换按钮
+- [x] localStorage 持久化用户偏好
 
 ### 1.6 Command Palette (⌘K)
 - [x] 全局快捷键 Ctrl/Cmd+K 打开搜索面板
@@ -51,35 +51,35 @@
 - [x] 键盘导航（↑↓ Enter ESC）+ 鼠标悬停
 
 ### 1.7 Ticker Tape 滚动条
-- [ ] 顶部实时行情滚动条组件
-- [ ] 自选股涨跌数据 + 点击跳转
+- [x] 顶部实时行情滚动条组件
+- [x] 自选股涨跌数据 + 点击跳转
 
 ### 1.8 全局快捷键
 - [x] `useKeyboard` hook
 - [x] Ctrl/Cmd+K=搜索, R=刷新, D=总览, W=自选股
-- [ ] 帮助面板显示快捷键列表
+- [x] 帮助面板显示快捷键列表
 
 ---
 
 ## 阶段二：缺失页面（21个）
 
 ### 2.1 高优先（核心分析功能）
-- [ ] **AnalyzePage** — 个股深度分析（8维度雷达图 + 评分详情）
+- [x] **AnalyzePage** — 个股深度分析（8维度雷达图 + 评分详情）
   - API: GET /analyze?code=xxx
   - 包含：order_flow, volume_price, valuation, volatility, money_flow, technical, sector, sentiment
-- [ ] **TrendsPage** — 市场趋势分析
+- [x] **TrendsPage** — 市场趋势分析
   - API: GET /trends
-- [ ] **BreadthPage** — 市场广度（涨跌家数、新高新低）
+- [x] **BreadthPage** — 市场广度（涨跌家数、新高新低）
   - API: GET /breadth
 - [ ] **RankingPage** — 综合排名
   - API: GET /ranking
-- [ ] **FlowPanelPage** — 资金流向面板（主力/散户/北向）
+- [x] **FlowPanelPage** — 资金流向面板（主力/散户/北向）
   - API: GET /flow
-- [ ] **SentimentPage** — 市场情绪分析
+- [x] **SentimentPage** — 市场情绪分析
   - API: GET /sentiment
 
 ### 2.2 中优先（报告与进阶）
-- [ ] **DailyBriefPage** — 每日简报
+- [x] **DailyBriefPage** — 每日简报
   - API: GET /daily-brief
 - [ ] **DailyReportPage** — 每日报告
   - API: GET /daily-report/latest, GET /daily-report/list
@@ -97,18 +97,18 @@
 ### 2.3 低优先（辅助功能）
 - [ ] **CorrelationPage** — 相关性分析
   - API: GET /correlation
-- [ ] **AnomalyPage** — 异常检测
+- [x] **AnomalyPage** — 异常检测
   - API: GET /anomalies
 - [ ] **PatternScannerPage** — 形态扫描器
   - API: GET /pattern-scanner（待确认后端路由）
-- [ ] **InstitutionPage** — 机构动向
+- [x] **InstitutionPage** — 机构动向
   - API: GET /institution-tracker
 - [ ] **InvestmentPlansPage** — 投资计划
   - API: GET /investment-plans
 - [ ] **PortfolioRiskPage** — 组合风险分析
   - API: GET /risk
 - [ ] **QuickActionsPage** — 快捷操作面板
-- [ ] **DiagPage** — 系统诊断
+- [x] **DiagPage** — 系统诊断
   - API: GET /system-status, GET /slow-queries
 
 ---
