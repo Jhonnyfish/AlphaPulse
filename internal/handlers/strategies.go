@@ -40,6 +40,13 @@ type updateStrategyRequest struct {
 }
 
 // List handles GET /api/strategies — list all strategies.
+//
+// @Summary      获取策略列表
+// @Description  获取所有自定义策略列表
+// @Tags         strategies
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/strategies [get]
 func (h *StrategiesHandler) List(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -79,6 +86,15 @@ func (h *StrategiesHandler) List(c *gin.Context) {
 }
 
 // Create handles POST /api/strategies — create a new custom strategy.
+//
+// @Summary      创建策略
+// @Description  创建新的自定义选股策略
+// @Tags         strategies
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  map[string]interface{}
+// @Router       /api/strategies [post]
 func (h *StrategiesHandler) Create(c *gin.Context) {
 	var req createStrategyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -160,6 +176,16 @@ func (h *StrategiesHandler) Create(c *gin.Context) {
 }
 
 // Update handles PUT /api/strategies/:id — update an existing strategy.
+//
+// @Summary      更新策略
+// @Description  根据 ID 更新策略配置
+// @Tags         strategies
+// @Accept       json
+// @Produce      json
+// @Param        id  path      string  true  "策略 ID"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      404  {object}  map[string]interface{}
+// @Router       /api/strategies/{id} [put]
 func (h *StrategiesHandler) Update(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -275,6 +301,15 @@ func (h *StrategiesHandler) Update(c *gin.Context) {
 }
 
 // Delete handles DELETE /api/strategies/:id — delete a custom strategy.
+//
+// @Summary      删除策略
+// @Description  根据 ID 删除策略
+// @Tags         strategies
+// @Produce      json
+// @Param        id  path      string  true  "策略 ID"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      404  {object}  map[string]interface{}
+// @Router       /api/strategies/{id} [delete]
 func (h *StrategiesHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -309,6 +344,14 @@ func (h *StrategiesHandler) Delete(c *gin.Context) {
 }
 
 // Activate handles POST /api/strategies/:id/activate — activate a strategy.
+//
+// @Summary      激活策略
+// @Description  激活指定策略用于选股
+// @Tags         strategies
+// @Produce      json
+// @Param        id  path      string  true  "策略 ID"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/strategies/{id}/activate [post]
 func (h *StrategiesHandler) Activate(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -342,6 +385,14 @@ func (h *StrategiesHandler) Activate(c *gin.Context) {
 }
 
 // Deactivate handles POST /api/strategies/:id/deactivate — deactivate a strategy.
+//
+// @Summary      停用策略
+// @Description  停用指定策略
+// @Tags         strategies
+// @Produce      json
+// @Param        id  path      string  true  "策略 ID"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/strategies/{id}/deactivate [post]
 func (h *StrategiesHandler) Deactivate(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {

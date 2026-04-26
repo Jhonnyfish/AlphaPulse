@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"net/http"
 	"sort"
 	"strings"
 	"time"
 
+	apperrors "alphapulse/internal/errors"
 	"alphapulse/internal/models"
 	"alphapulse/internal/services"
 
@@ -34,13 +36,20 @@ func NewPortfolioHandler(tencent *services.TencentService, eastMoney *services.E
 }
 
 // List handles GET /api/portfolio — list all positions enriched with live quotes.
+//
+// @Summary      获取投资组合列表
+// @Description  获取所有持仓列表，附带实时行情数据
+// @Tags         portfolio
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/portfolio [get]
 func (h *PortfolioHandler) List(c *gin.Context) {
 	h.logger.Info("portfolio list requested")
 	ctx := c.Request.Context()
 	positions, err := h.loadPositions(ctx)
 	if err != nil {
 		h.logger.Error("failed to load portfolio positions", zap.Error(err))
-		writeError(c, http.StatusInternalServerError, "PORTFOLIO_LOAD_FAILED", "failed to load portfolio")
+		writeAppError(c, apperrors.Internal(fmt.Errorf("failed to load portfolio")))
 		return
 	}
 
@@ -73,25 +82,35 @@ type addPositionRequest struct {
 }
 
 // Add handles POST /api/portfolio — add a new position.
+//
+// @Summary      添加持仓
+// @Description  添加新的股票持仓
+// @Tags         portfolio
+// @Accept       json
+// @Produce      json
+// @Param        body  body      addPositionRequest  true  "持仓信息"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      400   {object}  map[string]interface{}
+// @Router       /api/portfolio [post]
 func (h *PortfolioHandler) Add(c *gin.Context) {
 	h.logger.Info("portfolio add requested")
 	var req addPositionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, http.StatusBadRequest, "INVALID_BODY", "invalid request body")
+		writeAppError(c, apperrors.BadRequest("invalid request body"))
 		return
 	}
 
 	code := strings.TrimSpace(req.Code)
 	if len(code) < 6 {
-		writeError(c, http.StatusBadRequest, "INVALID_CODE", "股票代码格式错误")
+		writeAppError(c, apperrors.BadRequest("股票代码格式错误"))
 		return
 	}
 	if req.CostPrice <= 0 {
-		writeError(c, http.StatusBadRequest, "INVALID_COST", "成本价必须大于 0")
+		writeAppError(c, apperrors.BadRequest("成本价必须大于 0"))
 		return
 	}
 	if req.Quantity <= 0 {
-		writeError(c, http.StatusBadRequest, "INVALID_QUANTITY", "持仓量必须大于 0")
+		writeAppError(c, apperrors.BadRequest("持仓量必须大于 0"))
 		return
 	}
 
@@ -113,7 +132,7 @@ func (h *PortfolioHandler) Add(c *gin.Context) {
 	)
 	if err != nil {
 		h.logger.Error("failed to insert portfolio position", zap.Error(err))
-		writeError(c, http.StatusInternalServerError, "PORTFOLIO_INSERT_FAILED", "failed to add position")
+		writeAppError(c, apperrors.Internal(fmt.Errorf("failed to add position")))
 		return
 	}
 
@@ -140,17 +159,28 @@ type updatePositionRequest struct {
 }
 
 // Update handles PUT /api/portfolio/:id — update an existing position.
+//
+// @Summary      更新持仓
+// @Description  根据 ID 更新持仓信息
+// @Tags         portfolio
+// @Accept       json
+// @Produce      json
+// @Param        id    path      string                true  "持仓 ID"
+// @Param        body  body      updatePositionRequest true  "更新信息"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      404   {object}  map[string]interface{}
+// @Router       /api/portfolio/{id} [put]
 func (h *PortfolioHandler) Update(c *gin.Context) {
 	h.logger.Info("portfolio update requested")
 	id := c.Param("id")
 	if id == "" {
-		writeError(c, http.StatusBadRequest, "INVALID_ID", "id is required")
+		writeAppError(c, apperrors.BadRequest("id is required"))
 		return
 	}
 
 	var req updatePositionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, http.StatusBadRequest, "INVALID_BODY", "invalid request body")
+		writeAppError(c, apperrors.BadRequest("invalid request body"))
 		return
 	}
 
@@ -163,21 +193,21 @@ func (h *PortfolioHandler) Update(c *gin.Context) {
 		 FROM portfolio WHERE id = $1`, id,
 	).Scan(&pos.ID, &pos.Code, &pos.Name, &pos.CostPrice, &pos.Quantity, &pos.Notes, &pos.CreatedAt, &pos.UpdatedAt)
 	if err != nil {
-		writeError(c, http.StatusNotFound, "NOT_FOUND", "持仓不存在")
+		writeAppError(c, apperrors.NotFound("持仓"))
 		return
 	}
 
 	// Apply updates
 	if req.CostPrice != nil {
 		if *req.CostPrice <= 0 {
-			writeError(c, http.StatusBadRequest, "INVALID_COST", "成本价必须大于 0")
+			writeAppError(c, apperrors.BadRequest("成本价必须大于 0"))
 			return
 		}
 		pos.CostPrice = *req.CostPrice
 	}
 	if req.Quantity != nil {
 		if *req.Quantity <= 0 {
-			writeError(c, http.StatusBadRequest, "INVALID_QUANTITY", "持仓量必须大于 0")
+			writeAppError(c, apperrors.BadRequest("持仓量必须大于 0"))
 			return
 		}
 		pos.Quantity = *req.Quantity
@@ -203,7 +233,7 @@ func (h *PortfolioHandler) Update(c *gin.Context) {
 	)
 	if err != nil {
 		h.logger.Error("failed to update portfolio position", zap.Error(err))
-		writeError(c, http.StatusInternalServerError, "PORTFOLIO_UPDATE_FAILED", "failed to update position")
+		writeAppError(c, apperrors.Internal(fmt.Errorf("failed to update position")))
 		return
 	}
 
@@ -212,11 +242,20 @@ func (h *PortfolioHandler) Update(c *gin.Context) {
 }
 
 // Delete handles DELETE /api/portfolio/:id — delete a position.
+//
+// @Summary      删除持仓
+// @Description  根据 ID 删除持仓
+// @Tags         portfolio
+// @Produce      json
+// @Param        id  path      string  true  "持仓 ID"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      404  {object}  map[string]interface{}
+// @Router       /api/portfolio/{id} [delete]
 func (h *PortfolioHandler) Delete(c *gin.Context) {
 	h.logger.Info("portfolio delete requested")
 	id := c.Param("id")
 	if id == "" {
-		writeError(c, http.StatusBadRequest, "INVALID_ID", "id is required")
+		writeAppError(c, apperrors.BadRequest("id is required"))
 		return
 	}
 
@@ -225,11 +264,11 @@ func (h *PortfolioHandler) Delete(c *gin.Context) {
 	)
 	if err != nil {
 		h.logger.Error("failed to delete portfolio position", zap.Error(err))
-		writeError(c, http.StatusInternalServerError, "PORTFOLIO_DELETE_FAILED", "failed to delete position")
+		writeAppError(c, apperrors.Internal(fmt.Errorf("failed to delete position")))
 		return
 	}
 	if tag.RowsAffected() == 0 {
-		writeError(c, http.StatusNotFound, "NOT_FOUND", "持仓不存在")
+		writeAppError(c, apperrors.NotFound("持仓"))
 		return
 	}
 
@@ -238,13 +277,20 @@ func (h *PortfolioHandler) Delete(c *gin.Context) {
 }
 
 // Analytics handles GET /api/portfolio/analytics — portfolio analytics.
+//
+// @Summary      投资组合分析
+// @Description  获取投资组合的收益率曲线、盈亏统计、贡献度等分析数据
+// @Tags         portfolio
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/portfolio/analytics [get]
 func (h *PortfolioHandler) Analytics(c *gin.Context) {
 	h.logger.Info("portfolio analytics requested")
 	ctx := c.Request.Context()
 	positions, err := h.loadPositions(ctx)
 	if err != nil {
 		h.logger.Error("failed to load portfolio for analytics", zap.Error(err))
-		writeError(c, http.StatusInternalServerError, "PORTFOLIO_LOAD_FAILED", "failed to load portfolio")
+		writeAppError(c, apperrors.Internal(fmt.Errorf("failed to load portfolio")))
 		return
 	}
 
@@ -444,13 +490,20 @@ func (h *PortfolioHandler) Analytics(c *gin.Context) {
 }
 
 // Risk handles GET /api/portfolio/risk — portfolio risk analysis.
+//
+// @Summary      投资组合风险分析
+// @Description  获取持仓风险评估、行业分布及建议
+// @Tags         portfolio
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/portfolio/risk [get]
 func (h *PortfolioHandler) Risk(c *gin.Context) {
 	h.logger.Info("portfolio risk requested")
 	ctx := c.Request.Context()
 	positions, err := h.loadPositions(ctx)
 	if err != nil {
 		h.logger.Error("failed to load portfolio for risk analysis", zap.Error(err))
-		writeError(c, http.StatusInternalServerError, "PORTFOLIO_LOAD_FAILED", "failed to load portfolio")
+		writeAppError(c, apperrors.Internal(fmt.Errorf("failed to load portfolio")))
 		return
 	}
 

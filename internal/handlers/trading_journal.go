@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	apperrors "alphapulse/internal/errors"
 	"alphapulse/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -39,6 +41,17 @@ type createTradeRequest struct {
 }
 
 // List handles GET /api/trading-journal — list trades with filters.
+//
+// @Summary      获取交易日志列表
+// @Description  获取交易记录列表，支持按代码、类型、日期范围筛选
+// @Tags         trading-journal
+// @Produce      json
+// @Param        code       query     string  false  "股票代码"
+// @Param        type       query     string  false  "交易类型 (buy/sell)"
+// @Param        date_from  query     string  false  "开始日期"
+// @Param        date_to    query     string  false  "结束日期"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/trading-journal [get]
 func (h *TradingJournalHandler) List(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -78,7 +91,7 @@ func (h *TradingJournalHandler) List(c *gin.Context) {
 	rows, err := h.db.Query(ctx, query, args...)
 	if err != nil {
 		zap.L().Error("query trading journal", zap.Error(err))
-		writeError(c, http.StatusInternalServerError, "JOURNAL_QUERY_FAILED", "failed to query trading journal")
+		writeAppError(c, apperrors.Internal(fmt.Errorf("failed to query trading journal")))
 		return
 	}
 	defer rows.Close()
@@ -88,7 +101,7 @@ func (h *TradingJournalHandler) List(c *gin.Context) {
 		var e models.TradingJournalEntry
 		if err := rows.Scan(&e.ID, &e.Code, &e.Name, &e.Type, &e.Price, &e.Quantity, &e.Fees, &e.Date, &e.Notes, &e.StrategyLabel, &e.CreatedAt); err != nil {
 			zap.L().Error("scan trading journal row", zap.Error(err))
-			writeError(c, http.StatusInternalServerError, "JOURNAL_SCAN_FAILED", "failed to scan trading journal row")
+			writeAppError(c, apperrors.Internal(fmt.Errorf("failed to scan trading journal row")))
 			return
 		}
 		entries = append(entries, e)
@@ -107,29 +120,39 @@ func (h *TradingJournalHandler) List(c *gin.Context) {
 }
 
 // Create handles POST /api/trading-journal — create a trade record.
+//
+// @Summary      添加交易记录
+// @Description  创建新的交易记录
+// @Tags         trading-journal
+// @Accept       json
+// @Produce      json
+// @Param        body  body      createTradeRequest  true  "交易信息"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      400   {object}  map[string]interface{}
+// @Router       /api/trading-journal [post]
 func (h *TradingJournalHandler) Create(c *gin.Context) {
 	var req createTradeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, http.StatusBadRequest, "INVALID_BODY", "invalid request body")
+		writeAppError(c, apperrors.BadRequest("invalid request body"))
 		return
 	}
 
 	code := strings.TrimSpace(req.Code)
 	if code == "" {
-		writeError(c, http.StatusBadRequest, "INVALID_CODE", "code is required")
+		writeAppError(c, apperrors.BadRequest("code is required"))
 		return
 	}
 	tradeType := strings.TrimSpace(req.Type)
 	if tradeType != "buy" && tradeType != "sell" {
-		writeError(c, http.StatusBadRequest, "INVALID_TYPE", "type must be buy or sell")
+		writeAppError(c, apperrors.BadRequest("type must be buy or sell"))
 		return
 	}
 	if req.Price <= 0 {
-		writeError(c, http.StatusBadRequest, "INVALID_PRICE", "price must be greater than 0")
+		writeAppError(c, apperrors.BadRequest("price must be greater than 0"))
 		return
 	}
 	if req.Quantity <= 0 {
-		writeError(c, http.StatusBadRequest, "INVALID_QUANTITY", "quantity must be greater than 0")
+		writeAppError(c, apperrors.BadRequest("quantity must be greater than 0"))
 		return
 	}
 
@@ -144,7 +167,7 @@ func (h *TradingJournalHandler) Create(c *gin.Context) {
 	)
 	if err != nil {
 		zap.L().Error("insert trading journal", zap.Error(err))
-		writeError(c, http.StatusInternalServerError, "JOURNAL_INSERT_FAILED", "failed to create trade record")
+		writeAppError(c, apperrors.Internal(fmt.Errorf("failed to create trade record")))
 		return
 	}
 
@@ -166,10 +189,19 @@ func (h *TradingJournalHandler) Create(c *gin.Context) {
 }
 
 // Delete handles DELETE /api/trading-journal/:id — delete a trade record.
+//
+// @Summary      删除交易记录
+// @Description  根据 ID 删除交易记录
+// @Tags         trading-journal
+// @Produce      json
+// @Param        id  path      string  true  "交易记录 ID"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      404  {object}  map[string]interface{}
+// @Router       /api/trading-journal/{id} [delete]
 func (h *TradingJournalHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		writeError(c, http.StatusBadRequest, "INVALID_ID", "id is required")
+		writeAppError(c, apperrors.BadRequest("id is required"))
 		return
 	}
 
@@ -178,11 +210,11 @@ func (h *TradingJournalHandler) Delete(c *gin.Context) {
 	)
 	if err != nil {
 		zap.L().Error("delete trading journal", zap.Error(err))
-		writeError(c, http.StatusInternalServerError, "JOURNAL_DELETE_FAILED", "failed to delete trade record")
+		writeAppError(c, apperrors.Internal(fmt.Errorf("failed to delete trade record")))
 		return
 	}
 	if tag.RowsAffected() == 0 {
-		writeError(c, http.StatusNotFound, "NOT_FOUND", "trade record not found")
+		writeAppError(c, apperrors.NotFound("trade record"))
 		return
 	}
 
@@ -190,13 +222,20 @@ func (h *TradingJournalHandler) Delete(c *gin.Context) {
 }
 
 // Stats handles GET /api/trading-journal/stats — comprehensive stats.
+//
+// @Summary      交易统计
+// @Description  获取交易统计数据，包括盈亏、胜率、月度统计等
+// @Tags         trading-journal
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/trading-journal/stats [get]
 func (h *TradingJournalHandler) Stats(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	entries, err := h.loadAllEntries(ctx)
 	if err != nil {
 		zap.L().Error("load journal entries for stats", zap.Error(err))
-		writeError(c, http.StatusInternalServerError, "JOURNAL_LOAD_FAILED", "failed to load trading journal")
+		writeAppError(c, apperrors.Internal(fmt.Errorf("failed to load trading journal")))
 		return
 	}
 
@@ -363,6 +402,14 @@ func (h *TradingJournalHandler) Stats(c *gin.Context) {
 }
 
 // Calendar handles GET /api/trading-journal/calendar — daily P&L heatmap.
+//
+// @Summary      交易日历
+// @Description  获取每日盈亏热力图数据
+// @Tags         trading-journal
+// @Produce      json
+// @Param        months  query     int  false  "查询月数 (默认12)"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/trading-journal/calendar [get]
 func (h *TradingJournalHandler) Calendar(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -375,7 +422,7 @@ func (h *TradingJournalHandler) Calendar(c *gin.Context) {
 	entries, err := h.loadAllEntries(ctx)
 	if err != nil {
 		zap.L().Error("load journal entries for calendar", zap.Error(err))
-		writeError(c, http.StatusInternalServerError, "JOURNAL_LOAD_FAILED", "failed to load trading journal")
+		writeAppError(c, apperrors.Internal(fmt.Errorf("failed to load trading journal")))
 		return
 	}
 
@@ -450,13 +497,20 @@ func (h *TradingJournalHandler) Calendar(c *gin.Context) {
 }
 
 // StrategyEval handles GET /api/trade-strategy-eval — strategy evaluation.
+//
+// @Summary      策略评估
+// @Description  按策略标签分组评估交易策略表现
+// @Tags         trading-journal
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/trade-strategy-eval [get]
 func (h *TradingJournalHandler) StrategyEval(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	entries, err := h.loadAllEntries(ctx)
 	if err != nil {
 		zap.L().Error("load journal entries for strategy eval", zap.Error(err))
-		writeError(c, http.StatusInternalServerError, "JOURNAL_LOAD_FAILED", "failed to load trading journal")
+		writeAppError(c, apperrors.Internal(fmt.Errorf("failed to load trading journal")))
 		return
 	}
 

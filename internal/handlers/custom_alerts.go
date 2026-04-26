@@ -33,6 +33,13 @@ type createAlertRequest struct {
 }
 
 // List handles GET /api/custom-alerts — return all custom alerts.
+//
+// @Summary      获取预警列表
+// @Description  获取所有自定义预警
+// @Tags         custom-alerts
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/custom-alerts [get]
 func (h *CustomAlertsHandler) List(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -65,6 +72,15 @@ func (h *CustomAlertsHandler) List(c *gin.Context) {
 }
 
 // Create handles POST /api/custom-alerts — create a new alert.
+//
+// @Summary      创建预警
+// @Description  创建新的自定义预警规则
+// @Tags         custom-alerts
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  map[string]interface{}
+// @Router       /api/custom-alerts [post]
 func (h *CustomAlertsHandler) Create(c *gin.Context) {
 	var req createAlertRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -134,6 +150,15 @@ func (h *CustomAlertsHandler) Create(c *gin.Context) {
 }
 
 // Delete handles DELETE /api/custom-alerts/:id — delete an alert.
+//
+// @Summary      删除预警
+// @Description  根据 ID 删除预警
+// @Tags         custom-alerts
+// @Produce      json
+// @Param        id  path      string  true  "预警 ID"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      404  {object}  map[string]interface{}
+// @Router       /api/custom-alerts/{id} [delete]
 func (h *CustomAlertsHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -157,6 +182,13 @@ func (h *CustomAlertsHandler) Delete(c *gin.Context) {
 }
 
 // Check handles GET /api/custom-alerts/check — check all enabled alerts.
+//
+// @Summary      检查预警
+// @Description  检查所有启用的预警是否触发
+// @Tags         custom-alerts
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/custom-alerts/check [get]
 func (h *CustomAlertsHandler) Check(c *gin.Context) {
 	ctx := c.Request.Context()
 
