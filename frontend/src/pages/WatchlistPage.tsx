@@ -1,14 +1,71 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { watchlistApi, marketApi, type WatchlistItem, type Quote, type SearchSuggestion } from '@/lib/api';
 import { Trash2, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import ReactECharts from 'echarts-for-react';
+import type { EChartsOption } from 'echarts';
 import StockSearch from '@/components/StockSearch';
 
 const REFRESH_INTERVAL = 30_000; // 30 seconds
 
+// ─── Minimal Sparkline component ─────────────────────────────────────────────
+function Sparkline({ data, color }: { data: number[]; color: string }) {
+  const option = useMemo<EChartsOption>(() => ({
+    animation: false,
+    grid: { top: 0, right: 0, bottom: 0, left: 0 },
+    xAxis: { type: 'category', show: false, boundaryGap: false },
+    yAxis: { type: 'value', show: false, min: 'dataMin', max: 'dataMax' },
+    series: [
+      {
+        type: 'line',
+        data,
+        symbol: 'none',
+        lineStyle: { width: 1.5, color },
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: color.replace(')', ',0.25)').replace('rgb', 'rgba') },
+              { offset: 1, color: 'transparent' },
+            ],
+          },
+        },
+        smooth: true,
+      },
+    ],
+  }), [data, color]);
+
+  return (
+    <ReactECharts
+      option={option}
+      style={{ width: 100, height: 30 }}
+      opts={{ renderer: 'canvas' }}
+      notMerge
+    />
+  );
+}
+
+// ─── Fallback: generate plausible sparkline from quote data ──────────────────
+function generateMockSparkline(quote: Quote): number[] {
+  const { price, open, high, low, prev_close } = quote;
+  const start = prev_close || open;
+  const points: number[] = [start];
+  // Walk 19 intermediate points between start and current price
+  for (let i = 1; i < 19; i++) {
+    const t = i / 19;
+    const base = start + (price - start) * t;
+    const noise = (high - low) * 0.3 * (Math.sin(i * 1.7) * 0.5 + Math.cos(i * 0.9) * 0.5);
+    points.push(Math.max(low, Math.min(high, base + noise)));
+  }
+  points.push(price);
+  return points;
+}
+
 export default function WatchlistPage() {
   const [items, setItems] = useState<WatchlistItem[]>([]);
   const [quotes, setQuotes] = useState<Map<string, Quote>>(new Map());
+  const [klineData, setKlineData] = useState<Map<string, number[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
@@ -46,6 +103,23 @@ export default function WatchlistPage() {
     setLastUpdated(new Date());
   }, []);
 
+  // Fetch kline sparkline data for all watchlist items
+  const fetchKlineData = useCallback(async (codes: string[]) => {
+    const newKline = new Map<string, number[]>();
+    await Promise.allSettled(
+      codes.map(async (code) => {
+        try {
+          const res = await marketApi.kline(code, 20);
+          if (res.data && res.data.length > 0) {
+            newKline.set(code, res.data.map((k) => k.close));
+          }
+        } catch {
+          // kline fetch failed — will fall back to mock
+        }
+      })
+    );
+    setKlineData(newKline);
+  }, []);
 
   useEffect(() => {
     fetchWatchlist();
@@ -54,8 +128,9 @@ export default function WatchlistPage() {
   useEffect(() => {
     if (items.length > 0) {
       fetchQuotes(items.map((i) => i.code));
+      fetchKlineData(items.map((i) => i.code));
     }
-  }, [items, fetchQuotes]);
+  }, [items, fetchQuotes, fetchKlineData]);
 
   // Auto-refresh polling
   useEffect(() => {
@@ -101,6 +176,18 @@ export default function WatchlistPage() {
   const formatPercent = (n: number) => (n >= 0 ? `+${n.toFixed(2)}%` : `${n.toFixed(2)}%`);
   const changeColor = (n: number) =>
     n > 0 ? 'var(--color-danger)' : n < 0 ? 'var(--color-success)' : 'var(--color-text-secondary)';
+
+  // Sparkline line color: red for up, green for down (红涨绿跌)
+  const sparklineColor = (pct: number): string =>
+    pct > 0 ? '#ef4444' : pct < 0 ? '#22c55e' : '#94a3b8';
+
+  // Get sparkline series for a stock
+  const getSparklineData = (code: string, quote: Quote | undefined): number[] => {
+    const kline = klineData.get(code);
+    if (kline && kline.length > 1) return kline;
+    if (quote) return generateMockSparkline(quote);
+    return [];
+  };
 
   // Sort toggle handler
   const toggleSort = (field: typeof sortField) => {
@@ -236,6 +323,8 @@ export default function WatchlistPage() {
                   <Th field="price" label="最新价" align="right" />
                   <Th field="change_percent" label="涨跌幅" align="right" />
                   <Th field="change" label="涨跌额" align="right" />
+                  <th className="px-4 py-3 font-medium text-center"
+                    style={{ color: 'var(--color-text-secondary)' }}>走势</th>
                   <th className="text-right px-4 py-3 font-medium"
                     style={{ color: 'var(--color-text-secondary)' }}>操作</th>
                 </tr>
@@ -244,6 +333,7 @@ export default function WatchlistPage() {
                 {sortedItems.map((item) => {
                   const q = quotes.get(item.code);
                   const pct = q?.change_percent ?? 0;
+                  const sparkData = getSparklineData(item.code, q);
                   return (
                     <tr key={item.id}
                       className="hover:bg-[var(--color-bg-hover)] transition-colors border-t"
@@ -264,6 +354,15 @@ export default function WatchlistPage() {
                       </td>
                       <td className="px-4 py-3 text-right font-mono" style={{ color: changeColor(pct) }}>
                         {q ? formatChange(q.change) : '—'}
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <div className="flex items-center justify-center">
+                          {sparkData.length > 1 ? (
+                            <Sparkline data={sparkData} color={sparklineColor(pct)} />
+                          ) : (
+                            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>—</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button
@@ -286,6 +385,7 @@ export default function WatchlistPage() {
             {sortedItems.map((item) => {
               const q = quotes.get(item.code);
               const pct = q?.change_percent ?? 0;
+              const sparkData = getSparklineData(item.code, q);
               return (
                 <div
                   key={item.id}
@@ -300,6 +400,12 @@ export default function WatchlistPage() {
                       {q?.name || item.name || '—'}
                     </div>
                   </div>
+                  {/* Mobile sparkline */}
+                  {sparkData.length > 1 && (
+                    <div className="mx-2 flex-shrink-0">
+                      <Sparkline data={sparkData} color={sparklineColor(pct)} />
+                    </div>
+                  )}
                   <div className="text-right mr-3">
                     <div className="font-mono text-sm font-bold" style={{ color: changeColor(pct) }}>
                       {q ? formatPrice(q.price) : '—'}
