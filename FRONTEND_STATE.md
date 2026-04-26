@@ -115,7 +115,7 @@
 - [x] 3.8 所有页面 — 空状态提示（无数据时显示引导）
 - [x] 3.9 所有页面 — 错误状态统一处理 + 重试按钮
 - [x] 3.10 KlinePage — 技术指标叠加（MA/MACD/KDJ/RSI）
-- [ ] 3.11 SectorsPage — 板块资金流向柱状图
+- [x] 3.11 SectorsPage — 板块资金流向柱状图
 - [ ] 3.12 HotConceptsPage — 概念热度趋势折线图
 - [ ] 3.13 DragonTigerPage — 龙虎榜资金分布饼图
 - [ ] 3.14 NewsPage — 新闻情感标签 + 关联个股标记
@@ -150,3 +150,4 @@
 - 2026-04-26 19:20 | 3.8 空状态提示 | 创建 EmptyState 可复用组件(glass morphism, 48px图标, 标题+描述+可选按钮, fadeIn动画)；12个页面添加无数据空状态引导(MarketPage/WatchlistPage/CandidatesPage/PortfolioPage/TradingJournalPage/NewsPage/SignalsPage/SectorsPage/HotConceptsPage/DragonTigerPage/StrategiesPage/ScreenerPage) | files: EmptyState.tsx, MarketPage, WatchlistPage, CandidatesPage, PortfolioPage, TradingJournalPage, NewsPage, SignalsPage, SectorsPage, HotConceptsPage, DragonTigerPage, StrategiesPage, ScreenerPage
 - 2026-04-26 19:40 | 3.9 错误状态统一处理 | 新建 ErrorState 可复用组件(红色AlertTriangle图标, glass morphism, 重试按钮)；17个页面统一错误处理：替换内联错误div为ErrorState组件, 添加onRetry回调, catch中设置error state | files: ErrorState.tsx, DashboardPage, MarketPage, WatchlistPage, PortfolioPage, CandidatesPage, KlinePage, ScreenerPage, ComparePage, TradingJournalPage, SectorsPage, HotConceptsPage, DragonTigerPage, NewsPage, SignalsPage, StrategiesPage, WatchlistAnalysisPage, SettingsPage
 - 2026-04-26 20:00 | 3.10 KlinePage 技术指标叠加 | 新建indicators.ts(MA/MACD/KDJ/RSI计算函数)；KlinePage添加指标切换按钮组：MA叠加在主图(4条均线)、MACD/KDJ/RSI副图(150px ECharts)，glass morphism按钮+accent蓝色高亮，副图互斥(单选)，MA独立切换 | files: lib/indicators.ts, KlinePage.tsx
+- 2026-04-26 20:21 | 3.11 SectorsPage 板块资金流向柱状图 | 添加ECharts水平条形图展示Top15板块净流入/流出排名，红涨绿跌配色(红#ef4444正流入/绿#22c55e负流出)，20个mock板块数据，glass morphism卡片，400px高度自适应，tooltip显示板块+金额(亿元)，BarChart3图标标题 | files: SectorsPage.tsx
