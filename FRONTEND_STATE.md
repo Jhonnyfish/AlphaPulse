@@ -116,7 +116,7 @@
 - [x] 3.9 所有页面 — 错误状态统一处理 + 重试按钮
 - [x] 3.10 KlinePage — 技术指标叠加（MA/MACD/KDJ/RSI）
 - [x] 3.11 SectorsPage — 板块资金流向柱状图
-- [ ] 3.12 HotConceptsPage — 概念热度趋势折线图
+- [x] 3.12 HotConceptsPage — 概念热度趋势折线图
 - [ ] 3.13 DragonTigerPage — 龙虎榜资金分布饼图
 - [ ] 3.14 NewsPage — 新闻情感标签 + 关联个股标记
 - [ ] 3.15 SignalsPage — 信号统计图表 + 信号强度趋势
@@ -151,3 +151,4 @@
 - 2026-04-26 19:40 | 3.9 错误状态统一处理 | 新建 ErrorState 可复用组件(红色AlertTriangle图标, glass morphism, 重试按钮)；17个页面统一错误处理：替换内联错误div为ErrorState组件, 添加onRetry回调, catch中设置error state | files: ErrorState.tsx, DashboardPage, MarketPage, WatchlistPage, PortfolioPage, CandidatesPage, KlinePage, ScreenerPage, ComparePage, TradingJournalPage, SectorsPage, HotConceptsPage, DragonTigerPage, NewsPage, SignalsPage, StrategiesPage, WatchlistAnalysisPage, SettingsPage
 - 2026-04-26 20:00 | 3.10 KlinePage 技术指标叠加 | 新建indicators.ts(MA/MACD/KDJ/RSI计算函数)；KlinePage添加指标切换按钮组：MA叠加在主图(4条均线)、MACD/KDJ/RSI副图(150px ECharts)，glass morphism按钮+accent蓝色高亮，副图互斥(单选)，MA独立切换 | files: lib/indicators.ts, KlinePage.tsx
 - 2026-04-26 20:21 | 3.11 SectorsPage 板块资金流向柱状图 | 添加ECharts水平条形图展示Top15板块净流入/流出排名，红涨绿跌配色(红#ef4444正流入/绿#22c55e负流出)，20个mock板块数据，glass morphism卡片，400px高度自适应，tooltip显示板块+金额(亿元)，BarChart3图标标题 | files: SectorsPage.tsx
+- 2026-04-26 20:40 | 3.12 HotConceptsPage 概念热度趋势折线图 | 添加ECharts折线图展示Top6概念近10日热度趋势，smooth曲线+渐变填充+圆形标记，8色配色区分概念，mock数据(随机游走+动量偏移)，glass morphism卡片(350px)，tooltip展示各概念热度值，TrendingUp图标标题 | files: HotConceptsPage.tsx
