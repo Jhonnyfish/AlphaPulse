@@ -85,11 +85,11 @@
   - API: GET /daily-report/latest, GET /daily-report/list
 - [x] **PerfStatsPage** — 绩效统计
   - API: GET /performance-stats
-- [ ] **BacktestPage** — 策略回测
+- [x] **BacktestPage** — 策略回测
   - API: GET /backtest
-- [ ] **StrategyEvalPage** — 策略评估
+- [x] **StrategyEvalPage** — 策略评估
   - API: GET /strategies（复用策略API）
-- [ ] **TradeCalendarPage** — 交易日历
+- [x] **TradeCalendarPage** — 交易日历
   - API: GET /calendar
 - [x] **MultiTrendPage** — 多周期趋势
   - API: GET /multi-trend
