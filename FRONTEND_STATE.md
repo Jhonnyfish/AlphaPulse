@@ -118,7 +118,7 @@
 - [x] 3.11 SectorsPage — 板块资金流向柱状图
 - [x] 3.12 HotConceptsPage — 概念热度趋势折线图
 - [x] 3.13 DragonTigerPage — 龙虎榜资金分布饼图
-- [ ] 3.14 NewsPage — 新闻情感标签 + 关联个股标记
+- [x] 3.14 NewsPage — 新闻情感标签 + 关联个股标记
 - [ ] 3.15 SignalsPage — 信号统计图表 + 信号强度趋势
 - [ ] 3.16 ScreenerPage — 选股条件可视化展示
 - [ ] 3.17 ComparePage — 多维对比雷达图
@@ -153,3 +153,4 @@
 - 2026-04-26 20:21 | 3.11 SectorsPage 板块资金流向柱状图 | 添加ECharts水平条形图展示Top15板块净流入/流出排名，红涨绿跌配色(红#ef4444正流入/绿#22c55e负流出)，20个mock板块数据，glass morphism卡片，400px高度自适应，tooltip显示板块+金额(亿元)，BarChart3图标标题 | files: SectorsPage.tsx
 - 2026-04-26 20:40 | 3.12 HotConceptsPage 概念热度趋势折线图 | 添加ECharts折线图展示Top6概念近10日热度趋势，smooth曲线+渐变填充+圆形标记，8色配色区分概念，mock数据(随机游走+动量偏移)，glass morphism卡片(350px)，tooltip展示各概念热度值，TrendingUp图标标题 | files: HotConceptsPage.tsx
 - 2026-04-26 21:00 | 3.13 DragonTigerPage 龙虎榜资金分布饼图 | 添加ECharts环形饼图展示6类资金来源分布(机构专用45.2%/知名游资23.8%/沪深股通12.5%/量化基金8.3%/营业部席位6.7%/其他3.5%)，6色配色，glass morphism卡片，PieChart图标标题，300px高度，tooltip显示金额+占比，mock数据 | files: DragonTigerPage.tsx
+- 2026-04-26 21:20 | 3.14 NewsPage 新闻情感标签+关联个股 | 添加情感badge(利好绿/利空红/中性灰+图标)、关键词情感推断(44个关键词)、关联个股pill badge(代码提取+行业匹配,最多3个,点击导航analyze)、glass morphism风格 | files: NewsPage.tsx
