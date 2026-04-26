@@ -103,7 +103,7 @@
 - [x] 3.1d DashboardPage — 信号摘要卡片（活跃信号数、最近告警）+ 动画
 - [x] 3.1e DashboardPage — 最近活动时间线
 - [x] 3.2a WatchlistPage — 每行添加迷你 Sparkline 走势图
-- [ ] 3.2b WatchlistPage — 拖拽排序支持
+- [x] 3.2b WatchlistPage — 拖拽排序支持
 - [ ] 3.3a CandidatesPage — 分层展示（核心/关注/观察三个区域）
 - [ ] 3.3b CandidatesPage — 点击个股弹出分析详情 Modal（不跳转）
 - [ ] 3.4a PortfolioPage — 持仓行业分布饼图
@@ -133,7 +133,9 @@
 - axios ^1.15.2
 - react-router-dom ^7.14.2（待移除）
 - class-variance-authority, clsx, tailwind-merge
+- @dnd-kit/core, @dnd-kit/sortable, @dnd-kit/utilities
 
 ## 变更日志
 > 每轮完成后追加一行。
 - 2026-04-26 16:00 | 3.2a WatchlistPage | 每行添加迷你 Sparkline 走势图，使用 ECharts 折线图，红涨绿跌，100x30px，支持桌面表格和移动卡片视图 | files: WatchlistPage.tsx
+- 2026-04-26 16:20 | 3.2b WatchlistPage | 使用 @dnd-kit 实现拖拽排序，GripVertical 手柄，拖拽半透明+蓝色插入线，桌面表格和移动卡片双视图支持，arrayMove 本地排序 | files: WatchlistPage.tsx, package.json
