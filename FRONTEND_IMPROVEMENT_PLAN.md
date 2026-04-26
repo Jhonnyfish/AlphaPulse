@@ -99,15 +99,15 @@
   - API: GET /correlation
 - [x] **AnomalyPage** — 异常检测
   - API: GET /anomalies
-- [ ] **PatternScannerPage** — 形态扫描器
+- [x] **PatternScannerPage** — 形态扫描器
   - API: GET /pattern-scanner（待确认后端路由）
 - [x] **InstitutionPage** — 机构动向
   - API: GET /institution-tracker
 - [x] **InvestmentPlansPage** — 投资计划
   - API: GET /investment-plans
-- [ ] **PortfolioRiskPage** — 组合风险分析
+- [x] **PortfolioRiskPage** — 组合风险分析
   - API: GET /risk
-- [ ] **QuickActionsPage** — 快捷操作面板
+- [x] **QuickActionsPage** — 快捷操作面板
 - [x] **DiagPage** — 系统诊断
   - API: GET /system-status, GET /slow-queries
 
