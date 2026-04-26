@@ -313,6 +313,101 @@ export default function TradingJournalPage() {
     } as EChartsOption;
   }, [heatmapData]);
 
+  // ── Profit Distribution Histogram ──────────────────────────
+  const histogramOption = useMemo<EChartsOption>(() => {
+    const src = trades.length > 0 ? trades : generateMockTrades();
+
+    const binDefs: { min: number; max: number; label: string }[] = [];
+    for (let i = -6; i < 6; i++) {
+      binDefs.push({ min: i, max: i + 1, label: `${i}%~${i + 1}%` });
+    }
+
+    const counts = new Array(binDefs.length).fill(0);
+    src.forEach((t) => {
+      const pct = t.profit_loss_pct ?? 0;
+      for (let b = 0; b < binDefs.length; b++) {
+        if (pct >= binDefs[b].min && pct < binDefs[b].max) {
+          counts[b]++;
+          break;
+        }
+      }
+    });
+
+    const barData = binDefs.map((bin, i) => ({
+      value: counts[i],
+      itemStyle: {
+        color:
+          bin.max <= 0
+            ? { type: 'linear' as const, x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#ef4444' }, { offset: 1, color: '#dc2626' }] }
+            : bin.min >= 0
+              ? { type: 'linear' as const, x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#22c55e' }, { offset: 1, color: '#16a34a' }] }
+              : { type: 'linear' as const, x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#ef4444' }, { offset: 1, color: '#dc2626' }] },
+        borderRadius: [3, 3, 0, 0],
+      },
+    }));
+
+    return {
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(15,23,42,0.95)',
+        borderColor: 'rgba(148,163,184,0.2)',
+        textStyle: { color: '#e2e8f0', fontSize: 12 },
+        formatter(params: any) {
+          const p = params[0];
+          return `<div style="font-weight:600">${p.name}</div><div>交易次数: <b>${p.value}</b></div>`;
+        },
+      },
+      grid: { top: 20, right: 20, bottom: 40, left: 50 },
+      xAxis: {
+        type: 'category',
+        data: binDefs.map((b) => b.label),
+        axisLabel: { color: '#94a3b8', fontSize: 10, rotate: 30 },
+        axisLine: { lineStyle: { color: '#334155' } },
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: { color: '#94a3b8', fontSize: 10 },
+        splitLine: { lineStyle: { color: 'rgba(51,65,85,0.5)' } },
+      },
+      series: [
+        {
+          type: 'bar',
+          data: barData,
+          barWidth: '60%',
+        },
+      ],
+    } as EChartsOption;
+  }, [trades]);
+
+  // ── Monthly Statistics ──────────────────────────────────────
+  const monthlyStats = useMemo(() => {
+    const src = trades.length > 0 ? trades : generateMockTrades();
+    const monthMap: Record<string, { count: number; totalPnl: number; wins: number; pnlPcts: number[] }> = {};
+
+    src.forEach((t) => {
+      const month = t.trade_date.slice(0, 7);
+      if (!monthMap[month]) monthMap[month] = { count: 0, totalPnl: 0, wins: 0, pnlPcts: [] };
+      monthMap[month].count++;
+      monthMap[month].totalPnl += t.profit_loss ?? 0;
+      if ((t.profit_loss ?? 0) > 0) monthMap[month].wins++;
+      if (t.profit_loss_pct != null) monthMap[month].pnlPcts.push(t.profit_loss_pct);
+    });
+
+    return Object.entries(monthMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-12)
+      .map(([month, data]) => ({
+        month,
+        count: data.count,
+        totalPnl: data.totalPnl,
+        winRate: data.count > 0 ? (data.wins / data.count) * 100 : 0,
+        avgReturn:
+          data.pnlPcts.length > 0
+            ? data.pnlPcts.reduce((a, b) => a + b, 0) / data.pnlPcts.length
+            : 0,
+      }));
+  }, [trades]);
+
   return (
     <div>
       {/* Header */}
@@ -457,6 +552,117 @@ export default function TradingJournalPage() {
             <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: '#ef4444' }} />
             盈利
           </span>
+        </div>
+      </div>
+
+      {/* ── Profit Distribution Histogram ────────────────────── */}
+      <div
+        className="rounded-xl border p-4 mb-6"
+        style={{
+          background: 'var(--color-bg-secondary)',
+          borderColor: 'var(--color-border)',
+          backdropFilter: 'blur(12px)',
+        }}
+      >
+        <div className="flex items-center gap-1.5 mb-1">
+          <BarChart3 className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+          <span className="text-sm font-medium">收益分布</span>
+          <span className="text-xs ml-1" style={{ color: 'var(--color-text-muted)' }}>
+            — 收益率区间分布
+          </span>
+          {heatmapData.isMock && (
+            <span
+              className="text-[10px] ml-auto px-2 py-0.5 rounded-full"
+              style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--color-accent)' }}
+            >
+              示例数据
+            </span>
+          )}
+        </div>
+        <EChart option={histogramOption} height={240} loading={loading} />
+        <div className="flex items-center justify-center gap-4 mt-1">
+          <span className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+            <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: '#ef4444' }} />
+            负收益
+          </span>
+          <span className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+            <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: '#22c55e' }} />
+            正收益
+          </span>
+        </div>
+      </div>
+
+      {/* ── Monthly Statistics ──────────────────────────────── */}
+      <div
+        className="rounded-xl border p-4 mb-6"
+        style={{
+          background: 'var(--color-bg-secondary)',
+          borderColor: 'var(--color-border)',
+          backdropFilter: 'blur(12px)',
+        }}
+      >
+        <div className="flex items-center gap-1.5 mb-4">
+          <Calendar className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+          <span className="text-sm font-medium">月度统计</span>
+          {heatmapData.isMock && (
+            <span
+              className="text-[10px] ml-auto px-2 py-0.5 rounded-full"
+              style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--color-accent)' }}
+            >
+              示例数据
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {monthlyStats.map((ms) => (
+            <div
+              key={ms.month}
+              className="rounded-lg border p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+              style={{
+                background: 'rgba(15, 23, 42, 0.4)',
+                borderColor: 'var(--color-border)',
+                backdropFilter: 'blur(8px)',
+              }}
+            >
+              <div className="text-sm font-semibold mb-2 font-mono" style={{ color: 'var(--color-accent)' }}>
+                {ms.month}
+              </div>
+              <div className="space-y-1.5 text-xs">
+                <div className="flex justify-between items-center">
+                  <span style={{ color: 'var(--color-text-muted)' }}>交易次数</span>
+                  <span className="font-mono font-medium">{ms.count}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span style={{ color: 'var(--color-text-muted)' }}>总盈亏</span>
+                  <span className="font-mono font-medium" style={{ color: pnlColor(ms.totalPnl) }}>
+                    {formatNum(ms.totalPnl)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span style={{ color: 'var(--color-text-muted)' }}>胜率</span>
+                  <span
+                    className="font-mono font-medium"
+                    style={{
+                      color:
+                        ms.winRate > 50
+                          ? 'var(--color-success)'
+                          : ms.winRate < 50
+                            ? 'var(--color-danger)'
+                            : 'var(--color-text-secondary)',
+                    }}
+                  >
+                    {ms.winRate.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span style={{ color: 'var(--color-text-muted)' }}>平均收益率</span>
+                  <span className="font-mono font-medium" style={{ color: pnlColor(ms.avgReturn) }}>
+                    {formatPct(ms.avgReturn)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
