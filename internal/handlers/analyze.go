@@ -42,6 +42,14 @@ func NewAnalyzeHandler(eastMoney *services.EastMoneyService, tencent *services.T
 	}
 }
 
+// @Summary      8维度综合分析
+// @Description  对指定股票进行8维度综合分析，支持批量分析(逗号分隔，最多10只)
+// @Tags         analyze
+// @Accept       json
+// @Produce      json
+// @Param        code  query      string  true  "股票代码，多个用逗号分隔"
+// @Success      200  {object}  interface{}
+// @Router       /analyze [get]
 func (h *AnalyzeHandler) Analyze(c *gin.Context) {
 	codeParam := strings.TrimSpace(c.Query("code"))
 	if codeParam == "" {
@@ -257,7 +265,14 @@ type StockInfoResponse struct {
 	Errors        map[string]string     `json:"errors,omitempty"`
 }
 
-// StockInfo returns comprehensive information for a single stock.
+// @Summary      个股详情
+// @Description  获取个股综合信息(行情/资金流向/新闻/公告/板块)
+// @Tags         analyze
+// @Accept       json
+// @Produce      json
+// @Param        code  query      string  true  "股票代码"
+// @Success      200  {object}  StockInfoResponse
+// @Router       /stockinfo [get]
 func (h *AnalyzeHandler) StockInfo(c *gin.Context) {
 	codeParam := strings.TrimSpace(c.Query("code"))
 	if codeParam == "" {

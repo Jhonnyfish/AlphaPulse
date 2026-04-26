@@ -68,7 +68,12 @@ type anomaliesPayload struct {
 	FetchedAt string `json:"fetched_at"`
 }
 
-// Anomalies handles GET /api/anomalies — scan Alpha300 candidates for market anomalies.
+// @Summary      异常检测
+// @Description  扫描 Alpha300 候选股中的市场异常(涨停/跌停/放量/大幅波动)
+// @Tags         signals
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/anomalies [get]
 func (h *SignalHandler) Anomalies(c *gin.Context) {
 	if cached, ok := h.anomaliesCache.Get("anomalies"); ok {
 		c.JSON(http.StatusOK, mergeMap(gin.H{"ok": true, "cached": true}, structToMap(cached)))
@@ -238,7 +243,15 @@ type signalHistoryPayload struct {
 	LevelCounts map[string]int      `json:"level_counts"`
 }
 
-// SignalHistory handles GET /api/signal-history — read signal history from JSON file.
+// @Summary      信号历史
+// @Description  获取历史信号记录，支持按级别和代码过滤
+// @Tags         signals
+// @Produce      json
+// @Param        level  query      string  false  "信号级别"
+// @Param        code   query      string  false  "股票代码"
+// @Param        limit  query      int     false  "结果数量上限" default(100)
+// @Success      200  {object}  signalHistoryPayload
+// @Router       /api/signal-history [get]
 func (h *SignalHandler) SignalHistory(c *gin.Context) {
 	level := strings.TrimSpace(c.Query("level"))
 	code := strings.TrimSpace(c.Query("code"))
@@ -323,7 +336,14 @@ type signalCalendarPayload struct {
 	FetchedAt string        `json:"fetched_at"`
 }
 
-// SignalCalendar handles GET /api/signal-calendar — detect historical technical signals.
+// @Summary      信号日历
+// @Description  检测历史技术信号(MACD/KDJ/MA交叉, RSI超买超卖, 布林突破)
+// @Tags         signals
+// @Produce      json
+// @Param        code  query      string  true   "股票代码"
+// @Param        days  query      int     false  "回溯天数" default(120)
+// @Success      200  {object}  signalCalendarPayload
+// @Router       /api/signal-calendar [get]
 func (h *SignalHandler) SignalCalendar(c *gin.Context) {
 	code := strings.TrimSpace(c.Query("code"))
 	if code == "" {
