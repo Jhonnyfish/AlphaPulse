@@ -19,6 +19,8 @@ import HotConceptsPage from '@/pages/HotConceptsPage';
 import StrategiesPage from '@/pages/StrategiesPage';
 import SignalsPage from '@/pages/SignalsPage';
 import WatchlistAnalysisPage from '@/pages/WatchlistAnalysisPage';
+import AnalyzePage from '@/pages/AnalyzePage';
+import FlowPanelPage from '@/pages/FlowPanelPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, loading } = useAuth();
@@ -81,6 +83,8 @@ export default function App() {
         <Route path="/strategies" element={<StrategiesPage />} />
         <Route path="/signals" element={<SignalsPage />} />
         <Route path="/watchlist-analysis" element={<WatchlistAnalysisPage />} />
+        <Route path="/analyze" element={<AnalyzePage />} />
+        <Route path="/flow" element={<FlowPanelPage />} />
       </Route>
       <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
     </Routes>

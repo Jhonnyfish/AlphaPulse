@@ -43,3 +43,64 @@ html, body, #root {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-muted);
 }
+
+/* ── Glass morphism utilities ───────────────────────────────── */
+
+.glass-panel {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 12px;
+}
+
+.panel-glow {
+  box-shadow: 0 0 0 rgba(34, 211, 238, 0);
+  transition: box-shadow 0.3s ease;
+}
+
+.panel-glow:hover {
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.08), 0 0 60px rgba(34, 211, 238, 0.04);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, #3b82f6, #22d3ee);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Shimmer animation (skeletons) ─────────────────────────── */
+
+.skeleton-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(148, 163, 184, 0.05) 25%,
+    rgba(148, 163, 184, 0.15) 50%,
+    rgba(148, 163, 184, 0.05) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Slide-in-right animation (toasts) ─────────────────────── */
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.25s ease-out;
+}
