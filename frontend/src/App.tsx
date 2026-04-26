@@ -28,6 +28,7 @@ import DailyBriefPage from '@/pages/DailyBriefPage';
 import DiagPage from '@/pages/DiagPage';
 import AnomalyPage from '@/pages/AnomalyPage';
 import InstitutionPage from '@/pages/InstitutionPage';
+import RankingPage from '@/pages/RankingPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, loading } = useAuth();
@@ -99,6 +100,7 @@ export default function App() {
         <Route path="/diag" element={<DiagPage />} />
         <Route path="/anomalies" element={<AnomalyPage />} />
         <Route path="/institutions" element={<InstitutionPage />} />
+        <Route path="/ranking" element={<RankingPage />} />
       </Route>
       <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
     </Routes>

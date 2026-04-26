@@ -8,7 +8,7 @@ import {
   CandlestickChart, LayoutDashboard, Menu, X, GitCompareArrows,
   Settings, Briefcase, BookOpen, Target, Filter, Crown, Flame,
   Zap, Radio, Grid3X3, Droplets, Search, Sun, Moon, Keyboard,
-  Heart, FileText, Monitor, AlertTriangle, Building2,
+  Heart, FileText, Monitor, AlertTriangle, Building2, Trophy,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
 import TickerTape from '@/components/TickerTape';
@@ -37,6 +37,7 @@ const navItems: NavItem[] = [
 
   { to: '/candidates', label: '候选股', icon: Target, group: '选股' },
   { to: '/screener', label: '选股器', icon: Filter, group: '选股' },
+  { to: '/ranking', label: '综合排名', icon: Trophy, group: '选股' },
   { to: '/hot-concepts', label: '热门概念', icon: Flame, group: '选股' },
   { to: '/dragon-tiger', label: '龙虎榜', icon: Crown, group: '选股' },
 

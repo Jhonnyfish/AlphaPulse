@@ -519,6 +519,41 @@ export interface HeatmapItem {
   sector: string;
 }
 
+export interface RankingItem {
+  code: string;
+  name: string;
+  overall_score: number;
+  overall_signal: string;
+  dimension_scores: Record<string, number>;
+  change_pct: number;
+  price: number;
+  strengths: string[];
+  risks: string[];
+  rank: number;
+  error?: string;
+}
+
+export interface RankingBest {
+  code: string;
+  name: string;
+  score: number;
+}
+
+export interface RankingSummary {
+  avg_score: number;
+  best: RankingBest | null;
+  worst: RankingBest | null;
+  count: number;
+}
+
+export interface RankingResponse {
+  ok: boolean;
+  items: RankingItem[];
+  summary: RankingSummary;
+  fetched_at: string;
+  error?: string;
+}
+
 export interface WatchlistRanking {
   code: string;
   name: string;
@@ -537,6 +572,7 @@ export const watchlistAnalysisApi = {
   heatmap: () => api.get<HeatmapItem[]>('/watchlist-heatmap'),
   sectors: () => api.get('/watchlist-sectors'),
   ranking: () => api.get<WatchlistRanking[]>('/watchlist-ranking'),
+  fullRanking: () => api.get<RankingResponse>('/watchlist-ranking'),
   groups: () => api.get<WatchlistGroup[]>('/watchlist-groups'),
   createGroup: (name: string) => api.post('/watchlist-groups', { name }),
   updateGroup: (id: string, name: string) => api.put(`/watchlist-groups/${id}`, { name }),
