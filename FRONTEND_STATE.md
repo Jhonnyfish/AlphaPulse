@@ -96,7 +96,7 @@
 - [x] InstitutionPage, InvestmentPlansPage, PortfolioRiskPage
 - [x] QuickActionsPage, DiagPage
 
-### 阶段三：现有页面提升 (16/24)
+### 阶段三：现有页面提升 (17/24)
 - [x] 3.1 DashboardPage — ECharts 指数走势图、涨跌家数柱状图、板块热力图、信号摘要卡片、活动时间线
 - [x] 3.1b DashboardPage — 涨跌家数柱状图 + 市场广度指标
 - [x] 3.1c DashboardPage — 板块热力图（ECharts treemap）
@@ -121,7 +121,7 @@
 - [x] 3.14 NewsPage — 新闻情感标签 + 关联个股标记
 - [x] 3.15 SignalsPage — 信号统计图表 + 信号强度趋势
 - [x] 3.16 ScreenerPage — 选股条件可视化展示
-- [ ] 3.17 ComparePage — 多维对比雷达图
+- [x] 3.17 ComparePage — 多维对比雷达图
 - [ ] 3.18 全局 — 移除 react-router-dom，改为视图切换架构
 
 ## 已安装依赖
@@ -156,3 +156,4 @@
 - 2026-04-26 21:20 | 3.14 NewsPage | 新闻情感标签+关联个股 | 添加情感badge(利好绿/利空红/中性灰+图标)、关键词情感推断(44个关键词)、关联个股pill badge(代码提取+行业匹配,最多3个,点击导航analyze)、glass morphism风格 | files: NewsPage.tsx
 - 2026-04-26 21:40 | 3.15 SignalsPage | 信号统计饼图+信号强度趋势折线图 | 添加ECharts环形饼图(4类信号:买入绿/卖出红/持有蓝/观望灰,中心总数) + 30天信号强度均值趋势折线图(渐变面积填充, min/max/trend摘要)，响应式并排布局, glass morphism卡片, 保留现有信号列表功能不变 | files: SignalsPage.tsx
 - 2026-04-26 22:00 | 3.16 ScreenerPage | 选股条件可视化 | 添加筛选条件彩色标签(蓝底+图标,点击移除)、行业分布环形饼图(ECharts Top10+其他)、评分分布柱状图(ECharts 7区间红→蓝渐变)、glass morphism面板、替换react-router-dom Link为button、去除SkeletonInlineTable引用改用animate-pulse骨架屏 | files: ScreenerPage.tsx
+- 2026-04-26 22:20 | 3.17 ComparePage | 多维对比雷达图 | 回测对比结果下方新增ECharts六维雷达图(胜率/平均收益/信号频率/风控能力/稳定性/综合评分)，5色配色区分多只股票，polygon形状+半透明面积填充，从backtest数据派生维度评分，glass morphism卡片，≥2只股票时显示 | files: ComparePage.tsx
