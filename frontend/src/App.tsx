@@ -34,6 +34,7 @@ import PerfStatsPage from '@/pages/PerfStatsPage';
 import MultiTrendPage from '@/pages/MultiTrendPage';
 import CorrelationPage from '@/pages/CorrelationPage';
 import InvestmentPlansPage from '@/pages/InvestmentPlansPage';
+import BacktestPage from '@/pages/BacktestPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, loading } = useAuth();
@@ -111,6 +112,7 @@ export default function App() {
         <Route path="/multi-trend" element={<MultiTrendPage />} />
         <Route path="/correlation" element={<CorrelationPage />} />
         <Route path="/investment-plans" element={<InvestmentPlansPage />} />
+        <Route path="/backtest" element={<BacktestPage />} />
       </Route>
       <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
     </Routes>
