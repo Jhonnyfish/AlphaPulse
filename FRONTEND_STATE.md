@@ -105,7 +105,7 @@
 - [x] 3.2a WatchlistPage — 每行添加迷你 Sparkline 走势图
 - [x] 3.2b WatchlistPage — 拖拽排序支持
 - [x] 3.3a CandidatesPage — 分层展示（核心/关注/观察三个区域）
-- [ ] 3.3b CandidatesPage — 点击个股弹出分析详情 Modal（不跳转）
+- [x] 3.3b CandidatesPage — 点击个股弹出分析详情 Modal（不跳转）
 - [ ] 3.4a PortfolioPage — 持仓行业分布饼图
 - [ ] 3.4b PortfolioPage — 收益曲线图 + 风险指标卡片
 - [ ] 3.5a TradingJournalPage — 交易日历热力图
@@ -140,3 +140,4 @@
 - 2026-04-26 16:00 | 3.2a WatchlistPage | 每行添加迷你 Sparkline 走势图，使用 ECharts 折线图，红涨绿跌，100x30px，支持桌面表格和移动卡片视图 | files: WatchlistPage.tsx
 - 2026-04-26 16:20 | 3.2b WatchlistPage | 使用 @dnd-kit 实现拖拽排序，GripVertical 手柄，拖拽半透明+蓝色插入线，桌面表格和移动卡片双视图支持，arrayMove 本地排序 | files: WatchlistPage.tsx, package.json
 - 2026-04-26 16:40 | 3.3a CandidatesPage | 三层分级展示（核心≥80分/关注60-79分/观察<60分），score分层，glass morphism卡片，彩色边框区分层级，折叠展开，每个股票显示代码/名称/价格/动量/趋势/买入区间/止损/行业/信号 | files: CandidatesPage.tsx
+- 2026-04-26 17:00 | 3.3b CandidatesPage | 新建 StockDetailModal 分析详情 Modal，点击股票卡片弹出，包含 K 线走势图(EChart)、技术指标网格(MA/MACD/RSI/KDJ)、信号列表、评分进度条、买卖区间、行业标签，glass morphism 风格，支持 ESC/遮罩关闭，body 可滚动 | files: StockDetailModal.tsx, CandidatesPage.tsx
