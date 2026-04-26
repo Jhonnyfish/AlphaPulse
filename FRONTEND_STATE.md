@@ -96,12 +96,12 @@
 - [x] InstitutionPage, InvestmentPlansPage, PortfolioRiskPage
 - [x] QuickActionsPage, DiagPage
 
-### 阶段三：现有页面提升 (0/18)
-- [ ] 3.1a DashboardPage — ECharts 大盘指数走势图（上证/深证/创业板）
-- [ ] 3.1b DashboardPage — 涨跌家数柱状图 + 市场广度指标
-- [ ] 3.1c DashboardPage — 板块热力图（ECharts treemap）
-- [ ] 3.1d DashboardPage — 信号摘要卡片（活跃信号数、最近告警）+ 动画
-- [ ] 3.1e DashboardPage — 最近活动时间线
+### 阶段三：现有页面提升 (5/18)
+- [x] 3.1 DashboardPage — ECharts 指数走势图、涨跌家数柱状图、板块热力图、信号摘要卡片、活动时间线
+- [x] 3.1b DashboardPage — 涨跌家数柱状图 + 市场广度指标
+- [x] 3.1c DashboardPage — 板块热力图（ECharts treemap）
+- [x] 3.1d DashboardPage — 信号摘要卡片（活跃信号数、最近告警）+ 动画
+- [x] 3.1e DashboardPage — 最近活动时间线
 - [ ] 3.2a WatchlistPage — 每行添加迷你 Sparkline 走势图
 - [ ] 3.2b WatchlistPage — 拖拽排序支持
 - [ ] 3.3a CandidatesPage — 分层展示（核心/关注/观察三个区域）
