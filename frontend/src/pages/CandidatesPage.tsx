@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { candidatesApi } from '@/lib/api';
-import { Target, RefreshCw, ArrowUpDown, TrendingUp } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Target, RefreshCw, TrendingUp, Star, Eye, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Candidate {
   code: string;
@@ -34,14 +33,201 @@ interface CandidatesResponse {
   strategy_id?: string;
 }
 
-type SortField = 'rank' | 'score' | 'momentum' | 'trend' | 'close';
+interface TierConfig {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  color: string;
+  borderColor: string;
+  bgGlow: string;
+  minScore: number;
+  maxScore: number;
+}
+
+const TIERS: TierConfig[] = [
+  {
+    key: 'core',
+    label: '核心',
+    icon: <Star className="w-4 h-4" />,
+    color: '#3b82f6',
+    borderColor: 'rgba(59, 130, 246, 0.5)',
+    bgGlow: 'rgba(59, 130, 246, 0.08)',
+    minScore: 80,
+    maxScore: 100,
+  },
+  {
+    key: 'watch',
+    label: '关注',
+    icon: <Zap className="w-4 h-4" />,
+    color: '#f59e0b',
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    bgGlow: 'rgba(245, 158, 11, 0.05)',
+    minScore: 60,
+    maxScore: 79.99,
+  },
+  {
+    key: 'observe',
+    label: '观察',
+    icon: <Eye className="w-4 h-4" />,
+    color: '#6b7280',
+    borderColor: 'rgba(107, 114, 128, 0.2)',
+    bgGlow: 'transparent',
+    minScore: 0,
+    maxScore: 59.99,
+  },
+];
+
+function getCandidateTier(score: number): TierConfig {
+  if (score >= 80) return TIERS[0];
+  if (score >= 60) return TIERS[1];
+  return TIERS[2];
+}
+
+function CandidateCard({ candidate }: { candidate: Candidate }) {
+  const tier = getCandidateTier(candidate.score);
+  const momentumColor = candidate.momentum >= 0 ? '#ef4444' : '#22c55e'; // 红涨绿跌
+  const trendColor = candidate.trend >= 0 ? '#ef4444' : '#22c55e';
+
+  return (
+    <div
+      className="rounded-lg p-3 transition-all duration-200 hover:scale-[1.01] cursor-pointer group"
+      style={{
+        background: 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,255,255,0.06)',
+      }}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className="font-mono font-bold text-sm" style={{ color: tier.color }}>
+            {candidate.code}
+          </span>
+          <span className="font-medium text-sm" style={{ color: 'var(--color-text-primary)' }}>
+            {candidate.name}
+          </span>
+          {candidate.limit_up_today && (
+            <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
+              涨停
+            </span>
+          )}
+          {candidate.leader_signal && (
+            <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>
+              {candidate.leader_signal}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="font-mono font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>
+            ¥{candidate.close.toFixed(2)}
+          </span>
+          <span
+            className="font-mono text-xs font-bold px-2 py-0.5 rounded-full"
+            style={{
+              background: `${tier.color}20`,
+              color: tier.color,
+            }}
+          >
+            {candidate.score.toFixed(0)}分
+          </span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+        <span>
+          动量 <span style={{ color: momentumColor }} className="font-mono">
+            {candidate.momentum >= 0 ? '+' : ''}{candidate.momentum.toFixed(1)}
+          </span>
+        </span>
+        <span>
+          趋势 <span style={{ color: trendColor }} className="font-mono">
+            {candidate.trend >= 0 ? '+' : ''}{candidate.trend.toFixed(1)}
+          </span>
+        </span>
+        <span>
+          买入 <span className="font-mono" style={{ color: 'var(--color-text-secondary)' }}>
+            {candidate.buy_low.toFixed(2)}~{candidate.buy_high.toFixed(2)}
+          </span>
+        </span>
+        <span>
+          止损 <span className="font-mono" style={{ color: '#ef4444' }}>
+            {candidate.stop_loss.toFixed(2)}
+          </span>
+        </span>
+        {candidate.industry && (
+          <span className="opacity-60">{candidate.industry}</span>
+        )}
+        <span className="ml-auto opacity-0 group-hover:opacity-60 transition-opacity flex items-center gap-0.5">
+          <TrendingUp className="w-3 h-3" /> 查看K线
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function TierSection({
+  tier,
+  candidates,
+  defaultOpen = true,
+}: {
+  tier: TierConfig;
+  candidates: Candidate[];
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  if (candidates.length === 0) return null;
+
+  return (
+    <div
+      className="rounded-xl overflow-hidden transition-all"
+      style={{
+        background: tier.bgGlow,
+        border: `1px solid ${tier.borderColor}`,
+        backdropFilter: 'blur(18px)',
+      }}
+    >
+      {/* Tier Header */}
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-3 transition-colors hover:bg-white/5"
+      >
+        <div className="flex items-center gap-2">
+          <span style={{ color: tier.color }}>{tier.icon}</span>
+          <span className="font-bold text-sm" style={{ color: tier.color }}>
+            {tier.label}
+          </span>
+          <span
+            className="text-xs px-2 py-0.5 rounded-full font-mono font-bold"
+            style={{ background: `${tier.color}20`, color: tier.color }}
+          >
+            {candidates.length}
+          </span>
+          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            评分 {tier.minScore}–{tier.maxScore >= 100 ? '100' : Math.floor(tier.maxScore)}
+          </span>
+        </div>
+        {open ? (
+          <ChevronUp className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+        ) : (
+          <ChevronDown className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+        )}
+      </button>
+
+      {/* Tier Content */}
+      {open && (
+        <div className="px-3 pb-3 space-y-2">
+          {candidates.map((c) => (
+            <CandidateCard key={c.code} candidate={c} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CandidatesPage() {
   const [data, setData] = useState<CandidatesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [sortField, setSortField] = useState<SortField>('rank');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -60,50 +246,15 @@ export default function CandidatesPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDir(field === 'rank' ? 'asc' : 'desc');
-    }
-  };
+  // Group candidates by tier
+  const grouped = TIERS.map((tier) => ({
+    tier,
+    candidates: (data?.items || [])
+      .filter((c) => c.score >= tier.minScore && c.score <= tier.maxScore)
+      .sort((a, b) => b.score - a.score),
+  }));
 
-  const sorted = data?.items
-    ? [...data.items].sort((a, b) => {
-        const av = a[sortField];
-        const bv = b[sortField];
-        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-        return sortDir === 'asc' ? cmp : -cmp;
-      })
-    : [];
-
-  const scoreColor = (score: number) => {
-    if (score >= 80) return 'var(--color-success, #22c55e)';
-    if (score >= 60) return 'var(--color-warning, #f59e0b)';
-    return 'var(--color-danger, #ef4444)';
-  };
-
-  const SortHeader = ({
-    field,
-    label,
-  }: {
-    field: SortField;
-    label: string;
-  }) => (
-    <th
-      className="px-3 py-2.5 text-left text-xs font-medium cursor-pointer select-none hover:opacity-80 transition-opacity"
-      style={{ color: 'var(--color-text-muted)' }}
-      onClick={() => handleSort(field)}
-    >
-      <span className="inline-flex items-center gap-1">
-        {label}
-        {sortField === field && (
-          <ArrowUpDown className="w-3 h-3" style={{ color: 'var(--color-accent)' }} />
-        )}
-      </span>
-    </th>
-  );
+  const totalCandidates = data?.items?.length || 0;
 
   return (
     <div className="p-4 lg:p-6 space-y-4">
@@ -120,7 +271,7 @@ export default function CandidatesPage() {
                 color: 'var(--color-text-muted)',
               }}
             >
-              {data.items.length} 只 · 更新于 {new Date(data.fetched_at).toLocaleTimeString()}
+              {totalCandidates} 只 · 更新于 {new Date(data.fetched_at).toLocaleTimeString()}
             </span>
           )}
         </div>
@@ -138,20 +289,23 @@ export default function CandidatesPage() {
         </button>
       </div>
 
-      {/* Tier summary */}
-      {data?.tier_counts && Object.keys(data.tier_counts).length > 0 && (
+      {/* Tier summary badges */}
+      {data && totalCandidates > 0 && (
         <div className="flex gap-3 flex-wrap">
-          {Object.entries(data.tier_counts).map(([tier, count]) => (
-            <span
-              key={tier}
-              className="text-xs px-2.5 py-1 rounded-lg"
+          {grouped.map(({ tier, candidates }) => (
+            <div
+              key={tier.key}
+              className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg"
               style={{
-                background: 'var(--color-bg-hover)',
-                color: 'var(--color-text-secondary)',
+                background: `${tier.color}15`,
+                color: tier.color,
+                border: `1px solid ${tier.borderColor}`,
               }}
             >
-              {tier}: <strong>{count}</strong>
-            </span>
+              {tier.icon}
+              <span className="font-medium">{tier.label}</span>
+              <span className="font-bold font-mono">{candidates.length}</span>
+            </div>
           ))}
         </div>
       )}
@@ -168,156 +322,44 @@ export default function CandidatesPage() {
 
       {/* Loading */}
       {loading && !data && (
-        <div
-          className="flex items-center justify-center py-20 text-sm"
-          style={{ color: 'var(--color-text-muted)' }}
-        >
-          <RefreshCw className="w-5 h-5 animate-spin mr-2" />
-          加载中...
+        <div className="space-y-4">
+          {TIERS.map((tier) => (
+            <div
+              key={tier.key}
+              className="rounded-xl p-4 animate-pulse"
+              style={{ background: 'var(--color-bg-secondary)', border: `1px solid ${tier.borderColor}` }}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-4 h-4 rounded" style={{ background: 'var(--color-bg-hover)' }} />
+                <div className="w-12 h-4 rounded" style={{ background: 'var(--color-bg-hover)' }} />
+                <div className="w-8 h-5 rounded-full" style={{ background: 'var(--color-bg-hover)' }} />
+              </div>
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-14 rounded-lg" style={{ background: 'var(--color-bg-hover)' }} />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Table */}
-      {data && sorted.length > 0 && (
-        <div
-          className="rounded-lg border overflow-x-auto"
-          style={{
-            background: 'var(--color-bg-secondary)',
-            borderColor: 'var(--color-border)',
-          }}
-        >
-          <table className="w-full text-sm">
-            <thead>
-              <tr
-                className="border-b"
-                style={{
-                  borderColor: 'var(--color-border)',
-                  background: 'var(--color-bg-hover)',
-                }}
-              >
-                <SortHeader field="rank" label="排名" />
-                <th
-                  className="px-3 py-2.5 text-left text-xs font-medium"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  代码
-                </th>
-                <th
-                  className="px-3 py-2.5 text-left text-xs font-medium"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  名称
-                </th>
-                <SortHeader field="score" label="评分" />
-                <SortHeader field="close" label="现价" />
-                <SortHeader field="momentum" label="动量" />
-                <SortHeader field="trend" label="趋势" />
-                <th
-                  className="px-3 py-2.5 text-left text-xs font-medium"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  买入区间
-                </th>
-                <th
-                  className="px-3 py-2.5 text-left text-xs font-medium"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  止损
-                </th>
-                <th
-                  className="px-3 py-2.5 text-left text-xs font-medium"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  行业
-                </th>
-                <th
-                  className="px-3 py-2.5 text-left text-xs font-medium"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  信号
-                </th>
-                <th
-                  className="px-3 py-2.5 text-center text-xs font-medium"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  操作
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((c) => (
-                <tr
-                  key={c.code}
-                  className="border-b transition-colors hover:opacity-90"
-                  style={{ borderColor: 'var(--color-border)' }}
-                >
-                  <td className="px-3 py-2.5 font-mono" style={{ color: 'var(--color-text-muted)' }}>
-                    #{c.rank}
-                  </td>
-                  <td className="px-3 py-2.5 font-mono font-medium" style={{ color: 'var(--color-accent)' }}>
-                    {c.code}
-                  </td>
-                  <td className="px-3 py-2.5 font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                    {c.name}
-                    {c.limit_up_today && (
-                      <span className="ml-1 text-xs" style={{ color: '#ef4444' }}>🔥</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <span
-                      className="font-bold font-mono"
-                      style={{ color: scoreColor(c.score) }}
-                    >
-                      {c.score.toFixed(1)}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5 font-mono" style={{ color: 'var(--color-text-primary)' }}>
-                    {c.close.toFixed(2)}
-                  </td>
-                  <td className="px-3 py-2.5 font-mono">
-                    <span style={{ color: c.momentum >= 0 ? '#22c55e' : '#ef4444' }}>
-                      {c.momentum >= 0 ? '+' : ''}{c.momentum.toFixed(1)}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5 font-mono">
-                    <span style={{ color: c.trend >= 0 ? '#22c55e' : '#ef4444' }}>
-                      {c.trend >= 0 ? '+' : ''}{c.trend.toFixed(1)}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5 font-mono text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                    {c.buy_low.toFixed(2)} ~ {c.buy_high.toFixed(2)}
-                  </td>
-                  <td className="px-3 py-2.5 font-mono text-xs" style={{ color: '#ef4444' }}>
-                    {c.stop_loss.toFixed(2)}
-                  </td>
-                  <td className="px-3 py-2.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                    {c.industry || '-'}
-                  </td>
-                  <td className="px-3 py-2.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                    {c.leader_signal || '-'}
-                  </td>
-                  <td className="px-3 py-2.5 text-center">
-                    <Link
-                      to={`/kline?code=${c.code}`}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors"
-                      style={{
-                        background: 'var(--color-bg-hover)',
-                        color: 'var(--color-accent)',
-                      }}
-                    >
-                      <TrendingUp className="w-3 h-3" />
-                      K线
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Tier Sections */}
+      {data && totalCandidates > 0 && (
+        <div className="space-y-4">
+          {grouped.map(({ tier, candidates }) => (
+            <TierSection
+              key={tier.key}
+              tier={tier}
+              candidates={candidates}
+              defaultOpen={tier.key !== 'observe'}
+            />
+          ))}
         </div>
       )}
 
       {/* Empty state */}
-      {data && sorted.length === 0 && (
+      {data && totalCandidates === 0 && (
         <div
           className="flex flex-col items-center justify-center py-20 text-sm"
           style={{ color: 'var(--color-text-muted)' }}
