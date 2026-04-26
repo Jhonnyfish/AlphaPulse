@@ -107,7 +107,7 @@
 - [x] 3.3a CandidatesPage — 分层展示（核心/关注/观察三个区域）
 - [x] 3.3b CandidatesPage — 点击个股弹出分析详情 Modal（不跳转）
 - [x] 3.4a PortfolioPage — 持仓行业分布饼图
-- [ ] 3.4b PortfolioPage — 收益曲线图 + 风险指标卡片
+- [x] 3.4b PortfolioPage — 收益曲线图 + 风险指标卡片
 - [ ] 3.5a TradingJournalPage — 交易日历热力图
 - [ ] 3.5b TradingJournalPage — 收益分布直方图 + 月度统计
 - [ ] 3.6 所有数据表格 — 添加排序、筛选、分页功能
@@ -142,3 +142,4 @@
 - 2026-04-26 16:40 | 3.3a CandidatesPage | 三层分级展示（核心≥80分/关注60-79分/观察<60分），score分层，glass morphism卡片，彩色边框区分层级，折叠展开，每个股票显示代码/名称/价格/动量/趋势/买入区间/止损/行业/信号 | files: CandidatesPage.tsx
 - 2026-04-26 17:00 | 3.3b CandidatesPage | 新建 StockDetailModal 分析详情 Modal，点击股票卡片弹出，包含 K 线走势图(EChart)、技术指标网格(MA/MACD/RSI/KDJ)、信号列表、评分进度条、买卖区间、行业标签，glass morphism 风格，支持 ESC/遮罩关闭，body 可滚动 | files: StockDetailModal.tsx, CandidatesPage.tsx
 - 2026-04-26 17:20 | 3.4a PortfolioPage | 添加持仓行业分布环形饼图(ECharts)，12色配色，glass morphism卡片，响应式布局(桌面并排/移动端堆叠)，使用现有analytics.sector_allocation数据，tooltip显示行业/市值/占比 | files: PortfolioPage.tsx
+- 2026-04-26 17:40 | 3.4b PortfolioPage | 添加收益曲线面积图(ECharts)正负渐变色+零线标记，6项风险指标卡片(最大回撤/夏普比率/年化收益/波动率/胜率/盈亏比)条件着色，30天mock数据，响应式布局(lg:grid-cols-3)，glass morphism风格 | files: PortfolioPage.tsx

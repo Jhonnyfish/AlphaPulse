@@ -1,6 +1,8 @@
 import { tradingJournalApi, type TradeRecord, type TradeStats, type TradeCalendarDay } from '@/lib/api';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Plus, Trash2, TrendingUp, TrendingDown, BookOpen, Calendar, BarChart3, RefreshCw, Award, Frown } from 'lucide-react';
+import EChart from '@/components/charts/EChart';
+import type { EChartsOption } from 'echarts';
 
 interface AddForm {
   code: string;
@@ -27,8 +29,54 @@ const emptyForm: AddForm = {
   emotion: '',
   notes: '',
 };
-
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+/** Deterministic mock trades for the heatmap demo when no API data exists */
+function generateMockTrades(): TradeRecord[] {
+  const result: TradeRecord[] = [];
+  const now = new Date();
+  const codes = ['600519', '000858', '601318', '000001', '300750'];
+  const names = ['贵州茅台', '五粮液', '中国平安', '平安银行', '宁德时代'];
+  const strategies = ['均线突破', 'MACD金叉', '放量突破', '回调买入', '趋势跟踪'];
+
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    if (d.getDay() === 0 || d.getDay() === 6) continue;
+
+    const seed = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+    const hash = ((seed * 2654435761) >>> 0) % 100;
+    if (hash >= 62) continue;
+
+    const count = (hash % 3) + 1;
+    for (let j = 0; j < count; j++) {
+      const idx = (hash + j) % 5;
+      const pnlSeed = ((seed * (j + 1) * 2246822519) >>> 0) % 1000;
+      const pnl = (pnlSeed - 420) * 8;
+      const price = 30 + ((hash * 7) % 300);
+      const qty = 100 + (hash % 10) * 100;
+      const dateStr = [
+        d.getFullYear(),
+        String(d.getMonth() + 1).padStart(2, '0'),
+        String(d.getDate()).padStart(2, '0'),
+      ].join('-');
+
+      result.push({
+        id: `mock-${i}-${j}`,
+        code: codes[idx],
+        name: names[idx],
+        direction: j % 2 === 0 ? 'buy' : 'sell',
+        price,
+        quantity: qty,
+        amount: qty * price,
+        trade_date: dateStr,
+        strategy: strategies[idx],
+        profit_loss: pnl,
+        profit_loss_pct: pnl / (qty * price) * 100,
+      });
+    }
+  }
+  return result;
+}
 
 export default function TradingJournalPage() {
   const [trades, setTrades] = useState<TradeRecord[]>([]);
@@ -147,6 +195,124 @@ export default function TradingJournalPage() {
   for (let i = 0; i < firstDay; i++) calendarCells.push(null);
   for (let d = 1; d <= daysInMonth; d++) calendarCells.push(d);
 
+  // ── ECharts Calendar Heatmap (12-month rolling P&L) ────────────
+  const heatmapData = useMemo(() => {
+    const dailyMap: Record<string, { pnl: number; pnlPct: number[]; count: number }> = {};
+    const src = trades.length > 0 ? trades : generateMockTrades();
+
+    src.forEach((t) => {
+      const date = t.trade_date;
+      if (!dailyMap[date]) dailyMap[date] = { pnl: 0, pnlPct: [], count: 0 };
+      dailyMap[date].pnl += t.profit_loss ?? 0;
+      if (t.profit_loss_pct != null) dailyMap[date].pnlPct.push(t.profit_loss_pct);
+      dailyMap[date].count += 1;
+    });
+
+    return { dailyMap, isMock: trades.length === 0 };
+  }, [trades]);
+
+  const heatmapOption = useMemo<EChartsOption>(() => {
+    const { dailyMap } = heatmapData;
+    const data: [string, number][] = [];
+    const vals: number[] = [];
+    for (const [date, info] of Object.entries(dailyMap)) {
+      const rounded = Math.round(info.pnl * 100) / 100;
+      data.push([date, rounded]);
+      vals.push(rounded);
+    }
+
+    const minV = vals.length ? Math.min(...vals) : -1;
+    const maxV = vals.length ? Math.max(...vals) : 1;
+    const absMax = Math.max(Math.abs(minV), Math.abs(maxV), 1);
+
+    const endDate = new Date();
+    const startDate = new Date(endDate);
+    startDate.setFullYear(startDate.getFullYear() - 1);
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const range: [string, string] = [fmt(startDate), fmt(endDate)];
+
+    return {
+      tooltip: {
+        backgroundColor: 'rgba(15,23,42,0.95)',
+        borderColor: 'rgba(148,163,184,0.2)',
+        textStyle: { color: '#e2e8f0', fontSize: 12 },
+        formatter(params: any) {
+          if (!params.data) return '';
+          const [date, value] = params.data as [string, number];
+          const info = dailyMap[date];
+          if (!info) return date;
+          const clr = value > 0 ? '#ef4444' : value < 0 ? '#22c55e' : '#94a3b8';
+          const sign = value > 0 ? '+' : '';
+          const avgPct =
+            info.pnlPct.length > 0
+              ? info.pnlPct.reduce((a: number, b: number) => a + b, 0) / info.pnlPct.length
+              : 0;
+          return [
+            `<div style="font-weight:600;margin-bottom:4px">${date}</div>`,
+            `<div>交易: <b>${info.count}</b> 笔</div>`,
+            `<div>盈亏: <span style="color:${clr};font-weight:600">${sign}¥${value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>`,
+            `<div>均收益: <span style="color:${clr}">${sign}${avgPct.toFixed(2)}%</span></div>`,
+          ].join('');
+        },
+      },
+      visualMap: {
+        min: -absMax,
+        max: absMax,
+        calculable: true,
+        orient: 'horizontal',
+        left: 'center',
+        bottom: 0,
+        itemWidth: 12,
+        itemHeight: 100,
+        text: [`+${Math.round(absMax).toLocaleString()}`, `-${Math.round(absMax).toLocaleString()}`],
+        textStyle: { color: '#94a3b8', fontSize: 10 },
+        inRange: {
+          color: ['#22c55e', '#4ade80', '#86efac', '#2a2d3a', '#fca5a5', '#f87171', '#ef4444'],
+        },
+        outOfRange: { color: '#1a1d2e' },
+      },
+      calendar: {
+        top: 28,
+        left: 40,
+        right: 30,
+        bottom: 50,
+        cellSize: ['auto', 14],
+        range,
+        splitLine: { show: true, lineStyle: { color: '#334155', width: 1.5 } },
+        itemStyle: {
+          borderWidth: 0.5,
+          borderColor: 'rgba(30,41,59,0.8)',
+          color: '#1a1d2e',
+        },
+        yearLabel: { show: true, color: '#94a3b8', fontSize: 12 },
+        monthLabel: { color: '#94a3b8', fontSize: 11 },
+        dayLabel: {
+          firstDay: 1,
+          nameMap: ['日', '一', '二', '三', '四', '五', '六'],
+          color: '#64748b',
+          fontSize: 10,
+        },
+      },
+      series: [
+        {
+          type: 'heatmap',
+          coordinateSystem: 'calendar',
+          calendarIndex: 0,
+          data,
+          emphasis: {
+            itemStyle: {
+              shadowBlur: 10,
+              shadowColor: 'rgba(0, 0, 0, 0.5)',
+              borderColor: '#3b82f6',
+              borderWidth: 1,
+            },
+          },
+        },
+      ],
+    } as EChartsOption;
+  }, [heatmapData]);
+
   return (
     <div>
       {/* Header */}
@@ -252,6 +418,47 @@ export default function TradingJournalPage() {
           </div>
         </div>
       )}
+
+      {/* ── ECharts Calendar Heatmap ─────────────────────────── */}
+      <div
+        className="rounded-xl border p-4 mb-6"
+        style={{
+          background: 'var(--color-bg-secondary)',
+          borderColor: 'var(--color-border)',
+          backdropFilter: 'blur(12px)',
+        }}
+      >
+        <div className="flex items-center gap-1.5 mb-1">
+          <Calendar className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+          <span className="text-sm font-medium">交易热力图</span>
+          <span className="text-xs ml-1" style={{ color: 'var(--color-text-muted)' }}>
+            — 近12个月每日盈亏
+          </span>
+          {heatmapData.isMock && (
+            <span
+              className="text-[10px] ml-auto px-2 py-0.5 rounded-full"
+              style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--color-accent)' }}
+            >
+              示例数据
+            </span>
+          )}
+        </div>
+        <EChart option={heatmapOption} height={230} loading={loading} />
+        <div className="flex items-center justify-center gap-4 mt-1">
+          <span className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+            <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: '#22c55e' }} />
+            亏损
+          </span>
+          <span className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+            <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: '#2a2d3a' }} />
+            无交易
+          </span>
+          <span className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+            <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: '#ef4444' }} />
+            盈利
+          </span>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         {/* Calendar */}
