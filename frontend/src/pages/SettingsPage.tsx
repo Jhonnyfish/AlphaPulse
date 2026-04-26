@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useTheme } from '@/lib/theme';
 import {
   Settings,
   Server,
@@ -11,6 +12,9 @@ import {
   ExternalLink,
   CheckCircle,
   XCircle,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
 
 interface SystemInfo {
@@ -28,6 +32,7 @@ interface SystemInfo {
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -107,6 +112,42 @@ export default function SettingsPage() {
             <span style={{ color: 'var(--color-text-muted)' }}>ID</span>
             <span className="font-mono text-xs">{user?.id || '—'}</span>
           </div>
+        </div>
+      </div>
+
+      {/* Theme */}
+      <div
+        className="rounded-xl border p-4 mb-4"
+        style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <Monitor className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+          <span className="text-sm font-medium">外观主题</span>
+        </div>
+        <div className="flex gap-2">
+          {([
+            { value: 'dark' as const, label: '暗色', icon: Moon },
+            { value: 'light' as const, label: '亮色', icon: Sun },
+          ]).map(({ value, label, icon: Icon }) => (
+            <button
+              key={value}
+              onClick={() => setTheme(value)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all"
+              style={{
+                background: theme === value
+                  ? 'linear-gradient(90deg, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.08))'
+                  : 'var(--color-bg-card)',
+                border: theme === value
+                  ? '1px solid rgba(59, 130, 246, 0.4)'
+                  : '1px solid var(--color-border)',
+                color: theme === value ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+              }}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+              {theme === value && <CheckCircle className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />}
+            </button>
+          ))}
         </div>
       </div>
 

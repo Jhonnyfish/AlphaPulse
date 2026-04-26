@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useKeyboard } from '@/lib/useKeyboard';
+import { useTheme } from '@/lib/theme';
 import {
   BarChart3, Star, TrendingUp, Newspaper, LogOut, Activity,
   CandlestickChart, LayoutDashboard, Menu, X, GitCompareArrows,
   Settings, Briefcase, BookOpen, Target, Filter, Crown, Flame,
-  Zap, Radio, Grid3X3, Droplets, Search,
+  Zap, Radio, Grid3X3, Droplets, Search, Sun, Moon,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
 
@@ -55,6 +56,7 @@ function groupNavItems(items: NavItem[]): [string, NavItem[]][] {
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -236,13 +238,26 @@ export default function Layout() {
               {user?.username}
             </span>
           </div>
-          <button
-            onClick={logout}
-            className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
-            title="退出登录"
-          >
-            <LogOut className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={toggleTheme}
+              className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
+              title={theme === 'dark' ? '切换到亮色模式' : '切换到暗色模式'}
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+              ) : (
+                <Moon className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+              )}
+            </button>
+            <button
+              onClick={logout}
+              className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
+              title="退出登录"
+            >
+              <LogOut className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -268,7 +283,18 @@ export default function Layout() {
             <Activity className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
             <span className="font-bold text-gradient">AlphaPulse</span>
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              onClick={toggleTheme}
+              className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
+              title={theme === 'dark' ? '切换到亮色模式' : '切换到暗色模式'}
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
+              ) : (
+                <Moon className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
+              )}
+            </button>
             <button
               onClick={() => setCommandPaletteOpen(true)}
               className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
