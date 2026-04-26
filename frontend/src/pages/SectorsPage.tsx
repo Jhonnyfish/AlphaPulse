@@ -1,9 +1,41 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { marketApi, type Sector } from '@/lib/api';
 import EmptyState from '@/components/EmptyState';
 import ErrorState from '@/components/ErrorState';
-import { RefreshCw, TrendingUp, TrendingDown, Minus, LayoutGrid, List } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, Minus, LayoutGrid, List, BarChart3 } from 'lucide-react';
 import { SkeletonGridCard } from '@/components/ui/Skeleton';
+import EChart from '@/components/charts/EChart';
+
+// ─── Mock sector fund flow data ───
+interface SectorFundFlow {
+  name: string;
+  netInflow: number; // 亿元
+}
+
+const MOCK_SECTOR_FUND_FLOW: SectorFundFlow[] = [
+  { name: '半导体', netInflow: 42.56 },
+  { name: '人工智能', netInflow: 38.72 },
+  { name: '新能源汽车', netInflow: 25.18 },
+  { name: '光伏', netInflow: 19.34 },
+  { name: '医药生物', netInflow: 15.67 },
+  { name: '军工', netInflow: 12.89 },
+  { name: '消费电子', netInflow: 8.45 },
+  { name: '白酒', netInflow: 6.23 },
+  { name: '银行', netInflow: 3.91 },
+  { name: '房地产', netInflow: 1.56 },
+  { name: '证券', netInflow: -2.34 },
+  { name: '钢铁', netInflow: -5.67 },
+  { name: '煤炭', netInflow: -8.12 },
+  { name: '传媒', netInflow: -11.45 },
+  { name: '教育', netInflow: -14.23 },
+  { name: '旅游', netInflow: -16.78 },
+  { name: '农牧饲渔', netInflow: -19.56 },
+  { name: '纺织服装', netInflow: -22.34 },
+  { name: '环保', netInflow: -25.67 },
+  { name: '公用事业', netInflow: -28.91 },
+];
+
+// ─── Color helpers ───
 
 // Interpolate color based on change percent
 function heatColor(pct: number): string {
@@ -30,6 +62,91 @@ function heatColor(pct: number): string {
 function heatTextColor(pct: number): string {
   const absPct = Math.abs(pct);
   return absPct > 1.5 ? '#fff' : 'var(--color-text-primary)';
+}
+
+// ─── Fund flow chart option builder ───
+function buildFundFlowChartOption(data: SectorFundFlow[]) {
+  // Sort by netInflow descending, take top 15
+  const sorted = [...data].sort((a, b) => b.netInflow - a.netInflow).slice(0, 15);
+
+  // Reverse for horizontal bar chart so highest is at top
+  const reversed = [...sorted].reverse();
+
+  const names = reversed.map((d) => d.name);
+  const values = reversed.map((d) => d.netInflow);
+  const colors = reversed.map((d) => (d.netInflow >= 0 ? '#ef4444' : '#22c55e'));
+
+  return {
+    tooltip: {
+      trigger: 'axis' as const,
+      axisPointer: { type: 'shadow' as const },
+      formatter: (params: { name: string; value: number }[]) => {
+        const item = params[0];
+        if (!item) return '';
+        const sign = item.value >= 0 ? '+' : '';
+        const color = item.value >= 0 ? '#ef4444' : '#22c55e';
+        return `<div style="font-size:13px">
+          <div style="font-weight:600;margin-bottom:4px">${item.name}</div>
+          <div>净流入：<span style="color:${color};font-weight:600">${sign}${item.value.toFixed(2)} 亿元</span></div>
+        </div>`;
+      },
+    },
+    grid: {
+      left: 100,
+      right: 40,
+      top: 16,
+      bottom: 30,
+    },
+    xAxis: {
+      type: 'value' as const,
+      name: '金额（亿元）',
+      nameTextStyle: {
+        color: '#94a3b8',
+        fontSize: 11,
+      },
+      axisLabel: {
+        color: '#94a3b8',
+        formatter: (v: number) => v.toFixed(0),
+      },
+      splitLine: {
+        lineStyle: { color: 'rgba(51,65,85,0.4)' },
+      },
+    },
+    yAxis: {
+      type: 'category' as const,
+      data: names,
+      axisLabel: {
+        color: '#e2e8f0',
+        fontSize: 12,
+        width: 80,
+        overflow: 'truncate',
+      },
+      axisLine: { lineStyle: { color: '#334155' } },
+    },
+    series: [
+      {
+        type: 'bar',
+        data: values.map((v, i) => ({
+          value: v,
+          itemStyle: {
+            color: colors[i],
+            borderRadius: v >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4],
+          },
+        })),
+        barWidth: '55%',
+        label: {
+          show: true,
+          position: 'right' as const,
+          formatter: (p: { value: number }) => {
+            const v = p.value;
+            return (v >= 0 ? '+' : '') + v.toFixed(2);
+          },
+          fontSize: 11,
+          color: '#94a3b8',
+        },
+      },
+    ],
+  };
 }
 
 export default function SectorsPage() {
@@ -67,6 +184,9 @@ export default function SectorsPage() {
 
   const changeColor = (n: number) =>
     n > 0 ? 'var(--color-danger)' : n < 0 ? 'var(--color-success)' : 'var(--color-text-secondary)';
+
+  // Fund flow chart option — memoized
+  const fundFlowChartOption = useMemo(() => buildFundFlowChartOption(MOCK_SECTOR_FUND_FLOW), []);
 
   return (
     <div>
@@ -114,6 +234,18 @@ export default function SectorsPage() {
             刷新
           </button>
         </div>
+      </div>
+
+      {/* ─── Fund Flow Bar Chart Card ─── */}
+      <div className="mb-4 bg-[#222536]/80 backdrop-blur-lg rounded-xl border border-white/10 p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <BarChart3 className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+          <h2 className="text-sm font-semibold">板块资金流向</h2>
+          <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--color-accent)' }}>
+            Top 15 净流入/流出排名
+          </span>
+        </div>
+        <EChart option={fundFlowChartOption} height={400} />
       </div>
 
       {/* Summary bar */}
