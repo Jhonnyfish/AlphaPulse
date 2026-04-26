@@ -8,6 +8,7 @@ import {
   CandlestickChart, LayoutDashboard, Menu, X, GitCompareArrows,
   Settings, Briefcase, BookOpen, Target, Filter, Crown, Flame,
   Zap, Radio, Grid3X3, Droplets, Search, Sun, Moon, Keyboard,
+  Heart, FileText, Monitor, AlertTriangle, Building2,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
 import TickerTape from '@/components/TickerTape';
@@ -30,6 +31,9 @@ const navItems: NavItem[] = [
   { to: '/sectors', label: '板块', icon: BarChart3, group: '分析' },
   { to: '/compare', label: '对比', icon: GitCompareArrows, group: '分析' },
   { to: '/flow', label: '资金流向', icon: Droplets, group: '分析' },
+  { to: '/trends', label: '趋势', icon: TrendingUp, group: '分析' },
+  { to: '/breadth', label: '市场广度', icon: Activity, group: '分析' },
+  { to: '/sentiment', label: '市场情绪', icon: Heart, group: '分析' },
 
   { to: '/candidates', label: '候选股', icon: Target, group: '选股' },
   { to: '/screener', label: '选股器', icon: Filter, group: '选股' },
@@ -43,6 +47,10 @@ const navItems: NavItem[] = [
 
   { to: '/watchlist-analysis', label: '自选分析', icon: Grid3X3, group: '工具' },
   { to: '/news', label: '资讯', icon: Newspaper, group: '工具' },
+  { to: '/daily-brief', label: '每日简报', icon: FileText, group: '工具' },
+  { to: '/institutions', label: '机构动向', icon: Building2, group: '工具' },
+  { to: '/anomalies', label: '异常检测', icon: AlertTriangle, group: '工具' },
+  { to: '/diag', label: '系统诊断', icon: Monitor, group: '工具' },
   { to: '/settings', label: '设置', icon: Settings, group: '工具' },
 ];
 

@@ -21,6 +21,13 @@ import SignalsPage from '@/pages/SignalsPage';
 import WatchlistAnalysisPage from '@/pages/WatchlistAnalysisPage';
 import AnalyzePage from '@/pages/AnalyzePage';
 import FlowPanelPage from '@/pages/FlowPanelPage';
+import TrendsPage from '@/pages/TrendsPage';
+import BreadthPage from '@/pages/BreadthPage';
+import SentimentPage from '@/pages/SentimentPage';
+import DailyBriefPage from '@/pages/DailyBriefPage';
+import DiagPage from '@/pages/DiagPage';
+import AnomalyPage from '@/pages/AnomalyPage';
+import InstitutionPage from '@/pages/InstitutionPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, loading } = useAuth();
@@ -85,6 +92,13 @@ export default function App() {
         <Route path="/watchlist-analysis" element={<WatchlistAnalysisPage />} />
         <Route path="/analyze" element={<AnalyzePage />} />
         <Route path="/flow" element={<FlowPanelPage />} />
+        <Route path="/trends" element={<TrendsPage />} />
+        <Route path="/breadth" element={<BreadthPage />} />
+        <Route path="/sentiment" element={<SentimentPage />} />
+        <Route path="/daily-brief" element={<DailyBriefPage />} />
+        <Route path="/diag" element={<DiagPage />} />
+        <Route path="/anomalies" element={<AnomalyPage />} />
+        <Route path="/institutions" element={<InstitutionPage />} />
       </Route>
       <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
     </Routes>
