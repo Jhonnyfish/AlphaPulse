@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { BarChart3, Star, TrendingUp, Newspaper, LogOut, Activity, CandlestickChart, LayoutDashboard, Menu, X, GitCompareArrows, Settings, Briefcase, BookOpen, Target, Filter, Crown, Flame } from 'lucide-react';
+import { BarChart3, Star, TrendingUp, Newspaper, LogOut, Activity, CandlestickChart, LayoutDashboard, Menu, X, GitCompareArrows, Settings, Briefcase, BookOpen, Target, Filter, Crown, Flame, Zap, Radio, Grid3X3 } from 'lucide-react';
 
 const navItems = [
   { to: '/dashboard', label: '总览', icon: LayoutDashboard },
@@ -17,6 +17,9 @@ const navItems = [
   { to: '/screener', label: '选股器', icon: Filter },
   { to: '/dragon-tiger', label: '龙虎榜', icon: Crown },
   { to: '/hot-concepts', label: '热门概念', icon: Flame },
+  { to: '/strategies', label: '策略', icon: Zap },
+  { to: '/signals', label: '信号', icon: Radio },
+  { to: '/watchlist-analysis', label: '自选分析', icon: Grid3X3 },
   { to: '/settings', label: '设置', icon: Settings },
 ];
 
