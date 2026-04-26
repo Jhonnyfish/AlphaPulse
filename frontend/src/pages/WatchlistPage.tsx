@@ -267,7 +267,7 @@ export default function WatchlistPage() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   // ─── DnD state ─────────────────────────────────────────────────────────
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId, _setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [useManualOrder, setUseManualOrder] = useState(false);
 

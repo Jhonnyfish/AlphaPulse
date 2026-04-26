@@ -4,7 +4,6 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Loader2,
   RefreshCw,
 } from 'lucide-react';
 

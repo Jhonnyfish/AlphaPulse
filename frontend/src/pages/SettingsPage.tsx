@@ -198,7 +198,7 @@ export default function SettingsPage() {
         )}
 
         {loading ? (
-          <SkeletonList rows={4} />
+          <Skeleton rows={4} />
         ) : infoItems.length > 0 ? (
           <div className="space-y-1 text-sm">
             {infoItems.map((item) => (

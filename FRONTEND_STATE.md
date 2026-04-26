@@ -96,7 +96,7 @@
 - [x] InstitutionPage, InvestmentPlansPage, PortfolioRiskPage
 - [x] QuickActionsPage, DiagPage
 
-### 阶段三：现有页面提升 (17/24)
+### 阶段三：现有页面提升 (18/24)
 - [x] 3.1 DashboardPage — ECharts 指数走势图、涨跌家数柱状图、板块热力图、信号摘要卡片、活动时间线
 - [x] 3.1b DashboardPage — 涨跌家数柱状图 + 市场广度指标
 - [x] 3.1c DashboardPage — 板块热力图（ECharts treemap）
@@ -122,7 +122,7 @@
 - [x] 3.15 SignalsPage — 信号统计图表 + 信号强度趋势
 - [x] 3.16 ScreenerPage — 选股条件可视化展示
 - [x] 3.17 ComparePage — 多维对比雷达图
-- [ ] 3.18 全局 — 移除 react-router-dom，改为视图切换架构
+- [x] 3.18 全局 — 移除 react-router-dom，改为视图切换架构（ViewContext + useState）
 
 ## 已安装依赖
 > Hermes 在委托 Codex 前检查此列表，缺的先装好再委托。
@@ -131,11 +131,12 @@
 - lightweight-charts ^5.2.0
 - lucide-react ^1.11.0
 - axios ^1.15.2
-- react-router-dom ^7.14.2（待移除）
+- ~~react-router-dom~~ 已移除
 - class-variance-authority, clsx, tailwind-merge
 - @dnd-kit/core, @dnd-kit/sortable, @dnd-kit/utilities
 
 ## 变更日志
+- 2026-04-26 22:40 | 3.18 移除 react-router-dom | 新建ViewContext.tsx(ViewName类型+useView hook)，App.tsx改为useState视图切换，Layout.tsx NavLink改为button onClick，12个页面useNavigate/useSearchParams/Link替换为useView+button，npm uninstall react-router-dom，tsc 0 errors | files: ViewContext.tsx, App.tsx, Layout.tsx, main.tsx, CommandPalette.tsx, TickerTape.tsx, AnalyzePage.tsx, KlinePage.tsx, WatchlistPage.tsx, QuickActionsPage.tsx, NewsPage.tsx, PatternScannerPage.tsx, RankingPage.tsx, PortfolioRiskPage.tsx, StrategyEvalPage.tsx, TradeCalendarPage.tsx, WatchlistAnalysisPage.tsx
 > 每轮完成后追加一行。
 - 2026-04-26 16:00 | 3.2a WatchlistPage | 每行添加迷你 Sparkline 走势图，使用 ECharts 折线图，红涨绿跌，100x30px，支持桌面表格和移动卡片视图 | files: WatchlistPage.tsx
 - 2026-04-26 16:20 | 3.2b WatchlistPage | 使用 @dnd-kit 实现拖拽排序，GripVertical 手柄，拖拽半透明+蓝色插入线，桌面表格和移动卡片双视图支持，arrayMove 本地排序 | files: WatchlistPage.tsx, package.json

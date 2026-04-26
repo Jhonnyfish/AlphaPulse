@@ -2,12 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import api from '@/lib/api';
 import ReactECharts from 'echarts-for-react';
 import {
-  TrendingUp,
-  TrendingDown,
   RefreshCw,
-  Loader2,
-  Trophy,
-  Target,
   BarChart3,
   Zap,
 } from 'lucide-react';
