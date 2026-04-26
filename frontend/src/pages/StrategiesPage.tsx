@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { strategiesApi, type Strategy } from '@/lib/api';
+import EmptyState from '@/components/EmptyState';
 import { Zap, Plus, Trash2, Power, PowerOff, RefreshCw } from 'lucide-react';
 import { SkeletonList } from '@/components/ui/Skeleton';
 
@@ -133,13 +134,13 @@ export default function StrategiesPage() {
       {loading && strategies.length === 0 ? (
         <SkeletonList rows={5} />
       ) : strategies.length === 0 ? (
-        <div
-          className="text-center py-16 rounded-lg border"
-          style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
-        >
-          <Zap className="w-10 h-10 mx-auto mb-3 opacity-40" style={{ color: 'var(--color-text-muted)' }} />
-          <p style={{ color: 'var(--color-text-muted)' }}>暂无策略，点击「添加策略」开始</p>
-        </div>
+        <EmptyState
+          icon={Zap}
+          title="暂无策略"
+          description="创建您的第一个量化策略"
+          actionLabel="添加策略"
+          onAction={() => setShowModal(true)}
+        />
       ) : (
         <div
           className="rounded-xl border overflow-hidden"

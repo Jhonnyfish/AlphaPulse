@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { signalApi, alertsApi, type SignalEvent, type Anomaly, type Alert } from '@/lib/api';
 import { Radio, AlertTriangle, Bell, Calendar, RefreshCw } from 'lucide-react';
+import EmptyState from '@/components/EmptyState';
 import { SkeletonInlineTable } from '@/components/ui/Skeleton';
 
 const TABS = ['信号日历', '信号历史', '异常检测', '系统告警'] as const;
@@ -244,24 +245,27 @@ export default function SignalsPage() {
           </div>
         ) : tab === '信号日历' ? (
           calendar.length === 0 ? (
-            <div className="p-8 text-center">
-              <Calendar className="w-10 h-10 mx-auto mb-3 opacity-40" style={{ color: 'var(--color-text-muted)' }} />
-              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>暂无信号日历数据</p>
-            </div>
+            <EmptyState
+              icon={Bell}
+              title="暂无交易信号"
+              description="系统正在监控市场，有新信号时会及时通知"
+            />
           ) : renderSignalTable(calendar)
         ) : tab === '信号历史' ? (
           history.length === 0 ? (
-            <div className="p-8 text-center">
-              <Radio className="w-10 h-10 mx-auto mb-3 opacity-40" style={{ color: 'var(--color-text-muted)' }} />
-              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>暂无信号历史数据</p>
-            </div>
+            <EmptyState
+              icon={Bell}
+              title="暂无交易信号"
+              description="系统正在监控市场，有新信号时会及时通知"
+            />
           ) : renderSignalTable(history)
         ) : tab === '异常检测' ? (
           anomalies.length === 0 ? (
-            <div className="p-8 text-center">
-              <AlertTriangle className="w-10 h-10 mx-auto mb-3 opacity-40" style={{ color: 'var(--color-text-muted)' }} />
-              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>暂无异常检测数据</p>
-            </div>
+            <EmptyState
+              icon={Bell}
+              title="暂无交易信号"
+              description="系统正在监控市场，有新信号时会及时通知"
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -315,10 +319,11 @@ export default function SignalsPage() {
             </div>
           )
         ) : alerts.length === 0 ? (
-          <div className="p-8 text-center">
-            <Bell className="w-10 h-10 mx-auto mb-3 opacity-40" style={{ color: 'var(--color-text-muted)' }} />
-            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>暂无系统告警</p>
-          </div>
+          <EmptyState
+            icon={Bell}
+            title="暂无交易信号"
+            description="系统正在监控市场，有新信号时会及时通知"
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

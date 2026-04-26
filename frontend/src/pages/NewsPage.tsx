@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { marketApi, type NewsItem } from '@/lib/api';
-import { RefreshCw, ExternalLink } from 'lucide-react';
+import { RefreshCw, ExternalLink, Newspaper } from 'lucide-react';
+import EmptyState from '@/components/EmptyState';
 import { SkeletonList } from '@/components/ui/Skeleton';
 
 export default function NewsPage() {
@@ -61,15 +62,11 @@ export default function NewsPage() {
       {loading && news.length === 0 ? (
         <SkeletonList rows={6} />
       ) : news.length === 0 ? (
-        <div
-          className="text-center py-16 rounded-lg border"
-          style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
-        >
-          <p style={{ color: 'var(--color-text-muted)' }}>暂无资讯</p>
-          <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            非交易时间或网络异常时无法获取数据
-          </p>
-        </div>
+        <EmptyState
+          icon={Newspaper}
+          title="暂无新闻"
+          description="暂无最新资讯，请稍后刷新"
+        />
       ) : (
         <div className="space-y-3">
           {news.map((item, i) => (

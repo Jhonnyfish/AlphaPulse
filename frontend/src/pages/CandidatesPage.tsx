@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { candidatesApi } from '@/lib/api';
 import { Target, RefreshCw, TrendingUp, Star, Eye, Zap, ChevronDown, ChevronUp } from 'lucide-react';
+import EmptyState from '@/components/EmptyState';
 import StockDetailModal from '@/components/StockDetailModal';
 
 interface Candidate {
@@ -366,13 +367,11 @@ export default function CandidatesPage() {
 
       {/* Empty state */}
       {data && totalCandidates === 0 && (
-        <div
-          className="flex flex-col items-center justify-center py-20 text-sm"
-          style={{ color: 'var(--color-text-muted)' }}
-        >
-          <Target className="w-10 h-10 mb-3 opacity-40" />
-          暂无候选股数据
-        </div>
+        <EmptyState
+          icon={Target}
+          title="暂无候选股票"
+          description="系统正在分析市场数据，请稍后查看"
+        />
       )}
 
       {/* Stock Detail Modal */}

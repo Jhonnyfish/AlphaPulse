@@ -1,3 +1,4 @@
+import EmptyState from '@/components/EmptyState';
 import { tradingJournalApi, type TradeRecord, type TradeStats, type TradeCalendarDay } from '@/lib/api';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Plus, Trash2, TrendingUp, TrendingDown, BookOpen, Calendar, BarChart3, RefreshCw, Award, Frown } from 'lucide-react';
@@ -880,11 +881,17 @@ export default function TradingJournalPage() {
         </div>
 
         {trades.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-              {loading ? <SkeletonInlineTable rows={5} columns={7} /> : '暂无交易记录，点击「添加交易」开始'}
-            </p>
-          </div>
+          loading ? (
+            <div className="p-8"><SkeletonInlineTable rows={5} columns={7} /></div>
+          ) : (
+            <EmptyState
+              icon={BookOpen}
+              title="暂无交易记录"
+              description="记录您的每一笔交易，追踪投资表现"
+              actionLabel="添加交易"
+              onAction={() => setShowModal(true)}
+            />
+          )
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

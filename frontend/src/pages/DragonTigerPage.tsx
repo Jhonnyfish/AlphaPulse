@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { dragonTigerApi, type DragonTigerItem } from '@/lib/api';
-import { Crown, RefreshCw, TrendingUp, TrendingDown, Building2, Calendar } from 'lucide-react';
+import { Crown, RefreshCw, TrendingUp, TrendingDown, Building2, Calendar, Trophy } from 'lucide-react';
+import EmptyState from '@/components/EmptyState';
 import { SkeletonInlineTable } from '@/components/ui/Skeleton';
 
 const DAYS_OPTIONS = [1, 3, 5, 10] as const;
@@ -141,13 +142,11 @@ export default function DragonTigerPage() {
       {loading && items.length === 0 ? (
         <SkeletonInlineTable rows={8} columns={9} />
       ) : items.length === 0 ? (
-        <div
-          className="text-center py-16 rounded-lg border"
-          style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
-        >
-          <Crown className="w-10 h-10 mx-auto mb-3 opacity-40" style={{ color: 'var(--color-text-muted)' }} />
-          <p style={{ color: 'var(--color-text-muted)' }}>暂无龙虎榜数据</p>
-        </div>
+        <EmptyState
+          icon={Trophy}
+          title="暂无龙虎榜数据"
+          description="非交易日或数据尚未更新"
+        />
       ) : (
         <div
           className="rounded-lg border overflow-x-auto mb-6"

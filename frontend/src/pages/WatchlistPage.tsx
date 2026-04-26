@@ -19,7 +19,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { watchlistApi, marketApi, type WatchlistItem, type Quote, type SearchSuggestion } from '@/lib/api';
-import { Trash2, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown, GripVertical } from 'lucide-react';
+import { Trash2, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown, GripVertical, Star } from 'lucide-react';
+import EmptyState from '@/components/EmptyState';
 import { Link } from 'react-router-dom';
 import ReactECharts from 'echarts-for-react';
 import type { EChartsOption } from 'echarts';
@@ -539,13 +540,11 @@ export default function WatchlistPage() {
         {loading ? (
           <SkeletonInlineTable rows={5} columns={7} />
         ) : items.length === 0 ? (
-          <div className="text-center py-16 rounded-lg border"
-            style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}>
-            <p style={{ color: 'var(--color-text-muted)' }}>暂无自选股</p>
-            <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
-              搜索股票代码或名称添加到自选列表
-            </p>
-          </div>
+          <EmptyState
+            icon={Star}
+            title="自选股列表为空"
+            description="点击添加按钮将股票加入自选"
+          />
         ) : (
           <>
             {/* Desktop table */}

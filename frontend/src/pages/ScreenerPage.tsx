@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { screenerApi } from '@/lib/api';
+import EmptyState from '@/components/EmptyState';
 import { Filter, RefreshCw, ArrowUpDown, TrendingUp, Search, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -397,24 +398,20 @@ export default function ScreenerPage() {
 
       {/* Empty state */}
       {!loading && data && sorted.length === 0 && (
-        <div
-          className="flex flex-col items-center justify-center py-20 text-sm"
-          style={{ color: 'var(--color-text-muted)' }}
-        >
-          <Filter className="w-10 h-10 mb-3 opacity-40" />
-          没有符合条件的股票，请调整筛选参数
-        </div>
+        <EmptyState
+          icon={Filter}
+          title="无筛选结果"
+          description="尝试调整筛选条件"
+        />
       )}
 
       {/* Initial state */}
       {!data && !loading && (
-        <div
-          className="flex flex-col items-center justify-center py-20 text-sm"
-          style={{ color: 'var(--color-text-muted)' }}
-        >
-          <Search className="w-10 h-10 mb-3 opacity-40" />
-          设置筛选条件后点击"筛选"开始选股
-        </div>
+        <EmptyState
+          icon={Search}
+          title="选股器"
+          description="设置筛选条件后点击筛选开始选股"
+        />
       )}
     </div>
   );

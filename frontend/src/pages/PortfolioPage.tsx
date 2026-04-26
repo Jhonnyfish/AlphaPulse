@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { portfolioApi, type PortfolioPosition, type PortfolioAnalytics, type PortfolioRisk } from '@/lib/api';
 import {
   Plus, Trash2, TrendingUp, TrendingDown, PieChart, Shield, RefreshCw,
-  Activity, Target, BarChart3, Percent, Award, Scale,
+  Activity, Target, BarChart3, Percent, Award, Scale, Briefcase,
 } from 'lucide-react';
+import EmptyState from '@/components/EmptyState';
 import EChart from '@/components/charts/EChart';
 import type { EChartsOption } from 'echarts';
 import { SkeletonInlineTable } from '@/components/ui/Skeleton';
@@ -430,12 +431,17 @@ export default function PortfolioPage() {
             </div>
 
             {positions.length === 0 ? (
-              <div className="p-8 text-center">
-                <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                  {loading ? null : '暂无持仓，点击「添加持仓」开始'}
-                </p>
-                {loading && <SkeletonInlineTable rows={4} columns={8} />}
-              </div>
+              loading ? (
+                <div className="p-8"><SkeletonInlineTable rows={4} columns={8} /></div>
+              ) : (
+                <EmptyState
+                  icon={Briefcase}
+                  title="暂无持仓记录"
+                  description="您的投资组合为空，开始您的第一笔交易"
+                  actionLabel="添加持仓"
+                  onAction={() => setShowModal(true)}
+                />
+              )
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">

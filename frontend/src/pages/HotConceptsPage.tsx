@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { hotConceptsApi, type HotConcept } from '@/lib/api';
+import EmptyState from '@/components/EmptyState';
 import { Flame, RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Star, Link2 } from 'lucide-react';
 import { SkeletonGridCard, SkeletonList, SkeletonInlineTable } from '@/components/ui/Skeleton';
 
@@ -123,13 +124,11 @@ export default function HotConceptsPage() {
           ))}
         </div>
       ) : concepts.length === 0 ? (
-        <div
-          className="text-center py-16 rounded-lg border"
-          style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
-        >
-          <Flame className="w-10 h-10 mx-auto mb-3 opacity-40" style={{ color: 'var(--color-text-muted)' }} />
-          <p style={{ color: 'var(--color-text-muted)' }}>暂无热门概念数据</p>
-        </div>
+        <EmptyState
+          icon={Flame}
+          title="暂无热门概念"
+          description="暂无概念热点数据"
+        />
       ) : (
         /* Concept card grid */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">

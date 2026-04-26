@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { marketApi, type Sector } from '@/lib/api';
+import EmptyState from '@/components/EmptyState';
 import { RefreshCw, TrendingUp, TrendingDown, Minus, LayoutGrid, List } from 'lucide-react';
 import { SkeletonGridCard } from '@/components/ui/Skeleton';
 
@@ -164,15 +165,11 @@ export default function SectorsPage() {
           ))}
         </div>
       ) : sorted.length === 0 ? (
-        <div
-          className="text-center py-16 rounded-lg border"
-          style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
-        >
-          <p style={{ color: 'var(--color-text-muted)' }}>暂无板块数据</p>
-          <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            非交易时间或网络异常时无法获取数据
-          </p>
-        </div>
+        <EmptyState
+          icon={LayoutGrid}
+          title="暂无板块数据"
+          description="板块数据加载中"
+        />
       ) : viewMode === 'heatmap' ? (
         /* ── Heatmap / Treemap view ── */
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-1">
