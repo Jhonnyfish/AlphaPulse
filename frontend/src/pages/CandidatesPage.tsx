@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { candidatesApi } from '@/lib/api';
 import { Target, RefreshCw, TrendingUp, Star, Eye, Zap, ChevronDown, ChevronUp } from 'lucide-react';
+import StockDetailModal from '@/components/StockDetailModal';
 
 interface Candidate {
   code: string;
@@ -83,7 +84,7 @@ function getCandidateTier(score: number): TierConfig {
   return TIERS[2];
 }
 
-function CandidateCard({ candidate }: { candidate: Candidate }) {
+function CandidateCard({ candidate, onSelect }: { candidate: Candidate; onSelect: (c: Candidate) => void }) {
   const tier = getCandidateTier(candidate.score);
   const momentumColor = candidate.momentum >= 0 ? '#ef4444' : '#22c55e'; // 红涨绿跌
   const trendColor = candidate.trend >= 0 ? '#ef4444' : '#22c55e';
@@ -91,6 +92,7 @@ function CandidateCard({ candidate }: { candidate: Candidate }) {
   return (
     <div
       className="rounded-lg p-3 transition-all duration-200 hover:scale-[1.01] cursor-pointer group"
+      onClick={() => onSelect(candidate)}
       style={{
         background: 'rgba(255,255,255,0.03)',
         border: '1px solid rgba(255,255,255,0.06)',
@@ -166,10 +168,12 @@ function CandidateCard({ candidate }: { candidate: Candidate }) {
 function TierSection({
   tier,
   candidates,
+  onSelect,
   defaultOpen = true,
 }: {
   tier: TierConfig;
   candidates: Candidate[];
+  onSelect: (c: Candidate) => void;
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -216,7 +220,7 @@ function TierSection({
       {open && (
         <div className="px-3 pb-3 space-y-2">
           {candidates.map((c) => (
-            <CandidateCard key={c.code} candidate={c} />
+            <CandidateCard key={c.code} candidate={c} onSelect={onSelect} />
           ))}
         </div>
       )}
@@ -228,6 +232,7 @@ export default function CandidatesPage() {
   const [data, setData] = useState<CandidatesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedStock, setSelectedStock] = useState<Candidate | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -352,6 +357,7 @@ export default function CandidatesPage() {
               key={tier.key}
               tier={tier}
               candidates={candidates}
+              onSelect={setSelectedStock}
               defaultOpen={tier.key !== 'observe'}
             />
           ))}
@@ -367,6 +373,14 @@ export default function CandidatesPage() {
           <Target className="w-10 h-10 mb-3 opacity-40" />
           暂无候选股数据
         </div>
+      )}
+
+      {/* Stock Detail Modal */}
+      {selectedStock && (
+        <StockDetailModal
+          stock={selectedStock}
+          onClose={() => setSelectedStock(null)}
+        />
       )}
     </div>
   );
