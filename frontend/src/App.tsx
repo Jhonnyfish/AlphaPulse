@@ -14,6 +14,8 @@ import PortfolioPage from '@/pages/PortfolioPage';
 import TradingJournalPage from '@/pages/TradingJournalPage';
 import CandidatesPage from '@/pages/CandidatesPage';
 import ScreenerPage from '@/pages/ScreenerPage';
+import DragonTigerPage from '@/pages/DragonTigerPage';
+import HotConceptsPage from '@/pages/HotConceptsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, loading } = useAuth();
@@ -71,6 +73,8 @@ export default function App() {
         <Route path="/journal" element={<TradingJournalPage />} />
         <Route path="/candidates" element={<CandidatesPage />} />
         <Route path="/screener" element={<ScreenerPage />} />
+        <Route path="/dragon-tiger" element={<DragonTigerPage />} />
+        <Route path="/hot-concepts" element={<HotConceptsPage />} />
       </Route>
       <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
     </Routes>
