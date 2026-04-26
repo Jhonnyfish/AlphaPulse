@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { portfolioApi, type PortfolioPosition, type PortfolioAnalytics, type PortfolioRisk } from '@/lib/api';
 import { Plus, Trash2, TrendingUp, TrendingDown, PieChart, Shield, RefreshCw } from 'lucide-react';
+import EChart from '@/components/charts/EChart';
+import type { EChartsOption } from 'echarts';
 
 interface AddForm {
   code: string;
@@ -8,6 +10,12 @@ interface AddForm {
   cost_price: string;
   buy_date: string;
 }
+
+const SECTOR_COLORS = [
+  '#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6',
+  '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#a855f7',
+  '#e879f9', '#84cc16',
+];
 
 const emptyForm: AddForm = { code: '', quantity: '', cost_price: '', buy_date: '' };
 
@@ -87,6 +95,64 @@ export default function PortfolioPage() {
   const formatPct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
   const formatNum = (n: number) => n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  const sectorPieOption = useMemo<EChartsOption | null>(() => {
+    if (!analytics || analytics.sector_allocation.length === 0) return null;
+    return {
+      tooltip: {
+        trigger: 'item',
+        backgroundColor: 'rgba(15, 23, 42, 0.92)',
+        borderColor: 'rgba(148, 163, 184, 0.2)',
+        textStyle: { color: '#e2e8f0' },
+        formatter: (params: any) => {
+          const val = params.value as number;
+          return `<b>${params.name}</b><br/>市值: ${formatNum(val)}<br/>占比: ${params.percent}%`;
+        },
+      },
+      legend: {
+        orient: 'vertical',
+        right: '2%',
+        top: 'middle',
+        textStyle: { color: '#94a3b8', fontSize: 11 },
+        itemWidth: 10,
+        itemHeight: 10,
+        itemGap: 10,
+      },
+      color: SECTOR_COLORS,
+      series: [
+        {
+          type: 'pie',
+          radius: ['40%', '70%'],
+          center: ['35%', '50%'],
+          avoidLabelOverlap: false,
+          itemStyle: {
+            borderRadius: 4,
+            borderColor: '#1e293b',
+            borderWidth: 2,
+          },
+          label: { show: false },
+          emphasis: {
+            label: {
+              show: true,
+              fontSize: 13,
+              fontWeight: 'bold',
+              color: '#e2e8f0',
+            },
+            itemStyle: {
+              shadowBlur: 10,
+              shadowOffsetX: 0,
+              shadowColor: 'rgba(0, 0, 0, 0.5)',
+            },
+          },
+          labelLine: { show: false },
+          data: analytics.sector_allocation.map((s) => ({
+            name: s.sector,
+            value: Math.round(s.value),
+          })),
+        },
+      ],
+    };
+  }, [analytics]);
+
   return (
     <div>
       {/* Header */}
@@ -165,75 +231,100 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      {/* Positions table */}
-      <div
-        className="rounded-xl border mb-6 overflow-hidden"
-        style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
-      >
-        <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: 'var(--color-border)' }}>
-          <span className="text-sm font-medium">持仓明细</span>
-          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-            {positions.length} 只股票
-          </span>
+      {/* Positions table + Industry Distribution Pie Chart */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        {/* Positions table */}
+        <div className="lg:col-span-2">
+          <div
+            className="rounded-xl border overflow-hidden h-full"
+            style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
+          >
+            <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: 'var(--color-border)' }}>
+              <span className="text-sm font-medium">持仓明细</span>
+              <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                {positions.length} 只股票
+              </span>
+            </div>
+
+            {positions.length === 0 ? (
+              <div className="p-8 text-center">
+                <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                  {loading ? '加载持仓数据...' : '暂无持仓，点击「添加持仓」开始'}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr
+                      className="text-xs"
+                      style={{ color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}
+                    >
+                      <th className="text-left px-4 py-2.5 font-medium">代码</th>
+                      <th className="text-left px-4 py-2.5 font-medium">名称</th>
+                      <th className="text-right px-4 py-2.5 font-medium">数量</th>
+                      <th className="text-right px-4 py-2.5 font-medium">成本价</th>
+                      <th className="text-right px-4 py-2.5 font-medium">现价</th>
+                      <th className="text-right px-4 py-2.5 font-medium">市值</th>
+                      <th className="text-right px-4 py-2.5 font-medium">盈亏%</th>
+                      <th className="text-center px-4 py-2.5 font-medium">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {positions.map((pos) => (
+                      <tr
+                        key={pos.id}
+                        className="transition-colors hover:bg-[var(--color-bg-hover)]"
+                        style={{ borderBottom: '1px solid var(--color-border)' }}
+                      >
+                        <td className="px-4 py-2.5 font-mono text-xs" style={{ color: 'var(--color-accent)' }}>
+                          {pos.code}
+                        </td>
+                        <td className="px-4 py-2.5">{pos.name}</td>
+                        <td className="px-4 py-2.5 text-right font-mono">{pos.quantity}</td>
+                        <td className="px-4 py-2.5 text-right font-mono">{pos.cost_price.toFixed(2)}</td>
+                        <td className="px-4 py-2.5 text-right font-mono">{pos.current_price.toFixed(2)}</td>
+                        <td className="px-4 py-2.5 text-right font-mono">{formatNum(pos.market_value)}</td>
+                        <td className="px-4 py-2.5 text-right font-mono font-medium" style={{ color: pnlColor(pos.profit_loss_pct) }}>
+                          {formatPct(pos.profit_loss_pct)}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <button
+                            onClick={() => handleDelete(pos.id)}
+                            disabled={deletingId === pos.id}
+                            className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors disabled:opacity-50"
+                            style={{ color: 'var(--color-text-muted)' }}
+                            title="删除"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
 
-        {positions.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-              {loading ? '加载持仓数据...' : '暂无持仓，点击「添加持仓」开始'}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr
-                  className="text-xs"
-                  style={{ color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}
-                >
-                  <th className="text-left px-4 py-2.5 font-medium">代码</th>
-                  <th className="text-left px-4 py-2.5 font-medium">名称</th>
-                  <th className="text-right px-4 py-2.5 font-medium">数量</th>
-                  <th className="text-right px-4 py-2.5 font-medium">成本价</th>
-                  <th className="text-right px-4 py-2.5 font-medium">现价</th>
-                  <th className="text-right px-4 py-2.5 font-medium">市值</th>
-                  <th className="text-right px-4 py-2.5 font-medium">盈亏%</th>
-                  <th className="text-center px-4 py-2.5 font-medium">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {positions.map((pos) => (
-                  <tr
-                    key={pos.id}
-                    className="transition-colors hover:bg-[var(--color-bg-hover)]"
-                    style={{ borderBottom: '1px solid var(--color-border)' }}
-                  >
-                    <td className="px-4 py-2.5 font-mono text-xs" style={{ color: 'var(--color-accent)' }}>
-                      {pos.code}
-                    </td>
-                    <td className="px-4 py-2.5">{pos.name}</td>
-                    <td className="px-4 py-2.5 text-right font-mono">{pos.quantity}</td>
-                    <td className="px-4 py-2.5 text-right font-mono">{pos.cost_price.toFixed(2)}</td>
-                    <td className="px-4 py-2.5 text-right font-mono">{pos.current_price.toFixed(2)}</td>
-                    <td className="px-4 py-2.5 text-right font-mono">{formatNum(pos.market_value)}</td>
-                    <td className="px-4 py-2.5 text-right font-mono font-medium" style={{ color: pnlColor(pos.profit_loss_pct) }}>
-                      {formatPct(pos.profit_loss_pct)}
-                    </td>
-                    <td className="px-4 py-2.5 text-center">
-                      <button
-                        onClick={() => handleDelete(pos.id)}
-                        disabled={deletingId === pos.id}
-                        className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors disabled:opacity-50"
-                        style={{ color: 'var(--color-text-muted)' }}
-                        title="删除"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Industry Distribution Pie Chart */}
+        {sectorPieOption && (
+          <div className="lg:col-span-1">
+            <div
+              className="rounded-xl border p-4 h-full"
+              style={{
+                background: 'rgba(30, 41, 59, 0.7)',
+                borderColor: 'var(--color-border)',
+                backdropFilter: 'blur(12px)',
+              }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <PieChart className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+                <span className="text-sm font-medium">行业分布</span>
+              </div>
+              <EChart option={sectorPieOption} height={280} />
+            </div>
           </div>
         )}
       </div>
@@ -289,37 +380,6 @@ export default function PortfolioPage() {
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Sector allocation */}
-      {analytics && analytics.sector_allocation.length > 0 && (
-        <div
-          className="rounded-xl border p-4 mb-6"
-          style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <PieChart className="w-4 h-4" style={{ color: 'var(--color-warning)' }} />
-            <span className="text-sm font-medium">行业配置</span>
-          </div>
-          <div className="space-y-2">
-            {analytics.sector_allocation.map((s) => (
-              <div key={s.sector}>
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span style={{ color: 'var(--color-text-secondary)' }}>{s.sector}</span>
-                  <span className="font-mono" style={{ color: 'var(--color-text-muted)' }}>
-                    {formatNum(s.value)} ({s.pct.toFixed(1)}%)
-                  </span>
-                </div>
-                <div className="h-1.5 rounded-full" style={{ background: 'var(--color-bg-primary)' }}>
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{ width: `${Math.min(s.pct, 100)}%`, background: 'var(--color-accent)' }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 
