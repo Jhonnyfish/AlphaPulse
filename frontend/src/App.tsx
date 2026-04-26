@@ -12,6 +12,8 @@ import NewsPage from '@/pages/NewsPage';
 import SettingsPage from '@/pages/SettingsPage';
 import PortfolioPage from '@/pages/PortfolioPage';
 import TradingJournalPage from '@/pages/TradingJournalPage';
+import CandidatesPage from '@/pages/CandidatesPage';
+import ScreenerPage from '@/pages/ScreenerPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, loading } = useAuth();
@@ -67,6 +69,8 @@ export default function App() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/portfolio" element={<PortfolioPage />} />
         <Route path="/journal" element={<TradingJournalPage />} />
+        <Route path="/candidates" element={<CandidatesPage />} />
+        <Route path="/screener" element={<ScreenerPage />} />
       </Route>
       <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
     </Routes>
