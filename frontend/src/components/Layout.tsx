@@ -9,6 +9,7 @@ import {
   Settings, Briefcase, BookOpen, Target, Filter, Crown, Flame,
   Zap, Radio, Grid3X3, Droplets, Search, Sun, Moon, Keyboard,
   Heart, FileText, Monitor, AlertTriangle, Building2, Trophy,
+  Gauge, GitBranch, Network, CalendarClock,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
 import TickerTape from '@/components/TickerTape';
@@ -22,6 +23,11 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  { to: '/daily-report', label: '每日报告', icon: CalendarClock, group: '工具' },
+  { to: '/perf-stats', label: '绩效统计', icon: Gauge, group: '工具' },
+  { to: '/multi-trend', label: '多周期趋势', icon: GitBranch, group: '分析' },
+  { to: '/correlation', label: '相关性', icon: Network, group: '分析' },
+  { to: '/investment-plans', label: '投资计划', icon: Target, group: '交易' },
   { to: '/dashboard', label: '总览', icon: LayoutDashboard, group: '核心' },
   { to: '/watchlist', label: '自选股', icon: Star, group: '核心' },
   { to: '/market', label: '行情', icon: TrendingUp, group: '核心' },

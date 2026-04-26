@@ -29,6 +29,11 @@ import DiagPage from '@/pages/DiagPage';
 import AnomalyPage from '@/pages/AnomalyPage';
 import InstitutionPage from '@/pages/InstitutionPage';
 import RankingPage from '@/pages/RankingPage';
+import DailyReportPage from '@/pages/DailyReportPage';
+import PerfStatsPage from '@/pages/PerfStatsPage';
+import MultiTrendPage from '@/pages/MultiTrendPage';
+import CorrelationPage from '@/pages/CorrelationPage';
+import InvestmentPlansPage from '@/pages/InvestmentPlansPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, loading } = useAuth();
@@ -101,6 +106,11 @@ export default function App() {
         <Route path="/anomalies" element={<AnomalyPage />} />
         <Route path="/institutions" element={<InstitutionPage />} />
         <Route path="/ranking" element={<RankingPage />} />
+        <Route path="/daily-report" element={<DailyReportPage />} />
+        <Route path="/perf-stats" element={<PerfStatsPage />} />
+        <Route path="/multi-trend" element={<MultiTrendPage />} />
+        <Route path="/correlation" element={<CorrelationPage />} />
+        <Route path="/investment-plans" element={<InvestmentPlansPage />} />
       </Route>
       <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
     </Routes>
