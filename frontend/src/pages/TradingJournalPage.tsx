@@ -114,16 +114,20 @@ export default function TradingJournalPage() {
     }
   };
 
-  const pnlColor = (n: number) =>
-    n > 0
+  const pnlColor = (n: number | undefined) => {
+    const v = n ?? 0;
+    return v > 0
       ? 'var(--color-danger)'
-      : n < 0
+      : v < 0
         ? 'var(--color-success)'
         : 'var(--color-text-secondary)';
+  };
 
-  const formatPct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
-  const formatNum = (n: number) =>
-    n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formatPct = (n: number | undefined) => { const v = n ?? 0; return `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`; };
+  const formatNum = (n: number | undefined) => {
+    const v = n ?? 0;
+    return v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
 
   // Calendar helpers
   const firstDay = new Date(calYear, calMonth - 1, 1).getDay();

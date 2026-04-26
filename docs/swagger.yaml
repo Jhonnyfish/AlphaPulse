@@ -1,0 +1,3192 @@
+basePath: /api
+definitions:
+  handlers.Alert:
+    properties:
+      code:
+        type: string
+      details:
+        items:
+          type: string
+        type: array
+      message:
+        type: string
+      name:
+        type: string
+      score:
+        type: integer
+      signal:
+        type: string
+      timestamp:
+        type: string
+      title:
+        type: string
+      type:
+        $ref: '#/definitions/handlers.AlertType'
+    type: object
+  handlers.AlertType:
+    enum:
+    - warning
+    - opportunity
+    - info
+    type: string
+    x-enum-varnames:
+    - AlertWarning
+    - AlertOpportunity
+    - AlertInfo
+  handlers.AlertsResponse:
+    properties:
+      alerts:
+        items:
+          $ref: '#/definitions/handlers.Alert'
+        type: array
+      count:
+        type: integer
+      error:
+        type: string
+      ok:
+        type: boolean
+    type: object
+  handlers.GroupsData:
+    properties:
+      assignments:
+        additionalProperties:
+          type: string
+        description: code → group_id
+        type: object
+      groups:
+        items:
+          $ref: '#/definitions/handlers.WatchlistGroup'
+        type: array
+    type: object
+  handlers.GroupsResponse:
+    properties:
+      data:
+        $ref: '#/definitions/handlers.GroupsData'
+      ok:
+        type: boolean
+    type: object
+  handlers.HeatmapItem:
+    properties:
+      amount:
+        type: number
+      change_pct:
+        type: number
+      code:
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+      volume:
+        type: number
+    type: object
+  handlers.HeatmapResponse:
+    properties:
+      error:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/handlers.HeatmapItem'
+        type: array
+      ok:
+        type: boolean
+    type: object
+  handlers.PatternResult:
+    properties:
+      category:
+        description: kline, chart, volume
+        type: string
+      code:
+        type: string
+      confidence:
+        description: 0.0 - 1.0
+        type: number
+      date:
+        type: string
+      description:
+        type: string
+      direction:
+        description: bullish, bearish, neutral
+        type: string
+      name:
+        type: string
+      pattern:
+        type: string
+    type: object
+  handlers.PatternScannerResponse:
+    properties:
+      cached:
+        type: boolean
+      ok:
+        type: boolean
+      patterns:
+        items:
+          $ref: '#/definitions/handlers.PatternResult'
+        type: array
+      summary:
+        $ref: '#/definitions/handlers.PatternScannerSummary'
+    type: object
+  handlers.PatternScannerSummary:
+    properties:
+      bearish:
+        type: integer
+      bullish:
+        type: integer
+      by_category:
+        additionalProperties:
+          type: integer
+        type: object
+      neutral:
+        type: integer
+      scanned:
+        type: integer
+      total:
+        type: integer
+    type: object
+  handlers.RankingBest:
+    properties:
+      code:
+        type: string
+      name:
+        type: string
+      score:
+        type: integer
+    type: object
+  handlers.RankingItem:
+    properties:
+      change_pct:
+        type: number
+      code:
+        type: string
+      dimension_scores:
+        additionalProperties:
+          format: float64
+          type: number
+        type: object
+      error:
+        type: string
+      name:
+        type: string
+      overall_score:
+        type: integer
+      overall_signal:
+        type: string
+      price:
+        type: number
+      rank:
+        type: integer
+      risks:
+        items:
+          type: string
+        type: array
+      strengths:
+        items:
+          type: string
+        type: array
+    type: object
+  handlers.RankingResponse:
+    properties:
+      error:
+        type: string
+      fetched_at:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/handlers.RankingItem'
+        type: array
+      ok:
+        type: boolean
+      summary:
+        $ref: '#/definitions/handlers.RankingSummary'
+    type: object
+  handlers.RankingSummary:
+    properties:
+      avg_score:
+        type: number
+      best:
+        $ref: '#/definitions/handlers.RankingBest'
+      count:
+        type: integer
+      worst:
+        $ref: '#/definitions/handlers.RankingBest'
+    type: object
+  handlers.ScoreHistoryEntry:
+    properties:
+      dimensions:
+        additionalProperties:
+          format: float64
+          type: number
+        type: object
+      recorded_at:
+        type: string
+      score:
+        type: number
+    type: object
+  handlers.ScoreHistoryResponse:
+    properties:
+      code:
+        type: string
+      count:
+        type: integer
+      history:
+        items:
+          $ref: '#/definitions/handlers.ScoreHistoryEntry'
+        type: array
+    type: object
+  handlers.ScreenerResponse:
+    properties:
+      count:
+        type: integer
+      filtered:
+        type: integer
+      filters:
+        additionalProperties: {}
+        type: object
+      ok:
+        type: boolean
+      results:
+        items:
+          $ref: '#/definitions/handlers.ScreenerResult'
+        type: array
+      total_candidates:
+        type: integer
+    type: object
+  handlers.ScreenerResult:
+    properties:
+      close:
+        type: number
+      code:
+        type: string
+      focus_reason:
+        type: string
+      harvest_risk_level:
+        type: string
+      in_watchlist:
+        type: boolean
+      industry:
+        type: string
+      leader_signal:
+        type: string
+      liquidity:
+        type: number
+      momentum:
+        type: number
+      name:
+        type: string
+      rank:
+        type: integer
+      recommendation_tier:
+        type: string
+      score:
+        type: number
+      trend:
+        type: number
+      volatility:
+        type: number
+    type: object
+  handlers.SectorGroup:
+    properties:
+      count:
+        type: integer
+      name:
+        type: string
+      stocks:
+        items:
+          type: string
+        type: array
+    type: object
+  handlers.SectorsResponse:
+    properties:
+      error:
+        type: string
+      ok:
+        type: boolean
+      sectors:
+        items:
+          $ref: '#/definitions/handlers.SectorGroup'
+        type: array
+      total:
+        type: integer
+    type: object
+  handlers.StockInfoResponse:
+    properties:
+      announcements:
+        items:
+          $ref: '#/definitions/models.Announcement'
+        type: array
+      cache_detail:
+        additionalProperties:
+          type: boolean
+        type: object
+      cached:
+        type: boolean
+      code:
+        type: string
+      errors:
+        additionalProperties:
+          type: string
+        type: object
+      flow:
+        items:
+          $ref: '#/definitions/models.MoneyFlowDay'
+        type: array
+      name:
+        type: string
+      news:
+        items:
+          $ref: '#/definitions/models.NewsItem'
+        type: array
+      quote:
+        $ref: '#/definitions/models.Quote'
+      sectors:
+        items:
+          $ref: '#/definitions/models.StockSector'
+        type: array
+    type: object
+  handlers.WatchlistGroup:
+    properties:
+      color:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  handlers.addPositionRequest:
+    properties:
+      code:
+        type: string
+      cost_price:
+        type: number
+      notes:
+        type: string
+      quantity:
+        type: integer
+    type: object
+  handlers.assignGroupRequest:
+    properties:
+      code:
+        type: string
+      group_id:
+        description: null to unassign
+        type: string
+    type: object
+  handlers.authResponse:
+    properties:
+      refresh_token:
+        type: string
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/models.User'
+    type: object
+  handlers.briefIndex:
+    properties:
+      change_pct:
+        type: number
+      name:
+        type: string
+      price:
+        type: number
+    type: object
+  handlers.briefSector:
+    properties:
+      change_pct:
+        type: number
+      name:
+        type: string
+    type: object
+  handlers.briefStock:
+    properties:
+      change_pct:
+        type: number
+      code:
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+    type: object
+  handlers.briefWatchlist:
+    properties:
+      bottom:
+        items:
+          $ref: '#/definitions/handlers.briefStock'
+        type: array
+      count:
+        type: integer
+      top:
+        items:
+          $ref: '#/definitions/handlers.briefStock'
+        type: array
+    type: object
+  handlers.createGroupRequest:
+    properties:
+      color:
+        type: string
+      name:
+        type: string
+    type: object
+  handlers.createNoteRequest:
+    properties:
+      code:
+        type: string
+      content:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+    type: object
+  handlers.createTradeRequest:
+    properties:
+      code:
+        type: string
+      date:
+        type: string
+      fees:
+        type: number
+      name:
+        type: string
+      notes:
+        type: string
+      price:
+        type: number
+      quantity:
+        type: integer
+      strategy_label:
+        type: string
+      type:
+        type: string
+    type: object
+  handlers.dailyBriefMarket:
+    properties:
+      breadth: {}
+      indices:
+        items:
+          $ref: '#/definitions/handlers.briefIndex'
+        type: array
+    type: object
+  handlers.dailyBriefPayload:
+    properties:
+      generated_at:
+        type: string
+      market:
+        $ref: '#/definitions/handlers.dailyBriefMarket'
+      ok:
+        type: boolean
+      sectors:
+        items:
+          $ref: '#/definitions/handlers.briefSector'
+        type: array
+      watchlist:
+        $ref: '#/definitions/handlers.briefWatchlist'
+    type: object
+  handlers.loginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  handlers.registerRequest:
+    properties:
+      invite_code:
+        type: string
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  handlers.signalCalendarPayload:
+    properties:
+      code:
+        type: string
+      days:
+        type: integer
+      fetched_at:
+        type: string
+      name:
+        type: string
+      signals:
+        items:
+          $ref: '#/definitions/handlers.signalEntry'
+        type: array
+    type: object
+  handlers.signalEntry:
+    properties:
+      date:
+        type: string
+      description:
+        type: string
+      price:
+        type: number
+      signal_color:
+        type: string
+      signal_icon:
+        type: string
+      signal_name:
+        type: string
+      signal_type:
+        type: string
+    type: object
+  handlers.signalHistoryEntry:
+    properties:
+      code:
+        type: string
+      level:
+        type: string
+      message:
+        type: string
+      name:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  handlers.signalHistoryPayload:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/handlers.signalHistoryEntry'
+        type: array
+      level_counts:
+        additionalProperties:
+          type: integer
+        type: object
+      ok:
+        type: boolean
+      total:
+        type: integer
+    type: object
+  handlers.updateGroupRequest:
+    properties:
+      color:
+        type: string
+      name:
+        type: string
+    type: object
+  handlers.updateNoteRequest:
+    properties:
+      content:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+    type: object
+  handlers.updatePositionRequest:
+    properties:
+      code:
+        type: string
+      cost_price:
+        type: number
+      notes:
+        type: string
+      quantity:
+        type: integer
+    type: object
+  handlers.upsertRequest:
+    properties:
+      code:
+        type: string
+      entry_strategy:
+        type: string
+      expected_return_pct: {}
+      hold_period:
+        type: string
+      logic:
+        type: string
+      name:
+        type: string
+      position_pct: {}
+      stop_loss: {}
+      target_price: {}
+    type: object
+  models.Announcement:
+    properties:
+      art_code:
+        type: string
+      date:
+        type: string
+      published_at:
+        type: string
+      source:
+        type: string
+      title:
+        type: string
+      url:
+        type: string
+    type: object
+  models.CorrelationResponse:
+    properties:
+      cached:
+        type: boolean
+      codes:
+        items:
+          type: string
+        type: array
+      matrix:
+        items:
+          items:
+            format: float64
+            type: number
+          type: array
+        type: array
+      message:
+        type: string
+      names:
+        items:
+          type: string
+        type: array
+      ok:
+        type: boolean
+    type: object
+  models.DailyReturn:
+    properties:
+      benchmark:
+        type: number
+      date:
+        type: string
+      portfolio:
+        type: number
+    type: object
+  models.DailySummary:
+    properties:
+      count:
+        type: integer
+      date:
+        type: string
+      top_buyers:
+        items:
+          $ref: '#/definitions/models.StockBrief'
+        type: array
+      top_sellers:
+        items:
+          $ref: '#/definitions/models.StockBrief'
+        type: array
+      total_net_buy:
+        type: number
+      total_net_sell:
+        type: number
+    type: object
+  models.DepartmentDetail:
+    properties:
+      buy:
+        type: number
+      name:
+        type: string
+      net:
+        type: number
+      sell:
+        type: number
+      side:
+        type: string
+    type: object
+  models.DragonTigerHistoryResponse:
+    properties:
+      cached:
+        type: boolean
+      daily_summary:
+        items:
+          $ref: '#/definitions/models.DailySummary'
+        type: array
+      dates:
+        items:
+          type: string
+        type: array
+      institution_stats:
+        items:
+          $ref: '#/definitions/models.InstitutionStat'
+        type: array
+      ok:
+        type: boolean
+      recurring_stocks:
+        items:
+          $ref: '#/definitions/models.RecurringStock'
+        type: array
+    type: object
+  models.DragonTigerItem:
+    properties:
+      buy_total:
+        type: number
+      change_pct:
+        type: number
+      close:
+        type: number
+      code:
+        type: string
+      departments:
+        items:
+          $ref: '#/definitions/models.DepartmentDetail'
+        type: array
+      name:
+        type: string
+      net_buy:
+        type: number
+      reason:
+        type: string
+      sell_total:
+        type: number
+      trade_date:
+        type: string
+    type: object
+  models.DragonTigerResponse:
+    properties:
+      cached:
+        type: boolean
+      count:
+        type: integer
+      items:
+        items:
+          $ref: '#/definitions/models.DragonTigerItem'
+        type: array
+      ok:
+        type: boolean
+      total_net_buy:
+        type: number
+      total_net_sell:
+        type: number
+    type: object
+  models.IndexQuote:
+    properties:
+      amount:
+        type: number
+      change:
+        type: number
+      change_pct:
+        type: number
+      code:
+        type: string
+      name:
+        type: string
+      prev_close:
+        type: number
+      price:
+        type: number
+      volume:
+        type: integer
+    type: object
+  models.InstitutionStat:
+    properties:
+      appearances:
+        type: integer
+      dates:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      total_net:
+        type: number
+    type: object
+  models.InstitutionTrackerResponse:
+    properties:
+      cached:
+        type: boolean
+      institutions:
+        items:
+          $ref: '#/definitions/models.InstitutionStat'
+        type: array
+      ok:
+        type: boolean
+      period:
+        type: string
+    type: object
+  models.KlinePoint:
+    properties:
+      amount:
+        type: number
+      close:
+        type: number
+      date:
+        type: string
+      high:
+        type: number
+      low:
+        type: number
+      open:
+        type: number
+      volume:
+        type: number
+    type: object
+  models.MarketBreadth:
+    properties:
+      down_count:
+        type: integer
+      flat_count:
+        type: integer
+      limit_down:
+        type: integer
+      limit_up:
+        type: integer
+      sentiment:
+        type: string
+      sentiment_ratio:
+        type: number
+      up_count:
+        type: integer
+    type: object
+  models.MarketOverview:
+    properties:
+      advance_count:
+        type: integer
+      decline_count:
+        type: integer
+      flat_count:
+        type: integer
+      indices:
+        items:
+          $ref: '#/definitions/models.OverviewIndex'
+        type: array
+      updated_at:
+        type: string
+    type: object
+  models.MarketOverviewResponse:
+    properties:
+      indices:
+        items:
+          $ref: '#/definitions/models.IndexQuote'
+        type: array
+      market:
+        $ref: '#/definitions/models.MarketBreadth'
+      ok:
+        type: boolean
+    type: object
+  models.MarketTrends:
+    properties:
+      fetched_at:
+        type: string
+      indices:
+        items:
+          $ref: '#/definitions/models.TrendStock'
+        type: array
+      portfolio:
+        $ref: '#/definitions/models.TrendPortfolio'
+      watchlist_stocks:
+        items:
+          $ref: '#/definitions/models.TrendStock'
+        type: array
+    type: object
+  models.MoneyFlowDay:
+    properties:
+      big_net:
+        type: number
+      big_net_pct:
+        type: number
+      date:
+        type: string
+      huge_net:
+        type: number
+      huge_net_pct:
+        type: number
+      main_net:
+        type: number
+      main_net_pct:
+        type: number
+      middle_net:
+        type: number
+      middle_net_pct:
+        type: number
+      small_net:
+        type: number
+      small_net_pct:
+        type: number
+    type: object
+  models.MultiTrendResponse:
+    properties:
+      cached:
+        type: boolean
+      ok:
+        type: boolean
+      stocks:
+        items:
+          $ref: '#/definitions/models.MultiTrendStock'
+        type: array
+    type: object
+  models.MultiTrendStock:
+    properties:
+      code:
+        type: string
+      daily:
+        $ref: '#/definitions/models.PeriodIndicators'
+      monthly:
+        $ref: '#/definitions/models.PeriodIndicators'
+      name:
+        type: string
+      overall_strength:
+        type: integer
+      weekly:
+        $ref: '#/definitions/models.PeriodIndicators'
+    type: object
+  models.NewsItem:
+    properties:
+      code:
+        type: string
+      published_at:
+        type: string
+      source:
+        type: string
+      summary:
+        type: string
+      title:
+        type: string
+      url:
+        type: string
+    type: object
+  models.OverviewIndex:
+    properties:
+      advance_count:
+        type: integer
+      change:
+        type: number
+      change_percent:
+        type: number
+      code:
+        type: string
+      decline_count:
+        type: integer
+      flat_count:
+        type: integer
+      name:
+        type: string
+      price:
+        type: number
+    type: object
+  models.PeriodIndicators:
+    properties:
+      ma_aligned:
+        type: boolean
+      ma5:
+        type: number
+      ma10:
+        type: number
+      ma20:
+        type: number
+      return_pct:
+        type: number
+      rsi:
+        type: number
+      strength:
+        type: integer
+      volume_trend:
+        type: string
+    type: object
+  models.Quote:
+    properties:
+      amplitude:
+        type: number
+      change:
+        type: number
+      change_percent:
+        type: number
+      code:
+        type: string
+      high:
+        type: number
+      inner_vol:
+        type: number
+      limit_down:
+        type: number
+      limit_up:
+        type: number
+      low:
+        type: number
+      name:
+        type: string
+      open:
+        type: number
+      outer_vol:
+        type: number
+      pb:
+        type: number
+      pe:
+        type: number
+      prev_close:
+        type: number
+      price:
+        type: number
+      total_mv:
+        type: number
+      turnover:
+        type: number
+      updated_at:
+        type: string
+      volume:
+        type: number
+    type: object
+  models.RecurringStock:
+    properties:
+      appearances:
+        type: integer
+      code:
+        type: string
+      dates:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      total_net:
+        type: number
+    type: object
+  models.SearchSuggestion:
+    properties:
+      code:
+        type: string
+      name:
+        type: string
+      type:
+        description: e.g. "stock", "index", "fund"
+        type: string
+    type: object
+  models.Sector:
+    properties:
+      change:
+        type: number
+      change_percent:
+        type: number
+      code:
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+    type: object
+  models.SectorCompareResult:
+    properties:
+      board_code:
+        type: string
+      code:
+        type: string
+      current_rank:
+        type: integer
+      sector_name:
+        type: string
+      top5:
+        items:
+          $ref: '#/definitions/models.SectorMember'
+        type: array
+      total_count:
+        type: integer
+    type: object
+  models.SectorMember:
+    properties:
+      amount:
+        type: number
+      change_pct:
+        type: number
+      code:
+        type: string
+      name:
+        type: string
+      pb:
+        type: number
+      pe:
+        type: number
+    type: object
+  models.SectorRotationHistoryResponse:
+    properties:
+      ok:
+        type: boolean
+      snapshots:
+        items:
+          $ref: '#/definitions/models.SectorRotationSnapshot'
+        type: array
+      total:
+        type: integer
+    type: object
+  models.SectorRotationItem:
+    properties:
+      breadth_ratio:
+        type: number
+      change_pct:
+        type: number
+      code:
+        type: string
+      falling_count:
+        type: integer
+      name:
+        type: string
+      net_flow:
+        type: number
+      price:
+        type: number
+      rising_count:
+        type: integer
+      strength_score:
+        type: number
+      watchlist_match:
+        type: boolean
+      watchlist_stocks:
+        items:
+          type: string
+        type: array
+    type: object
+  models.SectorRotationResponse:
+    properties:
+      cached:
+        type: boolean
+      ok:
+        type: boolean
+      sectors:
+        items:
+          $ref: '#/definitions/models.SectorRotationItem'
+        type: array
+      summary:
+        $ref: '#/definitions/models.SectorRotationSummary'
+    type: object
+  models.SectorRotationSnapshot:
+    properties:
+      sectors:
+        items:
+          $ref: '#/definitions/models.SectorRotationItem'
+        type: array
+      timestamp:
+        type: string
+    type: object
+  models.SectorRotationSummary:
+    properties:
+      avg_breadth:
+        type: number
+      strong_count:
+        type: integer
+      total_net_flow:
+        type: number
+      weak_count:
+        type: integer
+    type: object
+  models.StockBrief:
+    properties:
+      code:
+        type: string
+      name:
+        type: string
+      net_buy:
+        type: number
+    type: object
+  models.StockNote:
+    properties:
+      code:
+        type: string
+      content:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      updated_at:
+        type: string
+    type: object
+  models.StockNoteListResponse:
+    properties:
+      notes:
+        items:
+          $ref: '#/definitions/models.StockNote'
+        type: array
+      ok:
+        type: boolean
+    type: object
+  models.StockNoteResponse:
+    properties:
+      note:
+        $ref: '#/definitions/models.StockNote'
+      ok:
+        type: boolean
+    type: object
+  models.StockNoteTagsResponse:
+    properties:
+      ok:
+        type: boolean
+      tags:
+        items:
+          type: string
+        type: array
+    type: object
+  models.StockSector:
+    properties:
+      code:
+        type: string
+      name:
+        type: string
+    type: object
+  models.TopMover:
+    properties:
+      amount:
+        description: 成交额（元）
+        type: number
+      amplitude:
+        description: 振幅%
+        type: number
+      change:
+        type: number
+      change_percent:
+        type: number
+      code:
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+      volume:
+        description: 成交量（手）
+        type: number
+    type: object
+  models.TrendPortfolio:
+    properties:
+      change_1d:
+        type: number
+      change_5d:
+        type: number
+      change_20d:
+        type: number
+      change_30d:
+        type: number
+      daily_returns:
+        items:
+          $ref: '#/definitions/models.DailyReturn'
+        type: array
+    type: object
+  models.TrendStock:
+    properties:
+      change_1d:
+        type: number
+      change_5d:
+        type: number
+      change_20d:
+        type: number
+      change_30d:
+        type: number
+      code:
+        type: string
+      kline_data:
+        items:
+          $ref: '#/definitions/models.KlinePoint'
+        type: array
+      name:
+        type: string
+      price:
+        type: number
+    type: object
+  models.User:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      role:
+        type: string
+      username:
+        type: string
+    type: object
+host: localhost:8899
+info:
+  contact:
+    email: support@alphapulse.local
+    name: API Support
+  description: AlphaPulse 股票综合分析服务 — Go backend REST API.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: AlphaPulse API
+  version: "3.0"
+paths:
+  /analyze:
+    get:
+      consumes:
+      - application/json
+      description: 对指定股票进行8维度综合分析，支持批量分析(逗号分隔，最多10只)
+      parameters:
+      - description: 股票代码，多个用逗号分隔
+        in: query
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema: {}
+      summary: 8维度综合分析
+      tags:
+      - analyze
+  /api/activity-log:
+    get:
+      description: 返回最近50条活动日志
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 活动日志
+      tags:
+      - system
+  /api/alerts:
+    get:
+      description: 获取自选股的智能预警信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.AlertsResponse'
+      summary: 获取智能预警
+      tags:
+      - alerts
+  /api/announcements:
+    get:
+      description: 根据股票代码获取相关公告列表
+      parameters:
+      - description: 股票代码
+        in: query
+        name: code
+        required: true
+        type: string
+      - default: 10
+        description: 返回条数
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取个股公告
+      tags:
+      - market
+  /api/anomalies:
+    get:
+      description: 扫描 Alpha300 候选股中的市场异常(涨停/跌停/放量/大幅波动)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 异常检测
+      tags:
+      - signals
+  /api/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: 使用用户名密码登录获取 JWT token
+      parameters:
+      - description: 登录信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.loginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.authResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 用户登录
+      tags:
+      - auth
+  /api/auth/register:
+    post:
+      consumes:
+      - application/json
+      description: 使用邀请码注册新用户，返回 JWT token
+      parameters:
+      - description: 注册信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.registerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.authResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 用户注册
+      tags:
+      - auth
+  /api/auth/verify:
+    get:
+      description: 验证当前 JWT token 是否有效，返回用户信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 验证 Token
+      tags:
+      - auth
+  /api/cache/clear:
+    post:
+      description: 清除所有内存缓存
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 清除缓存
+      tags:
+      - system
+  /api/candidates:
+    get:
+      consumes:
+      - application/json
+      description: 从 Alpha300 排名系统获取候选股票，支持按策略过滤
+      parameters:
+      - default: 50
+        description: 结果上限
+        in: query
+        name: limit
+        type: integer
+      - default: builtin
+        description: 策略名称或ID
+        in: query
+        name: strategy
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 获取 Alpha300 候选股列表
+      tags:
+      - candidates
+  /api/compare/backtest:
+    get:
+      consumes:
+      - application/json
+      description: Run backtest for 2-5 stocks and return comparison results
+      parameters:
+      - description: Comma-separated stock codes (2-5), e.g. 600176,000001
+        in: query
+        name: codes
+        required: true
+        type: string
+      - description: Backtest period in days (10-240, default 30)
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Multi-stock backtest comparison
+      tags:
+      - compare
+  /api/compare/sector:
+    get:
+      consumes:
+      - application/json
+      description: Shows which sectors a stock belongs to, top 5 stocks in primary
+        sector, and rank
+      parameters:
+      - description: Stock code, e.g. 600176
+        in: query
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SectorCompareResult'
+      summary: Sector comparison
+      tags:
+      - compare
+  /api/correlation:
+    get:
+      description: Return pairwise Pearson correlation matrix for watchlist stocks
+        (30-day daily returns)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.CorrelationResponse'
+      summary: Pairwise correlation matrix
+      tags:
+      - analysis
+  /api/custom-alerts:
+    get:
+      description: 获取所有自定义预警
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 获取预警列表
+      tags:
+      - custom-alerts
+    post:
+      consumes:
+      - application/json
+      description: 创建新的自定义预警规则
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 创建预警
+      tags:
+      - custom-alerts
+  /api/custom-alerts/{id}:
+    delete:
+      description: 根据 ID 删除预警
+      parameters:
+      - description: 预警 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 删除预警
+      tags:
+      - custom-alerts
+  /api/custom-alerts/check:
+    get:
+      description: 检查所有启用的预警是否触发
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 检查预警
+      tags:
+      - custom-alerts
+  /api/daily-brief:
+    get:
+      description: 返回包含大盘指数、涨跌家数、板块、自选股的综合市场简报
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.dailyBriefPayload'
+      summary: 获取每日市场简报
+      tags:
+      - reports
+  /api/daily-report/generate:
+    post:
+      description: 基于自选股分析生成新的日报（有10分钟冷却时间）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 生成日报
+      tags:
+      - reports
+  /api/daily-report/latest:
+    get:
+      description: 返回最近生成的一份日报内容
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 获取最新日报
+      tags:
+      - reports
+  /api/daily-report/list:
+    get:
+      description: 列出所有已生成的日报
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 获取日报列表
+      tags:
+      - reports
+  /api/dashboard-summary:
+    get:
+      description: 'Returns composite dashboard data: market indices, watchlist stats,
+        top movers, alerts, activity, reports'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Dashboard summary
+      tags:
+      - dashboard
+  /api/docs:
+    get:
+      description: 返回所有可用 API 端点的文档
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: API 接口文档
+      tags:
+      - docs
+  /api/dragon-tiger:
+    get:
+      description: 获取最新的龙虎榜交易数据，包含净买入金额和机构信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.DragonTigerResponse'
+      summary: 获取龙虎榜数据
+      tags:
+      - dragon-tiger
+  /api/dragon-tiger-history:
+    get:
+      description: 获取指定天数范围内的龙虎榜历史交易记录
+      parameters:
+      - description: 查询天数，默认5天
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.DragonTigerHistoryResponse'
+      summary: 获取龙虎榜历史数据
+      tags:
+      - dragon-tiger
+  /api/fund-flow/flow:
+    get:
+      consumes:
+      - application/json
+      description: Returns daily money flow data (main/small/middle/big/huge net inflows)
+        for the given stock code
+      parameters:
+      - description: Stock code (e.g. 600176, sh600176)
+        in: query
+        name: code
+        required: true
+        type: string
+      - description: Number of days (1-120, default 5)
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get money flow data for a stock
+      tags:
+      - fund-flow
+  /api/institution-tracker:
+    get:
+      description: 获取机构席位交易追踪数据
+      parameters:
+      - description: 查询天数，默认5天
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.InstitutionTrackerResponse'
+      summary: 机构追踪
+      tags:
+      - dragon-tiger
+  /api/investment-plans:
+    get:
+      description: 返回所有投资计划
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 获取投资计划列表
+      tags:
+      - investment-plans
+    post:
+      consumes:
+      - application/json
+      description: 创建新投资计划或更新已有计划
+      parameters:
+      - description: 投资计划数据
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.upsertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 创建或更新投资计划
+      tags:
+      - investment-plans
+  /api/investment-plans/{code}:
+    delete:
+      description: 根据股票代码删除对应的投资计划
+      parameters:
+      - description: 股票代码
+        in: path
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 删除投资计划
+      tags:
+      - investment-plans
+  /api/market/breadth:
+    get:
+      description: 获取涨跌家数、涨停跌停、AD比率、成交量等市场宽度指标
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 市场宽度
+      tags:
+      - market
+  /api/market/hot-concepts:
+    get:
+      description: 获取当日最热门的概念板块排行（东方财富数据）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取热门概念板块
+      tags:
+      - market
+  /api/market/hot-concepts/{code}/stocks:
+    get:
+      description: 根据概念板块代码获取其成分股票列表，标注是否在自选中
+      parameters:
+      - description: 概念板块代码
+        in: path
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取概念板块成分股
+      tags:
+      - market
+  /api/market/kline:
+    get:
+      description: 根据股票代码获取日K线历史数据
+      parameters:
+      - description: 股票代码
+        in: query
+        name: code
+        required: true
+        type: string
+      - default: 60
+        description: 天数
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.KlinePoint'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取K线数据
+      tags:
+      - market
+  /api/market/market-overview:
+    get:
+      description: 获取主要指数实时行情与市场涨跌家数统计
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.MarketOverviewResponse'
+      security:
+      - BearerAuth: []
+      summary: 市场全景
+      tags:
+      - market
+  /api/market/news:
+    get:
+      description: 获取最新的市场新闻资讯
+      parameters:
+      - default: 20
+        description: 返回条数
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.NewsItem'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: 获取市场新闻
+      tags:
+      - market
+  /api/market/overview:
+    get:
+      description: 获取市场基础概览数据
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.MarketOverview'
+      security:
+      - BearerAuth: []
+      summary: 市场概览（旧版）
+      tags:
+      - market
+  /api/market/quote:
+    get:
+      description: 根据股票代码获取实时行情数据
+      parameters:
+      - description: 股票代码
+        in: query
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Quote'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取股票实时行情
+      tags:
+      - market
+  /api/market/search:
+    get:
+      description: 根据关键词搜索股票，返回匹配的股票列表
+      parameters:
+      - description: 搜索关键词
+        in: query
+        name: q
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.SearchSuggestion'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 搜索股票
+      tags:
+      - market
+  /api/market/sectors:
+    get:
+      description: 获取所有板块行情及涨跌排行
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Sector'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: 获取板块数据
+      tags:
+      - market
+  /api/market/sentiment:
+    get:
+      description: 获取恐贪指数、涨跌家数、板块成交额、市场温度等情绪指标
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 市场情绪
+      tags:
+      - market
+  /api/market/session:
+    get:
+      description: 获取当前市场交易时段状态，包括盘前、交易中、午休、已收盘等
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取市场交易时段
+      tags:
+      - market
+  /api/market/top-movers:
+    get:
+      description: 获取当日涨幅或跌幅前N只股票
+      parameters:
+      - default: desc
+        description: '排序方式: desc=涨幅 asc=跌幅'
+        in: query
+        name: sort
+        type: string
+      - default: 20
+        description: 返回条数
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.TopMover'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: 获取涨跌幅排行
+      tags:
+      - market
+  /api/market/trends:
+    get:
+      description: 获取指数和自选股的多周期涨跌幅对比及组合收益曲线
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.MarketTrends'
+      security:
+      - BearerAuth: []
+      summary: 多周期趋势对比
+      tags:
+      - market
+  /api/multi-trend:
+    get:
+      description: Multi-period trend analysis for watchlist stocks (daily/weekly/monthly)
+      parameters:
+      - description: Comma-separated stock codes (defaults to watchlist)
+        in: query
+        name: codes
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.MultiTrendResponse'
+      summary: Multi-period trend analysis
+      tags:
+      - analysis
+  /api/pattern-scanner:
+    get:
+      consumes:
+      - application/json
+      description: 扫描自选股的技术形态，包括K线形态、图形形态和量价异动
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.PatternScannerResponse'
+      summary: 形态扫描
+      tags:
+      - pattern-scanner
+  /api/performance-stats:
+    get:
+      description: 返回性能统计数据
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 性能统计
+      tags:
+      - system
+  /api/portfolio:
+    get:
+      description: 获取所有持仓列表，附带实时行情数据
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 获取投资组合列表
+      tags:
+      - portfolio
+    post:
+      consumes:
+      - application/json
+      description: 添加新的股票持仓
+      parameters:
+      - description: 持仓信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.addPositionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 添加持仓
+      tags:
+      - portfolio
+  /api/portfolio/{id}:
+    delete:
+      description: 根据 ID 删除持仓
+      parameters:
+      - description: 持仓 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 删除持仓
+      tags:
+      - portfolio
+    put:
+      consumes:
+      - application/json
+      description: 根据 ID 更新持仓信息
+      parameters:
+      - description: 持仓 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.updatePositionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 更新持仓
+      tags:
+      - portfolio
+  /api/portfolio/analytics:
+    get:
+      description: 获取投资组合的收益率曲线、盈亏统计、贡献度等分析数据
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 投资组合分析
+      tags:
+      - portfolio
+  /api/portfolio/risk:
+    get:
+      description: 获取持仓风险评估、行业分布及建议
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 投资组合风险分析
+      tags:
+      - portfolio
+  /api/reports:
+    get:
+      description: 返回 reports 目录下的所有报告文件列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 获取报告列表
+      tags:
+      - reports
+  /api/reports/{filename}:
+    get:
+      description: 根据文件名获取报告的完整内容
+      parameters:
+      - description: 报告文件名
+        in: path
+        name: filename
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 获取报告详情
+      tags:
+      - reports
+  /api/score-history/{code}:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定股票的历史评分记录（最近 30 条）
+      parameters:
+      - description: 股票代码（6位数字）
+        in: path
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.ScoreHistoryResponse'
+      summary: 获取股票评分历史
+      tags:
+      - score-history
+  /api/screener:
+    get:
+      consumes:
+      - application/json
+      description: 从 Alpha300 候选股中按多维度条件筛选，支持评分/动量/趋势/波动率/板块/等级过滤
+      parameters:
+      - description: 最低综合评分 (0-100)
+        in: query
+        name: min_score
+        type: number
+      - description: 最高综合评分 (0-100)
+        in: query
+        name: max_score
+        type: number
+      - description: 最低动量评分
+        in: query
+        name: min_momentum
+        type: number
+      - description: 最低趋势评分
+        in: query
+        name: min_trend
+        type: number
+      - description: 最高波动率
+        in: query
+        name: max_volatility
+        type: number
+      - description: 板块关键词过滤
+        in: query
+        name: sector
+        type: string
+      - description: 等级过滤 (S/A/B/C)，逗号分隔
+        in: query
+        name: tier
+        type: string
+      - default: 50
+        description: 结果上限 (1-100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.ScreenerResponse'
+      summary: 选股器
+      tags:
+      - screener
+  /api/sector-rotation:
+    get:
+      consumes:
+      - application/json
+      description: Returns sector rotation strength dashboard with breadth, net flow,
+        and strength scores
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SectorRotationResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get sector rotation analysis
+      tags:
+      - sector-rotation
+  /api/sector-rotation/history:
+    get:
+      consumes:
+      - application/json
+      description: Returns stored sector rotation snapshots for historical trend analysis
+      parameters:
+      - description: Number of days to look back (default 5)
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SectorRotationHistoryResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get sector rotation history
+      tags:
+      - sector-rotation
+  /api/signal-calendar:
+    get:
+      description: 检测历史技术信号(MACD/KDJ/MA交叉, RSI超买超卖, 布林突破)
+      parameters:
+      - description: 股票代码
+        in: query
+        name: code
+        required: true
+        type: string
+      - default: 120
+        description: 回溯天数
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.signalCalendarPayload'
+      summary: 信号日历
+      tags:
+      - signals
+  /api/signal-history:
+    get:
+      description: 获取历史信号记录，支持按级别和代码过滤
+      parameters:
+      - description: 信号级别
+        in: query
+        name: level
+        type: string
+      - description: 股票代码
+        in: query
+        name: code
+        type: string
+      - default: 100
+        description: 结果数量上限
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.signalHistoryPayload'
+      summary: 信号历史
+      tags:
+      - signals
+  /api/slow-queries:
+    get:
+      description: 返回慢查询记录
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 慢查询
+      tags:
+      - system
+  /api/status:
+    get:
+      description: 简单的服务状态探测
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 服务状态
+      tags:
+      - system
+  /api/stock-notes:
+    post:
+      consumes:
+      - application/json
+      description: 为指定股票创建一条新备注
+      parameters:
+      - description: 备注数据
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.createNoteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.StockNoteResponse'
+      summary: 创建股票备注
+      tags:
+      - stock-notes
+  /api/stock-notes/{code}:
+    get:
+      description: 获取指定股票代码的所有备注记录
+      parameters:
+      - description: 股票代码
+        in: path
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.StockNoteListResponse'
+      summary: 获取股票备注列表
+      tags:
+      - stock-notes
+  /api/stock-notes/{id}:
+    delete:
+      description: 删除指定ID的备注记录
+      parameters:
+      - description: 备注ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 删除股票备注
+      tags:
+      - stock-notes
+    put:
+      consumes:
+      - application/json
+      description: 更新指定ID的备注内容和标签
+      parameters:
+      - description: 备注ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新数据
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.updateNoteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.StockNoteResponse'
+      summary: 更新股票备注
+      tags:
+      - stock-notes
+  /api/stock-notes/tags/all:
+    get:
+      description: 返回当前用户所有备注中使用过的唯一标签列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.StockNoteTagsResponse'
+      summary: 获取所有标签
+      tags:
+      - stock-notes
+  /api/strategies:
+    get:
+      description: 获取所有自定义策略列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 获取策略列表
+      tags:
+      - strategies
+    post:
+      consumes:
+      - application/json
+      description: 创建新的自定义选股策略
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 创建策略
+      tags:
+      - strategies
+  /api/strategies/{id}:
+    delete:
+      description: 根据 ID 删除策略
+      parameters:
+      - description: 策略 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 删除策略
+      tags:
+      - strategies
+    put:
+      consumes:
+      - application/json
+      description: 根据 ID 更新策略配置
+      parameters:
+      - description: 策略 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 更新策略
+      tags:
+      - strategies
+  /api/strategies/{id}/activate:
+    post:
+      description: 激活指定策略用于选股
+      parameters:
+      - description: 策略 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 激活策略
+      tags:
+      - strategies
+  /api/strategies/{id}/deactivate:
+    post:
+      description: 停用指定策略
+      parameters:
+      - description: 策略 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 停用策略
+      tags:
+      - strategies
+  /api/system-status:
+    get:
+      description: 返回运行时间、缓存和数据库统计
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 系统状态
+      tags:
+      - system
+  /api/system/info:
+    get:
+      description: 返回数据库连接池和缓存信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 系统信息
+      tags:
+      - system
+  /api/trade-strategy-eval:
+    get:
+      description: 按策略标签分组评估交易策略表现
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 策略评估
+      tags:
+      - trading-journal
+  /api/trading-journal:
+    get:
+      description: 获取交易记录列表，支持按代码、类型、日期范围筛选
+      parameters:
+      - description: 股票代码
+        in: query
+        name: code
+        type: string
+      - description: 交易类型 (buy/sell)
+        in: query
+        name: type
+        type: string
+      - description: 开始日期
+        in: query
+        name: date_from
+        type: string
+      - description: 结束日期
+        in: query
+        name: date_to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 获取交易日志列表
+      tags:
+      - trading-journal
+    post:
+      consumes:
+      - application/json
+      description: 创建新的交易记录
+      parameters:
+      - description: 交易信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.createTradeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 添加交易记录
+      tags:
+      - trading-journal
+  /api/trading-journal/{id}:
+    delete:
+      description: 根据 ID 删除交易记录
+      parameters:
+      - description: 交易记录 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 删除交易记录
+      tags:
+      - trading-journal
+  /api/trading-journal/calendar:
+    get:
+      description: 获取每日盈亏热力图数据
+      parameters:
+      - description: 查询月数 (默认12)
+        in: query
+        name: months
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 交易日历
+      tags:
+      - trading-journal
+  /api/trading-journal/stats:
+    get:
+      description: 获取交易统计数据，包括盈亏、胜率、月度统计等
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 交易统计
+      tags:
+      - trading-journal
+  /api/watchlist-concept-overlap:
+    get:
+      description: 检查自选股出现在哪些热门概念板块中
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 自选股与热门概念交叉
+      tags:
+      - market
+  /api/watchlist-groups:
+    get:
+      description: 返回所有自选股分组及股票分配关系
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.GroupsResponse'
+      summary: 获取自选股分组列表
+      tags:
+      - watchlist-analysis
+    post:
+      consumes:
+      - application/json
+      description: 创建一个新的自选股分组
+      parameters:
+      - description: 分组数据
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.createGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 创建自选股分组
+      tags:
+      - watchlist-analysis
+  /api/watchlist-groups/{id}:
+    delete:
+      description: 删除指定分组并解除其下所有股票的分组分配
+      parameters:
+      - description: 分组ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 删除自选股分组
+      tags:
+      - watchlist-analysis
+    put:
+      consumes:
+      - application/json
+      description: 更新指定分组的名称或颜色
+      parameters:
+      - description: 分组ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新数据
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.updateGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 更新自选股分组
+      tags:
+      - watchlist-analysis
+  /api/watchlist-groups/assign:
+    post:
+      consumes:
+      - application/json
+      description: 将股票分配到指定分组，或取消分配（group_id为空时）
+      parameters:
+      - description: 分配数据
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.assignGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 分配股票到分组
+      tags:
+      - watchlist-analysis
+  /api/watchlist-heatmap:
+    get:
+      description: 返回所有自选股的实时价格数据，用于热力图渲染
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.HeatmapResponse'
+      summary: 获取自选股热力图数据
+      tags:
+      - watchlist-analysis
+  /api/watchlist-ranking:
+    get:
+      description: 对所有自选股进行多维度分析并返回排名结果
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.RankingResponse'
+      summary: 获取自选股排名分析
+      tags:
+      - watchlist-analysis
+  /api/watchlist-sectors:
+    get:
+      description: 返回自选股的行业板块分布统计
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SectorsResponse'
+      summary: 获取自选股板块分布
+      tags:
+      - watchlist-analysis
+  /api/watchlist/sync:
+    post:
+      consumes:
+      - application/json
+      description: Fetches Alpha300 ranking candidates and upserts them into the watchlist
+      parameters:
+      - description: Sync options
+        in: body
+        name: body
+        schema:
+          properties:
+            limit:
+              type: integer
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Sync Alpha300 watchlist
+      tags:
+      - watchlist
+  /health:
+    get:
+      description: 检查服务和数据库连接状态
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 健康检查
+      tags:
+      - system
+  /reports:
+    get:
+      description: 将 /reports 重定向到 /api/reports 以保持向后兼容
+      responses: {}
+      summary: 重定向到API报告列表
+      tags:
+      - reports
+  /stockinfo:
+    get:
+      consumes:
+      - application/json
+      description: 获取个股综合信息(行情/资金流向/新闻/公告/板块)
+      parameters:
+      - description: 股票代码
+        in: query
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.StockInfoResponse'
+      summary: 个股详情
+      tags:
+      - analyze
+schemes:
+- http
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

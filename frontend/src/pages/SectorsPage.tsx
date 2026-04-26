@@ -211,7 +211,6 @@ export default function SectorsPage() {
             const pct = sector.change_percent;
             const Icon = pct > 0 ? TrendingUp : pct < 0 ? TrendingDown : Minus;
             const bg = heatColor(pct);
-            const fg = heatTextColor(pct);
 
             return (
               <div

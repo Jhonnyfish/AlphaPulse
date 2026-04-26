@@ -1,0 +1,4855 @@
+{
+    "schemes": [
+        "http"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "AlphaPulse 股票综合分析服务 — Go backend REST API.",
+        "title": "AlphaPulse API",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "API Support",
+            "email": "support@alphapulse.local"
+        },
+        "license": {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT"
+        },
+        "version": "3.0"
+    },
+    "host": "localhost:8899",
+    "basePath": "/api",
+    "paths": {
+        "/analyze": {
+            "get": {
+                "description": "对指定股票进行8维度综合分析，支持批量分析(逗号分隔，最多10只)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analyze"
+                ],
+                "summary": "8维度综合分析",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "股票代码，多个用逗号分隔",
+                        "name": "code",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {}
+                    }
+                }
+            }
+        },
+        "/api/activity-log": {
+            "get": {
+                "description": "返回最近50条活动日志",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "活动日志",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/alerts": {
+            "get": {
+                "description": "获取自选股的智能预警信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "获取智能预警",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.AlertsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/announcements": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "根据股票代码获取相关公告列表",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "market"
+                ],
+                "summary": "获取个股公告",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "股票代码",
+                        "name": "code",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "返回条数",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/anomalies": {
+            "get": {
+                "description": "扫描 Alpha300 候选股中的市场异常(涨停/跌停/放量/大幅波动)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "signals"
+                ],
+                "summary": "异常检测",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/login": {
+            "post": {
+                "description": "使用用户名密码登录获取 JWT token",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "用户登录",
+                "parameters": [
+                    {
+                        "description": "登录信息",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.loginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.authResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/register": {
+            "post": {
+                "description": "使用邀请码注册新用户，返回 JWT token",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "用户注册",
+                "parameters": [
+                    {
+                        "description": "注册信息",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.registerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.authResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/verify": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "验证当前 JWT token 是否有效，返回用户信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "验证 Token",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cache/clear": {
+            "post": {
+                "description": "清除所有内存缓存",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "清除缓存",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/candidates": {
+            "get": {
+                "description": "从 Alpha300 排名系统获取候选股票，支持按策略过滤",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "candidates"
+                ],
+                "summary": "获取 Alpha300 候选股列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "结果上限",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "builtin",
+                        "description": "策略名称或ID",
+                        "name": "strategy",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/compare/backtest": {
+            "get": {
+                "description": "Run backtest for 2-5 stocks and return comparison results",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "compare"
+                ],
+                "summary": "Multi-stock backtest comparison",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Comma-separated stock codes (2-5), e.g. 600176,000001",
+                        "name": "codes",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Backtest period in days (10-240, default 30)",
+                        "name": "days",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/compare/sector": {
+            "get": {
+                "description": "Shows which sectors a stock belongs to, top 5 stocks in primary sector, and rank",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "compare"
+                ],
+                "summary": "Sector comparison",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Stock code, e.g. 600176",
+                        "name": "code",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SectorCompareResult"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/correlation": {
+            "get": {
+                "description": "Return pairwise Pearson correlation matrix for watchlist stocks (30-day daily returns)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analysis"
+                ],
+                "summary": "Pairwise correlation matrix",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.CorrelationResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/custom-alerts": {
+            "get": {
+                "description": "获取所有自定义预警",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "custom-alerts"
+                ],
+                "summary": "获取预警列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建新的自定义预警规则",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "custom-alerts"
+                ],
+                "summary": "创建预警",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/custom-alerts/check": {
+            "get": {
+                "description": "检查所有启用的预警是否触发",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "custom-alerts"
+                ],
+                "summary": "检查预警",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/custom-alerts/{id}": {
+            "delete": {
+                "description": "根据 ID 删除预警",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "custom-alerts"
+                ],
+                "summary": "删除预警",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "预警 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/daily-brief": {
+            "get": {
+                "description": "返回包含大盘指数、涨跌家数、板块、自选股的综合市场简报",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reports"
+                ],
+                "summary": "获取每日市场简报",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.dailyBriefPayload"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/daily-report/generate": {
+            "post": {
+                "description": "基于自选股分析生成新的日报（有10分钟冷却时间）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reports"
+                ],
+                "summary": "生成日报",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/daily-report/latest": {
+            "get": {
+                "description": "返回最近生成的一份日报内容",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reports"
+                ],
+                "summary": "获取最新日报",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/daily-report/list": {
+            "get": {
+                "description": "列出所有已生成的日报",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reports"
+                ],
+                "summary": "获取日报列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/dashboard-summary": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns composite dashboard data: market indices, watchlist stats, top movers, alerts, activity, reports",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Dashboard summary",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/docs": {
+            "get": {
+                "description": "返回所有可用 API 端点的文档",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "docs"
+                ],
+                "summary": "API 接口文档",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/dragon-tiger": {
+            "get": {
+                "description": "获取最新的龙虎榜交易数据，包含净买入金额和机构信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dragon-tiger"
+                ],
+                "summary": "获取龙虎榜数据",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.DragonTigerResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/dragon-tiger-history": {
+            "get": {
+                "description": "获取指定天数范围内的龙虎榜历史交易记录",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dragon-tiger"
+                ],
+                "summary": "获取龙虎榜历史数据",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "查询天数，默认5天",
+                        "name": "days",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.DragonTigerHistoryResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/fund-flow/flow": {
+            "get": {
+                "description": "Returns daily money flow data (main/small/middle/big/huge net inflows) for the given stock code",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "fund-flow"
+                ],
+                "summary": "Get money flow data for a stock",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Stock code (e.g. 600176, sh600176)",
+                        "name": "code",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of days (1-120, default 5)",
+                        "name": "days",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/institution-tracker": {
+            "get": {
+                "description": "获取机构席位交易追踪数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dragon-tiger"
+                ],
+                "summary": "机构追踪",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "查询天数，默认5天",
+                        "name": "days",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.InstitutionTrackerResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/investment-plans": {
+            "get": {
+                "description": "返回所有投资计划",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "investment-plans"
+                ],
+                "summary": "获取投资计划列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建新投资计划或更新已有计划",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "investment-plans"
+                ],
+                "summary": "创建或更新投资计划",
+                "parameters": [
+                    {
+                        "description": "投资计划数据",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.upsertRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/investment-plans/{code}": {
+            "delete": {
+                "description": "根据股票代码删除对应的投资计划",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "investment-plans"
+                ],
+                "summary": "删除投资计划",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "股票代码",
+                        "name": "code",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/market/breadth": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取涨跌家数、涨停跌停、AD比率、成交量等市场宽度指标",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "market"
+                ],
+                "summary": "市场宽度",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/market/hot-concepts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取当日最热门的概念板块排行（东方财富数据）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "market"
+                ],
+                "summary": "获取热门概念板块",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/market/hot-concepts/{code}/stocks": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "根据概念板块代码获取其成分股票列表，标注是否在自选中",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "market"
+                ],
+                "summary": "获取概念板块成分股",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "概念板块代码",
+                        "name": "code",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/market/kline": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "根据股票代码获取日K线历史数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "market"
+                ],
+                "summary": "获取K线数据",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "股票代码",
+                        "name": "code",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 60,
+                        "description": "天数",
+                        "name": "days",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.KlinePoint"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/market/market-overview": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取主要指数实时行情与市场涨跌家数统计",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "market"
+                ],
+                "summary": "市场全景",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.MarketOverviewResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/market/news": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取最新的市场新闻资讯",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "market"
+                ],
+                "summary": "获取市场新闻",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "返回条数",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.NewsItem"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/market/overview": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取市场基础概览数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "market"
+                ],
+                "summary": "市场概览（旧版）",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.MarketOverview"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/market/quote": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "根据股票代码获取实时行情数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "market"
+                ],
+                "summary": "获取股票实时行情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "股票代码",
+                        "name": "code",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Quote"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/market/search": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "根据关键词搜索股票，返回匹配的股票列表",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "market"
+                ],
+                "summary": "搜索股票",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "搜索关键词",
+                        "name": "q",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.SearchSuggestion"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/market/sectors": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取所有板块行情及涨跌排行",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "market"
+                ],
+                "summary": "获取板块数据",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Sector"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/market/sentiment": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取恐贪指数、涨跌家数、板块成交额、市场温度等情绪指标",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "market"
+                ],
+                "summary": "市场情绪",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/market/session": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取当前市场交易时段状态，包括盘前、交易中、午休、已收盘等",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "market"
+                ],
+                "summary": "获取市场交易时段",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/market/top-movers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取当日涨幅或跌幅前N只股票",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "market"
+                ],
+                "summary": "获取涨跌幅排行",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "desc",
+                        "description": "排序方式: desc=涨幅 asc=跌幅",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "返回条数",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.TopMover"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/market/trends": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取指数和自选股的多周期涨跌幅对比及组合收益曲线",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "market"
+                ],
+                "summary": "多周期趋势对比",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.MarketTrends"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/multi-trend": {
+            "get": {
+                "description": "Multi-period trend analysis for watchlist stocks (daily/weekly/monthly)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analysis"
+                ],
+                "summary": "Multi-period trend analysis",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Comma-separated stock codes (defaults to watchlist)",
+                        "name": "codes",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.MultiTrendResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/pattern-scanner": {
+            "get": {
+                "description": "扫描自选股的技术形态，包括K线形态、图形形态和量价异动",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pattern-scanner"
+                ],
+                "summary": "形态扫描",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.PatternScannerResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/performance-stats": {
+            "get": {
+                "description": "返回性能统计数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "性能统计",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/portfolio": {
+            "get": {
+                "description": "获取所有持仓列表，附带实时行情数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "portfolio"
+                ],
+                "summary": "获取投资组合列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "添加新的股票持仓",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "portfolio"
+                ],
+                "summary": "添加持仓",
+                "parameters": [
+                    {
+                        "description": "持仓信息",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.addPositionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/portfolio/analytics": {
+            "get": {
+                "description": "获取投资组合的收益率曲线、盈亏统计、贡献度等分析数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "portfolio"
+                ],
+                "summary": "投资组合分析",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/portfolio/risk": {
+            "get": {
+                "description": "获取持仓风险评估、行业分布及建议",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "portfolio"
+                ],
+                "summary": "投资组合风险分析",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/portfolio/{id}": {
+            "put": {
+                "description": "根据 ID 更新持仓信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "portfolio"
+                ],
+                "summary": "更新持仓",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "持仓 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新信息",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.updatePositionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "根据 ID 删除持仓",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "portfolio"
+                ],
+                "summary": "删除持仓",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "持仓 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/reports": {
+            "get": {
+                "description": "返回 reports 目录下的所有报告文件列表",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reports"
+                ],
+                "summary": "获取报告列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/reports/{filename}": {
+            "get": {
+                "description": "根据文件名获取报告的完整内容",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reports"
+                ],
+                "summary": "获取报告详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "报告文件名",
+                        "name": "filename",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/score-history/{code}": {
+            "get": {
+                "description": "获取指定股票的历史评分记录（最近 30 条）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "score-history"
+                ],
+                "summary": "获取股票评分历史",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "股票代码（6位数字）",
+                        "name": "code",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ScoreHistoryResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/screener": {
+            "get": {
+                "description": "从 Alpha300 候选股中按多维度条件筛选，支持评分/动量/趋势/波动率/板块/等级过滤",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "screener"
+                ],
+                "summary": "选股器",
+                "parameters": [
+                    {
+                        "type": "number",
+                        "description": "最低综合评分 (0-100)",
+                        "name": "min_score",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "最高综合评分 (0-100)",
+                        "name": "max_score",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "最低动量评分",
+                        "name": "min_momentum",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "最低趋势评分",
+                        "name": "min_trend",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "最高波动率",
+                        "name": "max_volatility",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "板块关键词过滤",
+                        "name": "sector",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "等级过滤 (S/A/B/C)，逗号分隔",
+                        "name": "tier",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "结果上限 (1-100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ScreenerResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/sector-rotation": {
+            "get": {
+                "description": "Returns sector rotation strength dashboard with breadth, net flow, and strength scores",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sector-rotation"
+                ],
+                "summary": "Get sector rotation analysis",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SectorRotationResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/sector-rotation/history": {
+            "get": {
+                "description": "Returns stored sector rotation snapshots for historical trend analysis",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sector-rotation"
+                ],
+                "summary": "Get sector rotation history",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Number of days to look back (default 5)",
+                        "name": "days",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SectorRotationHistoryResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/signal-calendar": {
+            "get": {
+                "description": "检测历史技术信号(MACD/KDJ/MA交叉, RSI超买超卖, 布林突破)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "signals"
+                ],
+                "summary": "信号日历",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "股票代码",
+                        "name": "code",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 120,
+                        "description": "回溯天数",
+                        "name": "days",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.signalCalendarPayload"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/signal-history": {
+            "get": {
+                "description": "获取历史信号记录，支持按级别和代码过滤",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "signals"
+                ],
+                "summary": "信号历史",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "信号级别",
+                        "name": "level",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "股票代码",
+                        "name": "code",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 100,
+                        "description": "结果数量上限",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.signalHistoryPayload"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/slow-queries": {
+            "get": {
+                "description": "返回慢查询记录",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "慢查询",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/status": {
+            "get": {
+                "description": "简单的服务状态探测",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "服务状态",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/stock-notes": {
+            "post": {
+                "description": "为指定股票创建一条新备注",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stock-notes"
+                ],
+                "summary": "创建股票备注",
+                "parameters": [
+                    {
+                        "description": "备注数据",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.createNoteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.StockNoteResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/stock-notes/tags/all": {
+            "get": {
+                "description": "返回当前用户所有备注中使用过的唯一标签列表",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stock-notes"
+                ],
+                "summary": "获取所有标签",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.StockNoteTagsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/stock-notes/{code}": {
+            "get": {
+                "description": "获取指定股票代码的所有备注记录",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stock-notes"
+                ],
+                "summary": "获取股票备注列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "股票代码",
+                        "name": "code",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.StockNoteListResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/stock-notes/{id}": {
+            "put": {
+                "description": "更新指定ID的备注内容和标签",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stock-notes"
+                ],
+                "summary": "更新股票备注",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "备注ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新数据",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.updateNoteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.StockNoteResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "删除指定ID的备注记录",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stock-notes"
+                ],
+                "summary": "删除股票备注",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "备注ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/strategies": {
+            "get": {
+                "description": "获取所有自定义策略列表",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "strategies"
+                ],
+                "summary": "获取策略列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建新的自定义选股策略",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "strategies"
+                ],
+                "summary": "创建策略",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/strategies/{id}": {
+            "put": {
+                "description": "根据 ID 更新策略配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "strategies"
+                ],
+                "summary": "更新策略",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "策略 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "根据 ID 删除策略",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "strategies"
+                ],
+                "summary": "删除策略",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "策略 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/strategies/{id}/activate": {
+            "post": {
+                "description": "激活指定策略用于选股",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "strategies"
+                ],
+                "summary": "激活策略",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "策略 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/strategies/{id}/deactivate": {
+            "post": {
+                "description": "停用指定策略",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "strategies"
+                ],
+                "summary": "停用策略",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "策略 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/system-status": {
+            "get": {
+                "description": "返回运行时间、缓存和数据库统计",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "系统状态",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/system/info": {
+            "get": {
+                "description": "返回数据库连接池和缓存信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "系统信息",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/trade-strategy-eval": {
+            "get": {
+                "description": "按策略标签分组评估交易策略表现",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trading-journal"
+                ],
+                "summary": "策略评估",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/trading-journal": {
+            "get": {
+                "description": "获取交易记录列表，支持按代码、类型、日期范围筛选",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trading-journal"
+                ],
+                "summary": "获取交易日志列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "股票代码",
+                        "name": "code",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "交易类型 (buy/sell)",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "开始日期",
+                        "name": "date_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "结束日期",
+                        "name": "date_to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建新的交易记录",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trading-journal"
+                ],
+                "summary": "添加交易记录",
+                "parameters": [
+                    {
+                        "description": "交易信息",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.createTradeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/trading-journal/calendar": {
+            "get": {
+                "description": "获取每日盈亏热力图数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trading-journal"
+                ],
+                "summary": "交易日历",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "查询月数 (默认12)",
+                        "name": "months",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/trading-journal/stats": {
+            "get": {
+                "description": "获取交易统计数据，包括盈亏、胜率、月度统计等",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trading-journal"
+                ],
+                "summary": "交易统计",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/trading-journal/{id}": {
+            "delete": {
+                "description": "根据 ID 删除交易记录",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trading-journal"
+                ],
+                "summary": "删除交易记录",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "交易记录 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/watchlist-concept-overlap": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "检查自选股出现在哪些热门概念板块中",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "market"
+                ],
+                "summary": "自选股与热门概念交叉",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/watchlist-groups": {
+            "get": {
+                "description": "返回所有自选股分组及股票分配关系",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "watchlist-analysis"
+                ],
+                "summary": "获取自选股分组列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.GroupsResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建一个新的自选股分组",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "watchlist-analysis"
+                ],
+                "summary": "创建自选股分组",
+                "parameters": [
+                    {
+                        "description": "分组数据",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.createGroupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/watchlist-groups/assign": {
+            "post": {
+                "description": "将股票分配到指定分组，或取消分配（group_id为空时）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "watchlist-analysis"
+                ],
+                "summary": "分配股票到分组",
+                "parameters": [
+                    {
+                        "description": "分配数据",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.assignGroupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/watchlist-groups/{id}": {
+            "put": {
+                "description": "更新指定分组的名称或颜色",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "watchlist-analysis"
+                ],
+                "summary": "更新自选股分组",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "分组ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新数据",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.updateGroupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "删除指定分组并解除其下所有股票的分组分配",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "watchlist-analysis"
+                ],
+                "summary": "删除自选股分组",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "分组ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/watchlist-heatmap": {
+            "get": {
+                "description": "返回所有自选股的实时价格数据，用于热力图渲染",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "watchlist-analysis"
+                ],
+                "summary": "获取自选股热力图数据",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.HeatmapResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/watchlist-ranking": {
+            "get": {
+                "description": "对所有自选股进行多维度分析并返回排名结果",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "watchlist-analysis"
+                ],
+                "summary": "获取自选股排名分析",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.RankingResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/watchlist-sectors": {
+            "get": {
+                "description": "返回自选股的行业板块分布统计",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "watchlist-analysis"
+                ],
+                "summary": "获取自选股板块分布",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SectorsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/watchlist/sync": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Fetches Alpha300 ranking candidates and upserts them into the watchlist",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "watchlist"
+                ],
+                "summary": "Sync Alpha300 watchlist",
+                "parameters": [
+                    {
+                        "description": "Sync options",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "limit": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "description": "检查服务和数据库连接状态",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "健康检查",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/reports": {
+            "get": {
+                "description": "将 /reports 重定向到 /api/reports 以保持向后兼容",
+                "tags": [
+                    "reports"
+                ],
+                "summary": "重定向到API报告列表",
+                "responses": {}
+            }
+        },
+        "/stockinfo": {
+            "get": {
+                "description": "获取个股综合信息(行情/资金流向/新闻/公告/板块)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analyze"
+                ],
+                "summary": "个股详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "股票代码",
+                        "name": "code",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.StockInfoResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "handlers.Alert": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "signal": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/handlers.AlertType"
+                }
+            }
+        },
+        "handlers.AlertType": {
+            "type": "string",
+            "enum": [
+                "warning",
+                "opportunity",
+                "info"
+            ],
+            "x-enum-varnames": [
+                "AlertWarning",
+                "AlertOpportunity",
+                "AlertInfo"
+            ]
+        },
+        "handlers.AlertsResponse": {
+            "type": "object",
+            "properties": {
+                "alerts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.Alert"
+                    }
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "ok": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handlers.GroupsData": {
+            "type": "object",
+            "properties": {
+                "assignments": {
+                    "description": "code → group_id",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.WatchlistGroup"
+                    }
+                }
+            }
+        },
+        "handlers.GroupsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/handlers.GroupsData"
+                },
+                "ok": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handlers.HeatmapItem": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "change_pct": {
+                    "type": "number"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "volume": {
+                    "type": "number"
+                }
+            }
+        },
+        "handlers.HeatmapResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.HeatmapItem"
+                    }
+                },
+                "ok": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handlers.PatternResult": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "description": "kline, chart, volume",
+                    "type": "string"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "confidence": {
+                    "description": "0.0 - 1.0",
+                    "type": "number"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "direction": {
+                    "description": "bullish, bearish, neutral",
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "pattern": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.PatternScannerResponse": {
+            "type": "object",
+            "properties": {
+                "cached": {
+                    "type": "boolean"
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "patterns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.PatternResult"
+                    }
+                },
+                "summary": {
+                    "$ref": "#/definitions/handlers.PatternScannerSummary"
+                }
+            }
+        },
+        "handlers.PatternScannerSummary": {
+            "type": "object",
+            "properties": {
+                "bearish": {
+                    "type": "integer"
+                },
+                "bullish": {
+                    "type": "integer"
+                },
+                "by_category": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "neutral": {
+                    "type": "integer"
+                },
+                "scanned": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.RankingBest": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.RankingItem": {
+            "type": "object",
+            "properties": {
+                "change_pct": {
+                    "type": "number"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "dimension_scores": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "number",
+                        "format": "float64"
+                    }
+                },
+                "error": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "overall_score": {
+                    "type": "integer"
+                },
+                "overall_signal": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "rank": {
+                    "type": "integer"
+                },
+                "risks": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "strengths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handlers.RankingResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "fetched_at": {
+                    "type": "string"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.RankingItem"
+                    }
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "summary": {
+                    "$ref": "#/definitions/handlers.RankingSummary"
+                }
+            }
+        },
+        "handlers.RankingSummary": {
+            "type": "object",
+            "properties": {
+                "avg_score": {
+                    "type": "number"
+                },
+                "best": {
+                    "$ref": "#/definitions/handlers.RankingBest"
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "worst": {
+                    "$ref": "#/definitions/handlers.RankingBest"
+                }
+            }
+        },
+        "handlers.ScoreHistoryEntry": {
+            "type": "object",
+            "properties": {
+                "dimensions": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "number",
+                        "format": "float64"
+                    }
+                },
+                "recorded_at": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "number"
+                }
+            }
+        },
+        "handlers.ScoreHistoryResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "history": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.ScoreHistoryEntry"
+                    }
+                }
+            }
+        },
+        "handlers.ScreenerResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "filtered": {
+                    "type": "integer"
+                },
+                "filters": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.ScreenerResult"
+                    }
+                },
+                "total_candidates": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.ScreenerResult": {
+            "type": "object",
+            "properties": {
+                "close": {
+                    "type": "number"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "focus_reason": {
+                    "type": "string"
+                },
+                "harvest_risk_level": {
+                    "type": "string"
+                },
+                "in_watchlist": {
+                    "type": "boolean"
+                },
+                "industry": {
+                    "type": "string"
+                },
+                "leader_signal": {
+                    "type": "string"
+                },
+                "liquidity": {
+                    "type": "number"
+                },
+                "momentum": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "rank": {
+                    "type": "integer"
+                },
+                "recommendation_tier": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "number"
+                },
+                "trend": {
+                    "type": "number"
+                },
+                "volatility": {
+                    "type": "number"
+                }
+            }
+        },
+        "handlers.SectorGroup": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "stocks": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handlers.SectorsResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "sectors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.SectorGroup"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.StockInfoResponse": {
+            "type": "object",
+            "properties": {
+                "announcements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Announcement"
+                    }
+                },
+                "cache_detail": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "boolean"
+                    }
+                },
+                "cached": {
+                    "type": "boolean"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "errors": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "flow": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.MoneyFlowDay"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "news": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.NewsItem"
+                    }
+                },
+                "quote": {
+                    "$ref": "#/definitions/models.Quote"
+                },
+                "sectors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.StockSector"
+                    }
+                }
+            }
+        },
+        "handlers.WatchlistGroup": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.addPositionRequest": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "cost_price": {
+                    "type": "number"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.assignGroupRequest": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "group_id": {
+                    "description": "null to unassign",
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.authResponse": {
+            "type": "object",
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/models.User"
+                }
+            }
+        },
+        "handlers.briefIndex": {
+            "type": "object",
+            "properties": {
+                "change_pct": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                }
+            }
+        },
+        "handlers.briefSector": {
+            "type": "object",
+            "properties": {
+                "change_pct": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.briefStock": {
+            "type": "object",
+            "properties": {
+                "change_pct": {
+                    "type": "number"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                }
+            }
+        },
+        "handlers.briefWatchlist": {
+            "type": "object",
+            "properties": {
+                "bottom": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.briefStock"
+                    }
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "top": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.briefStock"
+                    }
+                }
+            }
+        },
+        "handlers.createGroupRequest": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.createNoteRequest": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handlers.createTradeRequest": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "fees": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "quantity": {
+                    "type": "integer"
+                },
+                "strategy_label": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.dailyBriefMarket": {
+            "type": "object",
+            "properties": {
+                "breadth": {},
+                "indices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.briefIndex"
+                    }
+                }
+            }
+        },
+        "handlers.dailyBriefPayload": {
+            "type": "object",
+            "properties": {
+                "generated_at": {
+                    "type": "string"
+                },
+                "market": {
+                    "$ref": "#/definitions/handlers.dailyBriefMarket"
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "sectors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.briefSector"
+                    }
+                },
+                "watchlist": {
+                    "$ref": "#/definitions/handlers.briefWatchlist"
+                }
+            }
+        },
+        "handlers.loginRequest": {
+            "type": "object",
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.registerRequest": {
+            "type": "object",
+            "properties": {
+                "invite_code": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.signalCalendarPayload": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "days": {
+                    "type": "integer"
+                },
+                "fetched_at": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "signals": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.signalEntry"
+                    }
+                }
+            }
+        },
+        "handlers.signalEntry": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "signal_color": {
+                    "type": "string"
+                },
+                "signal_icon": {
+                    "type": "string"
+                },
+                "signal_name": {
+                    "type": "string"
+                },
+                "signal_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.signalHistoryEntry": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "level": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.signalHistoryPayload": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.signalHistoryEntry"
+                    }
+                },
+                "level_counts": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.updateGroupRequest": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.updateNoteRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handlers.updatePositionRequest": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "cost_price": {
+                    "type": "number"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.upsertRequest": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "entry_strategy": {
+                    "type": "string"
+                },
+                "expected_return_pct": {},
+                "hold_period": {
+                    "type": "string"
+                },
+                "logic": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "position_pct": {},
+                "stop_loss": {},
+                "target_price": {}
+            }
+        },
+        "models.Announcement": {
+            "type": "object",
+            "properties": {
+                "art_code": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "published_at": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.CorrelationResponse": {
+            "type": "object",
+            "properties": {
+                "cached": {
+                    "type": "boolean"
+                },
+                "codes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "matrix": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "number",
+                            "format": "float64"
+                        }
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "names": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "ok": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "models.DailyReturn": {
+            "type": "object",
+            "properties": {
+                "benchmark": {
+                    "type": "number"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "portfolio": {
+                    "type": "number"
+                }
+            }
+        },
+        "models.DailySummary": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "top_buyers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.StockBrief"
+                    }
+                },
+                "top_sellers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.StockBrief"
+                    }
+                },
+                "total_net_buy": {
+                    "type": "number"
+                },
+                "total_net_sell": {
+                    "type": "number"
+                }
+            }
+        },
+        "models.DepartmentDetail": {
+            "type": "object",
+            "properties": {
+                "buy": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "net": {
+                    "type": "number"
+                },
+                "sell": {
+                    "type": "number"
+                },
+                "side": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.DragonTigerHistoryResponse": {
+            "type": "object",
+            "properties": {
+                "cached": {
+                    "type": "boolean"
+                },
+                "daily_summary": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.DailySummary"
+                    }
+                },
+                "dates": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "institution_stats": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.InstitutionStat"
+                    }
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "recurring_stocks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.RecurringStock"
+                    }
+                }
+            }
+        },
+        "models.DragonTigerItem": {
+            "type": "object",
+            "properties": {
+                "buy_total": {
+                    "type": "number"
+                },
+                "change_pct": {
+                    "type": "number"
+                },
+                "close": {
+                    "type": "number"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "departments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.DepartmentDetail"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "net_buy": {
+                    "type": "number"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "sell_total": {
+                    "type": "number"
+                },
+                "trade_date": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.DragonTigerResponse": {
+            "type": "object",
+            "properties": {
+                "cached": {
+                    "type": "boolean"
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.DragonTigerItem"
+                    }
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "total_net_buy": {
+                    "type": "number"
+                },
+                "total_net_sell": {
+                    "type": "number"
+                }
+            }
+        },
+        "models.IndexQuote": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "change": {
+                    "type": "number"
+                },
+                "change_pct": {
+                    "type": "number"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "prev_close": {
+                    "type": "number"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "volume": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.InstitutionStat": {
+            "type": "object",
+            "properties": {
+                "appearances": {
+                    "type": "integer"
+                },
+                "dates": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "total_net": {
+                    "type": "number"
+                }
+            }
+        },
+        "models.InstitutionTrackerResponse": {
+            "type": "object",
+            "properties": {
+                "cached": {
+                    "type": "boolean"
+                },
+                "institutions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.InstitutionStat"
+                    }
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "period": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.KlinePoint": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "close": {
+                    "type": "number"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "high": {
+                    "type": "number"
+                },
+                "low": {
+                    "type": "number"
+                },
+                "open": {
+                    "type": "number"
+                },
+                "volume": {
+                    "type": "number"
+                }
+            }
+        },
+        "models.MarketBreadth": {
+            "type": "object",
+            "properties": {
+                "down_count": {
+                    "type": "integer"
+                },
+                "flat_count": {
+                    "type": "integer"
+                },
+                "limit_down": {
+                    "type": "integer"
+                },
+                "limit_up": {
+                    "type": "integer"
+                },
+                "sentiment": {
+                    "type": "string"
+                },
+                "sentiment_ratio": {
+                    "type": "number"
+                },
+                "up_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.MarketOverview": {
+            "type": "object",
+            "properties": {
+                "advance_count": {
+                    "type": "integer"
+                },
+                "decline_count": {
+                    "type": "integer"
+                },
+                "flat_count": {
+                    "type": "integer"
+                },
+                "indices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.OverviewIndex"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.MarketOverviewResponse": {
+            "type": "object",
+            "properties": {
+                "indices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.IndexQuote"
+                    }
+                },
+                "market": {
+                    "$ref": "#/definitions/models.MarketBreadth"
+                },
+                "ok": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "models.MarketTrends": {
+            "type": "object",
+            "properties": {
+                "fetched_at": {
+                    "type": "string"
+                },
+                "indices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TrendStock"
+                    }
+                },
+                "portfolio": {
+                    "$ref": "#/definitions/models.TrendPortfolio"
+                },
+                "watchlist_stocks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TrendStock"
+                    }
+                }
+            }
+        },
+        "models.MoneyFlowDay": {
+            "type": "object",
+            "properties": {
+                "big_net": {
+                    "type": "number"
+                },
+                "big_net_pct": {
+                    "type": "number"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "huge_net": {
+                    "type": "number"
+                },
+                "huge_net_pct": {
+                    "type": "number"
+                },
+                "main_net": {
+                    "type": "number"
+                },
+                "main_net_pct": {
+                    "type": "number"
+                },
+                "middle_net": {
+                    "type": "number"
+                },
+                "middle_net_pct": {
+                    "type": "number"
+                },
+                "small_net": {
+                    "type": "number"
+                },
+                "small_net_pct": {
+                    "type": "number"
+                }
+            }
+        },
+        "models.MultiTrendResponse": {
+            "type": "object",
+            "properties": {
+                "cached": {
+                    "type": "boolean"
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "stocks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.MultiTrendStock"
+                    }
+                }
+            }
+        },
+        "models.MultiTrendStock": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "daily": {
+                    "$ref": "#/definitions/models.PeriodIndicators"
+                },
+                "monthly": {
+                    "$ref": "#/definitions/models.PeriodIndicators"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "overall_strength": {
+                    "type": "integer"
+                },
+                "weekly": {
+                    "$ref": "#/definitions/models.PeriodIndicators"
+                }
+            }
+        },
+        "models.NewsItem": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "published_at": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "summary": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.OverviewIndex": {
+            "type": "object",
+            "properties": {
+                "advance_count": {
+                    "type": "integer"
+                },
+                "change": {
+                    "type": "number"
+                },
+                "change_percent": {
+                    "type": "number"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "decline_count": {
+                    "type": "integer"
+                },
+                "flat_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                }
+            }
+        },
+        "models.PeriodIndicators": {
+            "type": "object",
+            "properties": {
+                "ma10": {
+                    "type": "number"
+                },
+                "ma20": {
+                    "type": "number"
+                },
+                "ma5": {
+                    "type": "number"
+                },
+                "ma_aligned": {
+                    "type": "boolean"
+                },
+                "return_pct": {
+                    "type": "number"
+                },
+                "rsi": {
+                    "type": "number"
+                },
+                "strength": {
+                    "type": "integer"
+                },
+                "volume_trend": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.Quote": {
+            "type": "object",
+            "properties": {
+                "amplitude": {
+                    "type": "number"
+                },
+                "change": {
+                    "type": "number"
+                },
+                "change_percent": {
+                    "type": "number"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "high": {
+                    "type": "number"
+                },
+                "inner_vol": {
+                    "type": "number"
+                },
+                "limit_down": {
+                    "type": "number"
+                },
+                "limit_up": {
+                    "type": "number"
+                },
+                "low": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "open": {
+                    "type": "number"
+                },
+                "outer_vol": {
+                    "type": "number"
+                },
+                "pb": {
+                    "type": "number"
+                },
+                "pe": {
+                    "type": "number"
+                },
+                "prev_close": {
+                    "type": "number"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "total_mv": {
+                    "type": "number"
+                },
+                "turnover": {
+                    "type": "number"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "volume": {
+                    "type": "number"
+                }
+            }
+        },
+        "models.RecurringStock": {
+            "type": "object",
+            "properties": {
+                "appearances": {
+                    "type": "integer"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "dates": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "total_net": {
+                    "type": "number"
+                }
+            }
+        },
+        "models.SearchSuggestion": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "e.g. \"stock\", \"index\", \"fund\"",
+                    "type": "string"
+                }
+            }
+        },
+        "models.Sector": {
+            "type": "object",
+            "properties": {
+                "change": {
+                    "type": "number"
+                },
+                "change_percent": {
+                    "type": "number"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                }
+            }
+        },
+        "models.SectorCompareResult": {
+            "type": "object",
+            "properties": {
+                "board_code": {
+                    "type": "string"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "current_rank": {
+                    "type": "integer"
+                },
+                "sector_name": {
+                    "type": "string"
+                },
+                "top5": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SectorMember"
+                    }
+                },
+                "total_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.SectorMember": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "change_pct": {
+                    "type": "number"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "pb": {
+                    "type": "number"
+                },
+                "pe": {
+                    "type": "number"
+                }
+            }
+        },
+        "models.SectorRotationHistoryResponse": {
+            "type": "object",
+            "properties": {
+                "ok": {
+                    "type": "boolean"
+                },
+                "snapshots": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SectorRotationSnapshot"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.SectorRotationItem": {
+            "type": "object",
+            "properties": {
+                "breadth_ratio": {
+                    "type": "number"
+                },
+                "change_pct": {
+                    "type": "number"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "falling_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "net_flow": {
+                    "type": "number"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "rising_count": {
+                    "type": "integer"
+                },
+                "strength_score": {
+                    "type": "number"
+                },
+                "watchlist_match": {
+                    "type": "boolean"
+                },
+                "watchlist_stocks": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "models.SectorRotationResponse": {
+            "type": "object",
+            "properties": {
+                "cached": {
+                    "type": "boolean"
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "sectors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SectorRotationItem"
+                    }
+                },
+                "summary": {
+                    "$ref": "#/definitions/models.SectorRotationSummary"
+                }
+            }
+        },
+        "models.SectorRotationSnapshot": {
+            "type": "object",
+            "properties": {
+                "sectors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SectorRotationItem"
+                    }
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.SectorRotationSummary": {
+            "type": "object",
+            "properties": {
+                "avg_breadth": {
+                    "type": "number"
+                },
+                "strong_count": {
+                    "type": "integer"
+                },
+                "total_net_flow": {
+                    "type": "number"
+                },
+                "weak_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.StockBrief": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "net_buy": {
+                    "type": "number"
+                }
+            }
+        },
+        "models.StockNote": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.StockNoteListResponse": {
+            "type": "object",
+            "properties": {
+                "notes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.StockNote"
+                    }
+                },
+                "ok": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "models.StockNoteResponse": {
+            "type": "object",
+            "properties": {
+                "note": {
+                    "$ref": "#/definitions/models.StockNote"
+                },
+                "ok": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "models.StockNoteTagsResponse": {
+            "type": "object",
+            "properties": {
+                "ok": {
+                    "type": "boolean"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "models.StockSector": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.TopMover": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "description": "成交额（元）",
+                    "type": "number"
+                },
+                "amplitude": {
+                    "description": "振幅%",
+                    "type": "number"
+                },
+                "change": {
+                    "type": "number"
+                },
+                "change_percent": {
+                    "type": "number"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "volume": {
+                    "description": "成交量（手）",
+                    "type": "number"
+                }
+            }
+        },
+        "models.TrendPortfolio": {
+            "type": "object",
+            "properties": {
+                "change_1d": {
+                    "type": "number"
+                },
+                "change_20d": {
+                    "type": "number"
+                },
+                "change_30d": {
+                    "type": "number"
+                },
+                "change_5d": {
+                    "type": "number"
+                },
+                "daily_returns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.DailyReturn"
+                    }
+                }
+            }
+        },
+        "models.TrendStock": {
+            "type": "object",
+            "properties": {
+                "change_1d": {
+                    "type": "number"
+                },
+                "change_20d": {
+                    "type": "number"
+                },
+                "change_30d": {
+                    "type": "number"
+                },
+                "change_5d": {
+                    "type": "number"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "kline_data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.KlinePoint"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                }
+            }
+        },
+        "models.User": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

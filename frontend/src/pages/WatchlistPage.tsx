@@ -16,7 +16,7 @@ export default function WatchlistPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [sortField, setSortField] = useState<'code' | 'name' | 'price' | 'change_percent' | 'change'>('code');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   const fetchWatchlist = useCallback(async () => {
     try {
@@ -46,11 +46,6 @@ export default function WatchlistPage() {
     setLastUpdated(new Date());
   }, []);
 
-  // Refresh both watchlist and quotes
-  const refreshAll = useCallback(async () => {
-    await fetchWatchlist();
-    // Quotes will be fetched by the effect below when items change
-  }, [fetchWatchlist]);
 
   useEffect(() => {
     fetchWatchlist();

@@ -19,8 +19,30 @@ import (
 	"alphapulse/internal/services"
 
 	"github.com/gin-gonic/gin"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	swaggerFiles "github.com/swaggo/files"
+
+	_ "alphapulse/docs" // swagger generated docs
 )
 
+// @title           AlphaPulse API
+// @version         3.0
+// @description     AlphaPulse 股票综合分析服务 — Go backend REST API.
+// @termsOfService  http://swagger.io/terms/
+
+// @contact.name  API Support
+// @contact.email support@alphapulse.local
+
+// @license.name  MIT
+// @license.url   https://opensource.org/licenses/MIT
+
+// @host      localhost:8899
+// @BasePath  /api
+// @schemes   http
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 func main() {
 	migrateOnly := flag.Bool("migrate-only", false, "run database migrations and exit")
 	flag.Parse()
@@ -245,6 +267,7 @@ func main() {
 	api.GET("/slow-queries", authMiddleware, systemHandler.SlowQueries)
 	api.GET("/performance-stats", authMiddleware, systemHandler.PerformanceStats)
 	api.GET("/docs", docsHandler.Docs)
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Watchlist analysis (Module 19)
 	wlAnalysisGroup := api.Group("/watchlist-analysis")

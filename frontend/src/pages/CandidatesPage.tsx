@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { candidatesApi } from '@/lib/api';
-import { Target, RefreshCw, ArrowUpDown, TrendingUp, ExternalLink } from 'lucide-react';
+import { Target, RefreshCw, ArrowUpDown, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface Candidate {
