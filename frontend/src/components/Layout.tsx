@@ -7,10 +7,11 @@ import {
   BarChart3, Star, TrendingUp, Newspaper, LogOut, Activity,
   CandlestickChart, LayoutDashboard, Menu, X, GitCompareArrows,
   Settings, Briefcase, BookOpen, Target, Filter, Crown, Flame,
-  Zap, Radio, Grid3X3, Droplets, Search, Sun, Moon,
+  Zap, Radio, Grid3X3, Droplets, Search, Sun, Moon, Keyboard,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
 import TickerTape from '@/components/TickerTape';
+import KeyboardHelpPanel from '@/components/KeyboardHelpPanel';
 
 interface NavItem {
   to: string;
@@ -62,6 +63,7 @@ export default function Layout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [keyboardHelpOpen, setKeyboardHelpOpen] = useState(false);
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -101,6 +103,12 @@ export default function Layout() {
       handler: () => navigate('/watchlist'),
       description: '自选股',
     },
+    {
+      key: '?',
+      shift: true,
+      handler: () => setKeyboardHelpOpen(prev => !prev),
+      description: '快捷键帮助',
+    },
   ], [navigate]);
 
   useKeyboard(keyBindings);
@@ -113,6 +121,12 @@ export default function Layout() {
       <CommandPalette
         open={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
+      />
+
+      {/* Keyboard Help */}
+      <KeyboardHelpPanel
+        open={keyboardHelpOpen}
+        onClose={() => setKeyboardHelpOpen(false)}
       />
 
       {/* Mobile overlay */}
@@ -240,6 +254,13 @@ export default function Layout() {
             </span>
           </div>
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => setKeyboardHelpOpen(true)}
+              className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
+              title="快捷键帮助"
+            >
+              <Keyboard className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+            </button>
             <button
               onClick={toggleTheme}
               className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
