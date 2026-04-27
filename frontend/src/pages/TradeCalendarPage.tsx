@@ -22,7 +22,7 @@ export default function TradeCalendarPage() {
     setLoading(true);
     setError('');
     tradingJournalApi.calendar({ year: y, month: m })
-      .then((res) => setData(res.data.data.daily))
+      .then((res) => setData(Array.isArray(res.data.data) ? res.data.data : Array.isArray(res.data) ? res.data : []))
       .catch(() => setError('加载交易日历失败'))
       .finally(() => setLoading(false));
   };
@@ -170,7 +170,7 @@ export default function TradeCalendarPage() {
 
         {loading ? (
           <div className="space-y-4">
-            <Skeleton count={4} />
+            <Skeleton /><Skeleton /><Skeleton /><Skeleton />
             <Skeleton />
           </div>
         ) : error ? (

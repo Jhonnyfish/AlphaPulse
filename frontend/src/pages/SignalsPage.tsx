@@ -243,7 +243,7 @@ export default function SignalsPage() {
     setError('');
     try {
       const res = await signalApi.history({ days: d });
-      setHistory(res.data?.items ?? []);
+      setHistory((res.data?.items ?? []) as unknown as SignalEvent[]);
     } catch {
       setError('加载信号历史失败');
     } finally {

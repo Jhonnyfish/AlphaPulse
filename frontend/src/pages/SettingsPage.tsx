@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Skeleton } from "@/components/ui/Skeleton";
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
@@ -198,7 +199,7 @@ export default function SettingsPage() {
         )}
 
         {loading ? (
-          <Skeleton rows={4} />
+          <><Skeleton /><Skeleton /><Skeleton /><Skeleton /><Skeleton /></>
         ) : infoItems.length > 0 ? (
           <div className="space-y-1 text-sm">
             {infoItems.map((item) => (

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Skeleton, SkeletonStatCards, SkeletonInlineTable } from "@/components/ui/Skeleton";
 import { useView } from '@/lib/ViewContext';
 import { portfolioApi, type PortfolioRisk } from '@/lib/api';
 import { Shield, AlertTriangle, CheckCircle, TrendingDown, PieChart, BarChart3, RefreshCw, ArrowLeft } from 'lucide-react';
@@ -127,11 +128,11 @@ export default function PortfolioRiskPage() {
     );
   }
 
-  const riskCfg = getRiskConfig(risk.risk_level);
+  const riskCfg = getRiskConfig(risk?.risk_level ?? 'unknown');
   const RiskIcon = riskCfg.icon;
-  const concentrationPct = (risk.concentration_risk * 100).toFixed(1);
-  const maxPositionPct = (risk.max_single_position_pct * 100).toFixed(1);
-  const sectorCount = risk.sector_concentration.length;
+  const concentrationPct = ((risk?.concentration_risk ?? 0) * 100).toFixed(1);
+  const maxPositionPct = ((risk?.max_single_position_pct ?? 0) * 100).toFixed(1);
+  const sectorCount = (risk?.sector_concentration ?? []).length;
 
   return (
     <div>
@@ -272,7 +273,7 @@ export default function PortfolioRiskPage() {
       </div>
 
       {/* Sector Concentration Table */}
-      {risk.sector_concentration.length > 0 && (
+      {(risk?.sector_concentration ?? []).length > 0 && (
         <div
           className="glass-panel rounded-xl border overflow-hidden mb-6"
           style={{ borderColor: 'var(--color-border)' }}
@@ -302,7 +303,7 @@ export default function PortfolioRiskPage() {
                 </tr>
               </thead>
               <tbody>
-                {risk.sector_concentration
+                {(risk?.sector_concentration ?? [])
                   .sort((a, b) => b.pct - a.pct)
                   .map((s) => {
                     const pct = (s.pct * 100).toFixed(1);
@@ -343,7 +344,7 @@ export default function PortfolioRiskPage() {
       )}
 
       {/* Suggestions */}
-      {risk.suggestions.length > 0 && (
+      {(risk?.suggestions ?? []).length > 0 && (
         <div
           className="glass-panel rounded-xl border p-4"
           style={{ borderColor: 'var(--color-border)' }}
@@ -353,7 +354,7 @@ export default function PortfolioRiskPage() {
             <span className="text-sm font-medium">风险建议</span>
           </div>
           <ul className="space-y-2">
-            {risk.suggestions.map((s, i) => (
+            {(risk?.suggestions ?? []).map((s, i) => (
               <li
                 key={i}
                 className="flex items-start gap-2 text-sm px-3 py-2 rounded-lg"

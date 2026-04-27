@@ -236,11 +236,11 @@ export default function NewsPage() {
     return news.map((item) => {
       // Use API sentiment if available, otherwise infer
       const sentiment: Sentiment =
-        (item as Record<string, unknown>).sentiment === 'positive'
+        (item as unknown as Record<string, unknown>).sentiment === 'positive'
           ? 'positive'
-          : (item as Record<string, unknown>).sentiment === 'negative'
+          : (item as unknown as Record<string, unknown>).sentiment === 'negative'
             ? 'negative'
-            : (item as Record<string, unknown>).sentiment === 'neutral'
+            : (item as unknown as Record<string, unknown>).sentiment === 'neutral'
               ? 'neutral'
               : inferSentiment(item.title, item.summary);
 

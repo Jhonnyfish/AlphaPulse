@@ -80,11 +80,18 @@ func (h *FundFlowHandler) Flow(c *gin.Context) {
 
 	flows, err := h.eastMoney.FetchMoneyFlow(c.Request.Context(), normalized, days)
 	if err != nil {
-		h.logger.Warn("failed to fetch money flow",
+		h.logger.Warn("failed to fetch money flow, returning degraded response",
 			zap.String("code", code6),
 			zap.Error(err),
 		)
-		writeAppError(c, apperrors.Internal(err))
+		c.JSON(http.StatusOK, gin.H{
+			"code":     code6,
+			"items":    []models.MoneyFlowDay{},
+			"source":   "eastmoney",
+			"cached":   false,
+			"degraded": true,
+			"message":  "upstream data temporarily unavailable",
+		})
 		return
 	}
 

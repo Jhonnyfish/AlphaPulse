@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: '/api',
-  timeout: 15000,
+  timeout: 30000,
 });
 
 // Request interceptor — attach JWT token
@@ -14,17 +14,45 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor — handle 401
+// Retryable server-error status codes (e.g. EastMoney rate-limiting)
+const RETRYABLE_STATUSES = new Set([500, 502, 503, 504]);
+const MAX_RETRIES = 3; // up to 4 total attempts
+
+// Response interceptor — retry on transient 5xx, handle 401
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const config = error.config as (typeof error.config & { _retryCount?: number }) | undefined;
+    const status = error.response?.status;
+
+    // --- 401 handler (unchanged) ---
+    if (status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }
+      return Promise.reject(error);
     }
+
+    // --- Retry logic for transient 5xx on GET requests ---
+    if (
+      config &&
+      status !== undefined &&
+      RETRYABLE_STATUSES.has(status) &&
+      (config.method ?? 'get').toLowerCase() === 'get'
+    ) {
+      const retryCount = config._retryCount ?? 0;
+      if (retryCount < MAX_RETRIES) {
+        config._retryCount = retryCount + 1;
+        // Exponential backoff: 1s, 2s, 4s + jitter (0–500 ms)
+        const delay = Math.pow(2, retryCount) * 1000 + Math.random() * 500;
+        return new Promise((resolve) =>
+          setTimeout(() => resolve(api(config)), delay)
+        );
+      }
+    }
+
     return Promise.reject(error);
   }
 );

@@ -160,7 +160,7 @@ export default function SectorsPage() {
     setError('');
     try {
       const res = await marketApi.sectors();
-      const d = res.data;
+      const d = res.data as any;
       setSectors(Array.isArray(d) ? d : Array.isArray(d.sectors) ? d.sectors : []);
     } catch {
       setError('加载板块数据失败');

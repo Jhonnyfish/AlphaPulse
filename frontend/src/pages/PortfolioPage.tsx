@@ -283,7 +283,7 @@ export default function PortfolioPage() {
   const formatNum = (n: number) => n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const sectorPieOption = useMemo<EChartsOption | null>(() => {
-    if (!analytics || analytics.sector_allocation.length === 0) return null;
+    if (!analytics || !analytics.sector_allocation || analytics.sector_allocation.length === 0) return null;
     return {
       tooltip: {
         trigger: 'item',
@@ -331,7 +331,7 @@ export default function PortfolioPage() {
             },
           },
           labelLine: { show: false },
-          data: analytics.sector_allocation.map((s) => ({
+          data: (analytics.sector_allocation ?? []).map((s) => ({
             name: s.sector,
             value: Math.round(s.value),
           })),
@@ -390,14 +390,14 @@ export default function PortfolioPage() {
             style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
           >
             <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>总市值</div>
-            <div className="text-lg font-bold font-mono">{formatNum(analytics.total_value)}</div>
+            <div className="text-lg font-bold font-mono">{formatNum(analytics?.total_value ?? 0)}</div>
           </div>
           <div
             className="rounded-xl border p-4"
             style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
           >
             <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>总成本</div>
-            <div className="text-lg font-bold font-mono">{formatNum(analytics.total_cost)}</div>
+            <div className="text-lg font-bold font-mono">{formatNum(analytics?.total_cost ?? 0)}</div>
           </div>
           <div
             className="rounded-xl border p-4"
@@ -405,8 +405,8 @@ export default function PortfolioPage() {
           >
             <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>总盈亏</div>
             <div className="text-lg font-bold font-mono" style={{ color: pnlColor(analytics.total_profit_loss) }}>
-              {formatNum(analytics.total_profit_loss)}
-              <span className="text-sm ml-1">{formatPct(analytics.total_profit_loss_pct)}</span>
+              {formatNum(analytics?.total_profit_loss ?? 0)}
+              <span className="text-sm ml-1">{formatPct(analytics?.total_profit_loss_pct ?? 0)}</span>
             </div>
           </div>
           <div
@@ -414,7 +414,7 @@ export default function PortfolioPage() {
             style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
           >
             <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>持仓数量</div>
-            <div className="text-lg font-bold font-mono">{analytics.position_count}</div>
+            <div className="text-lg font-bold font-mono">{analytics?.position_count ?? 0}</div>
           </div>
         </div>
       )}
@@ -598,9 +598,9 @@ export default function PortfolioPage() {
       </div>
 
       {/* Top gainers / losers */}
-      {analytics && (analytics.top_gainers.length > 0 || analytics.top_losers.length > 0) && (
+      {analytics && ((analytics.top_gainers ?? []).length > 0 || (analytics.top_losers ?? []).length > 0) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
-          {analytics.top_gainers.length > 0 && (
+          {(analytics.top_gainers ?? []).length > 0 && (
             <div
               className="rounded-xl border p-4"
               style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
@@ -610,7 +610,7 @@ export default function PortfolioPage() {
                 <span className="text-sm font-medium">最佳持仓</span>
               </div>
               <div className="space-y-1.5">
-                {analytics.top_gainers.slice(0, 5).map((p) => (
+                {(analytics.top_gainers ?? []).slice(0, 5).map((p) => (
                   <div key={p.id} className="flex items-center justify-between px-2 py-1.5 rounded-lg">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-xs font-mono" style={{ color: 'var(--color-accent)' }}>{p.code}</span>
@@ -624,7 +624,7 @@ export default function PortfolioPage() {
               </div>
             </div>
           )}
-          {analytics.top_losers.length > 0 && (
+          {(analytics.top_losers ?? []).length > 0 && (
             <div
               className="rounded-xl border p-4"
               style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
@@ -634,7 +634,7 @@ export default function PortfolioPage() {
                 <span className="text-sm font-medium">最差持仓</span>
               </div>
               <div className="space-y-1.5">
-                {analytics.top_losers.slice(0, 5).map((p) => (
+                {(analytics.top_losers ?? []).slice(0, 5).map((p) => (
                   <div key={p.id} className="flex items-center justify-between px-2 py-1.5 rounded-lg">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-xs font-mono" style={{ color: 'var(--color-accent)' }}>{p.code}</span>
@@ -682,19 +682,19 @@ export default function PortfolioPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
             <div className="px-3 py-2 rounded-lg" style={{ background: 'var(--color-bg-primary)' }}>
               <div className="text-xs mb-0.5" style={{ color: 'var(--color-text-muted)' }}>集中度风险</div>
-              <div className="font-mono font-medium">{(risk.concentration_risk * 100).toFixed(1)}%</div>
+              <div className="font-mono font-medium">{((risk?.concentration_risk ?? 0) * 100).toFixed(1)}%</div>
             </div>
             <div className="px-3 py-2 rounded-lg" style={{ background: 'var(--color-bg-primary)' }}>
               <div className="text-xs mb-0.5" style={{ color: 'var(--color-text-muted)' }}>最大单只持仓占比</div>
-              <div className="font-mono font-medium">{(risk.max_single_position_pct * 100).toFixed(1)}%</div>
+              <div className="font-mono font-medium">{((risk?.max_single_position_pct ?? 0) * 100).toFixed(1)}%</div>
             </div>
           </div>
 
-          {risk.sector_concentration.length > 0 && (
+          {(risk?.sector_concentration ?? []).length > 0 && (
             <div className="mb-4">
               <div className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>行业集中度</div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {risk.sector_concentration.map((s) => (
+                {(risk?.sector_concentration ?? []).map((s) => (
                   <div key={s.sector} className="px-3 py-2 rounded-lg" style={{ background: 'var(--color-bg-primary)' }}>
                     <div className="text-xs truncate" style={{ color: 'var(--color-text-secondary)' }}>{s.sector}</div>
                     <div className="font-mono text-sm font-medium">{(s.pct * 100).toFixed(1)}%</div>
@@ -704,11 +704,11 @@ export default function PortfolioPage() {
             </div>
           )}
 
-          {risk.suggestions.length > 0 && (
+          {(risk?.suggestions ?? []).length > 0 && (
             <div>
               <div className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>建议</div>
               <ul className="space-y-1.5">
-                {risk.suggestions.map((s, i) => (
+                {(risk?.suggestions ?? []).map((s, i) => (
                   <li
                     key={i}
                     className="text-sm px-3 py-1.5 rounded-lg"

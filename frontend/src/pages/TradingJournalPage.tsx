@@ -107,9 +107,48 @@ export default function TradingJournalPage() {
         tradingJournalApi.stats(),
         tradingJournalApi.calendar({ year: calYear, month: calMonth }),
       ]);
-      if (tradesRes.status === 'fulfilled') setTrades(tradesRes.value.data.data);
-      if (statsRes.status === 'fulfilled') setStats(statsRes.value.data.data);
-      if (calRes.status === 'fulfilled') setCalendarDays(calRes.value.data.data.daily ?? []);
+      if (tradesRes.status === 'fulfilled') {
+        const d = tradesRes.value.data.data;
+        const items = Array.isArray(d) ? d : (d?.items ?? []);
+        // Normalize field names from backend to match frontend interface
+        setTrades(items.map((t: any) => ({
+          id: t.id,
+          code: t.code,
+          name: t.name,
+          direction: t.direction ?? t.type ?? 'buy',
+          price: t.price ?? 0,
+          quantity: t.quantity ?? 0,
+          amount: t.amount ?? (t.price * t.quantity) ?? 0,
+          trade_date: t.trade_date ?? t.date ?? '',
+          strategy: t.strategy ?? t.strategy_label ?? '',
+          reason: t.reason ?? t.notes ?? '',
+          emotion: t.emotion ?? '',
+          result: t.result ?? '',
+          profit_loss: t.profit_loss ?? 0,
+          profit_loss_pct: t.profit_loss_pct ?? 0,
+          notes: t.notes ?? '',
+        })));
+      }
+      if (statsRes.status === 'fulfilled') {
+        const raw = statsRes.value.data.data;
+        // Normalize stats from backend structure
+        const s = raw?.summary ?? raw ?? {};
+        setStats({
+          total_trades: s.total_trades ?? raw?.total_trades ?? 0,
+          win_rate: s.win_rate ?? raw?.win_rate ?? 0,
+          avg_profit_pct: s.avg_profit_pct ?? raw?.avg_profit_pct ?? 0,
+          avg_loss_pct: s.avg_loss_pct ?? raw?.avg_loss_pct ?? 0,
+          total_profit_loss: s.total_realized_pnl ?? raw?.total_realized_pnl ?? s.total_profit_loss ?? 0,
+          best_trade: raw?.best_trade ?? raw?.top_performers?.[0] ?? null,
+          worst_trade: raw?.worst_trade ?? raw?.bottom_performers?.[0] ?? null,
+          avg_holding_days: s.avg_holding_days ?? raw?.avg_holding_days ?? 0,
+          profit_factor: s.profit_factor ?? raw?.profit_factor ?? 0,
+        });
+      }
+      if (calRes.status === 'fulfilled') {
+        const cd = calRes.value.data.data;
+        setCalendarDays(Array.isArray(cd) ? cd : (cd?.daily ?? []));
+      }
     } catch {
       setError('加载数据失败');
     } finally {

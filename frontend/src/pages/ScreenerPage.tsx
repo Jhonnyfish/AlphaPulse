@@ -393,7 +393,7 @@ export default function ScreenerPage() {
             </div>
             <div style={{ height: 260 }}>
               {industryPieOption && (
-                <EChart option={industryPieOption} style={{ height: '100%', width: '100%' }} />
+                <EChart option={industryPieOption} height="100%" />
               )}
             </div>
           </div>
@@ -415,7 +415,7 @@ export default function ScreenerPage() {
             </div>
             <div style={{ height: 260 }}>
               {scoreBarOption && (
-                <EChart option={scoreBarOption} style={{ height: '100%', width: '100%' }} />
+                <EChart option={scoreBarOption} height="100%" />
               )}
             </div>
           </div>

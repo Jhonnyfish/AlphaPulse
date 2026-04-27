@@ -15,6 +15,7 @@ import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import StockSearch from '@/components/StockSearch';
 import Alpha300Selector from '@/components/Alpha300Selector';
 import ErrorState from '@/components/ErrorState';
+import DegradedBanner from '@/components/DegradedBanner';
 import { calcMA, calcMACD, calcKDJ, calcRSI } from '@/lib/indicators';
 
 /* ── Constants ──────────────────────────────────────────────────── */
@@ -68,7 +69,8 @@ export default function KlinePage() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
+  const [degraded, setDegraded] = useState(false);
+  const [degradedMsg, setDegradedMsg] = useState<string | undefined>();
   // Indicator toggles
   const [showMA, setShowMA] = useState(false);
   const [activeSub, setActiveSub] = useState<SubIndicator | null>(null);
@@ -95,7 +97,18 @@ export default function KlinePage() {
         marketApi.quote(stockCode),
       ]);
 
-      const points: KlinePoint[] = klineRes.data;
+      const rawBody = klineRes.data as unknown;
+      let points: KlinePoint[];
+      if (rawBody && typeof rawBody === 'object' && !Array.isArray(rawBody) && 'degraded' in rawBody) {
+        const d = rawBody as { degraded: boolean; klines?: KlinePoint[]; message?: string };
+        setDegraded(!!d.degraded);
+        setDegradedMsg(d.message);
+        points = d.klines ?? [];
+      } else {
+        setDegraded(false);
+        setDegradedMsg(undefined);
+        points = rawBody as KlinePoint[];
+      }
       klinePointsRef.current = points;
       setQuote(quoteRes.data);
 
@@ -234,7 +247,7 @@ export default function KlinePage() {
 
   /* ── Sub-chart ECharts options ───────────────────────────────── */
 
-  const subChartOption = useMemo<EChartsOption | null>(() => {
+  const subChartOption = useMemo<any | null>(() => {
     if (!activeSub) return null;
 
     const points = klinePointsRef.current;
@@ -507,6 +520,8 @@ export default function KlinePage() {
     <div>
       <h1 className="text-xl font-bold mb-6">K线图</h1>
 
+      <DegradedBanner visible={degraded} message={degradedMsg} />
+
       {/* Search with autocomplete */}
       <div className="flex gap-2 mb-4">
         <div className="flex-1 max-w-sm flex items-center gap-2">
@@ -624,8 +639,12 @@ export default function KlinePage() {
 
       {/* Loading state */}
       {loading && (
-        <div className="text-center py-20" style={{ color: 'var(--color-text-muted)' }}>
-          加载K线数据...
+        <div className="rounded-xl p-6 space-y-4" style={{ background: 'var(--color-bg-secondary)' }}>
+          <div className="flex items-center justify-between">
+            <div className="w-32 h-6 rounded animate-pulse" style={{ background: 'rgba(148,163,184,0.15)' }} />
+            <div className="w-20 h-4 rounded animate-pulse" style={{ background: 'rgba(148,163,184,0.1)' }} />
+          </div>
+          <div className="w-full rounded-lg animate-pulse" style={{ height: 400, background: 'rgba(148,163,184,0.08)' }} />
         </div>
       )}
 

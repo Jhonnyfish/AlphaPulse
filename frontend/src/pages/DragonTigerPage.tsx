@@ -40,7 +40,7 @@ export default function DragonTigerPage() {
     setError('');
     try {
       const res = await dragonTigerApi.list(d);
-      const r = res.data;
+      const r = res.data as any;
       setItems(Array.isArray(r) ? r : Array.isArray(r.items) ? r.items : []);
     } catch {
       setError('加载龙虎榜数据失败');

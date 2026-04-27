@@ -123,7 +123,7 @@ func (h *CompareHandler) SectorCompare(c *gin.Context) {
 // @Tags         compare
 // @Accept       json
 // @Produce      json
-// @Param        codes  query    string  true  "Comma-separated stock codes (2-5), e.g. 600176,000001"
+// @Param        codes  query    string  true  "Comma-separated stock codes (1-5), e.g. 600176,000001"
 // @Param        days   query    int     false "Backtest period in days (10-240, default 30)"
 // @Success      200    {object}  map[string]interface{}
 // @Router       /api/compare/backtest [get]
@@ -151,8 +151,8 @@ func (h *CompareHandler) BacktestCompare(c *gin.Context) {
 		}
 	}
 
-	if len(uniqueCodes) < 2 || len(uniqueCodes) > 5 {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "请输入2-5只股票代码"})
+	if len(uniqueCodes) < 1 || len(uniqueCodes) > 5 {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "请输入1-5只股票代码"})
 		return
 	}
 
@@ -204,9 +204,14 @@ func (h *CompareHandler) BacktestCompare(c *gin.Context) {
 			last := equity[len(equity)-1]
 			equity = append(equity, last*(1+t.ReturnPct/100))
 		}
+		// Fetch stock name
+		stockName := bt.Code
+		if quote, err := h.tencent.FetchQuote(ctx, bt.Code); err == nil && quote.Name != "" {
+			stockName = quote.Name
+		}
 		comparison = append(comparison, compareItem{
 			Code:         bt.Code,
-			Name:         bt.Code, // Use code as name fallback
+			Name:         stockName,
 			SignalCount:  bt.SignalCount,
 			WinRate:      bt.WinRate,
 			AvgReturnPct: bt.AvgReturnPct,

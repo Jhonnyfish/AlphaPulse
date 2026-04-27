@@ -154,21 +154,129 @@ func (s *EastMoneyService) FetchKline(ctx context.Context, code string, days int
 			Klines []string `json:"klines"`
 		} `json:"data"`
 	}
-	if err := s.getJSON(ctx, "https://push2his.eastmoney.com/api/qt/stock/kline/get", params, &response); err != nil {
-		return nil, err
+	err := s.getJSON(ctx, "https://push2his.eastmoney.com/api/qt/stock/kline/get", params, &response)
+
+	points := make([]models.KlinePoint, 0, days)
+	if err == nil {
+		for _, line := range response.Data.Klines {
+			parts := strings.Split(line, ",")
+			if len(parts) < 7 {
+				continue
+			}
+			point, pErr := parseKlinePoint(parts)
+			if pErr != nil {
+				continue
+			}
+			if vErr := point.Validate(); vErr != nil {
+				continue
+			}
+			points = append(points, point)
+		}
 	}
 
-	points := make([]models.KlinePoint, 0, len(response.Data.Klines))
-	for _, line := range response.Data.Klines {
-		parts := strings.Split(line, ",")
-		if len(parts) < 7 {
-			continue
+	// Fallback to Sina Finance API if EastMoney returned empty or errored
+	if len(points) == 0 {
+		sinaPoints, sinaErr := s.fetchKlineFromSina(ctx, code, days, 240)
+		if sinaErr == nil && len(sinaPoints) > 0 {
+			return sinaPoints, nil
 		}
-		point, err := parseKlinePoint(parts)
+		// If Sina also failed, return the original EastMoney error (if any)
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("kline data unavailable for %s", code)
+	}
+
+	return points, nil
+}
+
+// sinaSymbol converts a stock code to Sina Finance symbol format.
+// Shanghai: "sh" prefix, Shenzhen: "sz" prefix.
+func sinaSymbol(code string) string {
+	if IsShanghai(code) {
+		return "sh" + code
+	}
+	return "sz" + code
+}
+
+// fetchKlineFromSina fetches kline data from Sina Finance API.
+// scale: 5=5min, 15=15min, 30=30min, 60=60min, 240=daily, 1200=weekly, 7200=monthly
+func (s *EastMoneyService) fetchKlineFromSina(ctx context.Context, code string, days int, scale int) ([]models.KlinePoint, error) {
+	symbol := sinaSymbol(code)
+	sinaURL := fmt.Sprintf(
+		"https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?symbol=%s&scale=%d&ma=no&datalen=%d",
+		symbol, scale, days,
+	)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sinaURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("sina kline request: %w", err)
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+	req.Header.Set("Referer", "https://finance.sina.com.cn/")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("sina kline fetch: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("sina kline read: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("sina kline status %d", resp.StatusCode)
+	}
+
+	// Sina returns JSON array directly
+	var sinaData []struct {
+		Day    string `json:"day"`
+		Open   string `json:"open"`
+		High   string `json:"high"`
+		Low    string `json:"low"`
+		Close  string `json:"close"`
+		Volume string `json:"volume"`
+	}
+
+	if err := json.Unmarshal(body, &sinaData); err != nil {
+		return nil, fmt.Errorf("sina kline parse: %w", err)
+	}
+
+	points := make([]models.KlinePoint, 0, len(sinaData))
+	for _, item := range sinaData {
+		open, err := strconv.ParseFloat(item.Open, 64)
 		if err != nil {
 			continue
 		}
-		if err := point.Validate(); err != nil {
+		high, err := strconv.ParseFloat(item.High, 64)
+		if err != nil {
+			continue
+		}
+		low, err := strconv.ParseFloat(item.Low, 64)
+		if err != nil {
+			continue
+		}
+		closePrice, err := strconv.ParseFloat(item.Close, 64)
+		if err != nil {
+			continue
+		}
+		volume, err := strconv.ParseFloat(item.Volume, 64)
+		if err != nil {
+			continue
+		}
+
+		point := models.KlinePoint{
+			Date:   item.Day,
+			Open:   open,
+			Close:  closePrice,
+			High:   high,
+			Low:    low,
+			Volume: volume,
+			Amount: 0, // Sina API doesn't provide amount
+		}
+		if vErr := point.Validate(); vErr != nil {
 			continue
 		}
 		points = append(points, point)
@@ -343,7 +451,18 @@ func (s *EastMoneyService) FetchMoneyFlow(ctx context.Context, code string, days
 		} `json:"data"`
 	}
 	if err := s.getJSON(ctx, "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get", params, &response); err != nil {
-		return nil, err
+		// Fallback: try push2.eastmoney.com instead of push2his.eastmoney.com
+		if fbErr := s.getJSON(ctx, "https://push2.eastmoney.com/api/qt/stock/fflow/daykline/get", params, &response); fbErr != nil {
+			// Both endpoints unreachable — graceful degradation
+			return []models.MoneyFlowDay{}, nil
+		}
+	}
+
+	// Fallback if primary returned empty
+	if len(response.Data.Klines) == 0 {
+		if fbErr := s.getJSON(ctx, "https://push2.eastmoney.com/api/qt/stock/fflow/daykline/get", params, &response); fbErr != nil || len(response.Data.Klines) == 0 {
+			return []models.MoneyFlowDay{}, nil
+		}
 	}
 
 	flows := make([]models.MoneyFlowDay, 0, len(response.Data.Klines))

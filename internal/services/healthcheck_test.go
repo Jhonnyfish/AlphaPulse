@@ -9,15 +9,7 @@ import (
 )
 
 func TestEastMoneyHealthCheckOK(t *testing.T) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"data":{"diff":[{"f12":"000001"}]}}`))
-	}))
-	defer mockServer.Close()
-
-	svc := &EastMoneyService{
-		client: &http.Client{Timeout: 5 * time.Second},
-	}
+	svc := NewEastMoneyService(5 * time.Second)
 
 	// We can't easily redirect the health check to mock server since URLs are hardcoded.
 	// But we can test with a real request (short timeout) or skip.
@@ -58,10 +50,7 @@ func TestEastMoneyHealthCheckMock(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	// We test the error path directly
-	svc := &EastMoneyService{
-		client: mockServer.Client(),
-	}
+	svc := NewEastMoneyService(1 * time.Second)
 
 	// The actual URL is hardcoded, so we test the pattern:
 	// HealthCheck should return error on non-200 status

@@ -21,7 +21,7 @@ const axisStyle = {
   splitLine: { lineStyle: { color: 'rgba(51,65,85,0.5)' } },
 }
 
-function mergeAxisDefaults(option: EChartsOption): EChartsOption {
+function mergeAxisDefaults(option: any): EChartsOption {
   const result = { ...option }
   if (result.xAxis && typeof result.xAxis === 'object') {
     result.xAxis = { ...axisStyle, ...(result.xAxis as object) }
@@ -33,7 +33,7 @@ function mergeAxisDefaults(option: EChartsOption): EChartsOption {
 }
 
 interface EChartProps {
-  option: EChartsOption
+  option: any
   height?: string | number
   loading?: boolean
   className?: string

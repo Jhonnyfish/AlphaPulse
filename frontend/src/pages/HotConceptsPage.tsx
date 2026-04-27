@@ -36,7 +36,7 @@ export default function HotConceptsPage() {
     setError('');
     try {
       const res = await hotConceptsApi.list();
-      const d = res.data;
+      const d = res.data as any;
       setConcepts(Array.isArray(d) ? d : Array.isArray(d.concepts) ? d.concepts : []);
     } catch {
       setError('加载热门概念失败');
@@ -85,7 +85,7 @@ export default function HotConceptsPage() {
   const changeColor = (n: number) =>
     n > 0 ? 'var(--color-danger)' : n < 0 ? 'var(--color-success)' : 'var(--color-text-secondary)';
 
-  const sorted = [...concepts].sort((a, b) => b.change_pct - a.change_pct);
+  const sorted = [...concepts].sort((a, b) => (b.change_pct ?? 0) - (a.change_pct ?? 0));
 
   // ── Mock trend data for top concepts ──────────────────────
   const trendColors = [
@@ -123,7 +123,7 @@ export default function HotConceptsPage() {
         for (let i = 0; i < dates.length; i++) {
           const drift =
             i === dates.length - 1
-              ? concept.change_pct * 0.5
+              ? (concept.change_pct ?? 0) * 0.5
               : (Math.random() - 0.48) * volatility;
           current = Math.max(0, Math.min(100, current + drift));
           values.push(Math.round(current * 10) / 10);
@@ -249,7 +249,7 @@ export default function HotConceptsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
           {sorted.map((concept) => {
             const isExpanded = expandedCode === concept.code;
-            const pct = concept.change_pct;
+            const pct = concept.change_pct ?? 0;
             const Icon = pct > 0 ? TrendingUp : pct < 0 ? TrendingDown : Flame;
 
             return (
@@ -265,7 +265,7 @@ export default function HotConceptsPage() {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <Icon className="w-4 h-4" style={{ color: changeColor(pct) }} />
+                      <Icon className="w-4 h-4" style={{ color: changeColor(pct ?? 0) }} />
                       <span className="font-medium text-sm">{concept.name}</span>
                     </div>
                     {isExpanded ? (
@@ -277,9 +277,9 @@ export default function HotConceptsPage() {
                   <div className="flex items-center justify-between">
                     <span
                       className="font-mono text-sm font-bold"
-                      style={{ color: changeColor(pct) }}
+                      style={{ color: changeColor(pct ?? 0) }}
                     >
-                      {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
+                      {pct >= 0 ? '+' : ''}{(pct ?? 0).toFixed(2)}%
                     </span>
                     <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                       {(concept.rise_count + concept.fall_count)} 只股票
@@ -294,8 +294,8 @@ export default function HotConceptsPage() {
                     >
                       <Star className="w-3 h-3" style={{ color: 'var(--color-accent)' }} />
                       <span>龙头: {concept.leader_stock.name}</span>
-                      <span className="font-mono" style={{ color: changeColor(concept.leader_stock.change_pct) }}>
-                        {concept.leader_stock.change_pct >= 0 ? '+' : ''}{concept.leader_stock.change_pct.toFixed(2)}%
+                      <span className="font-mono" style={{ color: changeColor(concept.leader_stock.change_pct ?? 0) }}>
+                        {concept.leader_stock.change_pct >= 0 ? '+' : ''}{(concept.leader_stock.change_pct ?? 0).toFixed(2)}%
                       </span>
                     </div>
                   )}
@@ -331,14 +331,14 @@ export default function HotConceptsPage() {
                             <div className="flex items-center gap-3 flex-shrink-0">
                               {stock.price > 0 && (
                                 <span className="text-xs font-mono" style={{ color: 'var(--color-text-secondary)' }}>
-                                  {stock.price.toFixed(2)}
+                                  {(stock.price ?? 0).toFixed(2)}
                                 </span>
                               )}
                               <span
                                 className="text-xs font-mono font-medium"
-                                style={{ color: changeColor(stock.change_pct) }}
+                                style={{ color: changeColor(stock.change_pct ?? 0) }}
                               >
-                                {stock.change_pct >= 0 ? '+' : ''}{stock.change_pct.toFixed(2)}%
+                                {stock.change_pct >= 0 ? '+' : ''}{(stock.change_pct ?? 0).toFixed(2)}%
                               </span>
                             </div>
                           </div>

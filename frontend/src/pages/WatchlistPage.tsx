@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useView } from '@/lib/ViewContext';
 import {
   DndContext,
   closestCenter,
@@ -54,7 +55,7 @@ function getChangeColor(pct: number): ChangeStyle {
 }
 
 // Legacy helper kept for simple inline usage (returns color string only)
-const changeColor = (n: number): string => getChangeColor(n).color;
+const _changeColor = (n: number): string => getChangeColor(n).color;
 
 // Sparkline line color: red for up, green for down (红涨绿跌)
 const sparklineColor = (pct: number): string => getChangeColor(pct).color;
@@ -138,6 +139,7 @@ interface SortableRowProps {
 
 // ─── Sortable Desktop Table Row ───────────────────────────────────────────
 function SortableDesktopRow({ item, quote, sparkData, pct, overId, onRemove, editMode, selected, onToggleSelect, tags }: SortableRowProps) {
+  const { navigate } = useView();
   const {
     attributes,
     listeners,
@@ -195,7 +197,7 @@ function SortableDesktopRow({ item, quote, sparkData, pct, overId, onRemove, edi
         </button>
       </td>
       <td className="px-4 py-3 font-mono">
-        <button onClick={() => onNavigateKline(item.code)} className="hover:underline" style={{ color: 'var(--color-accent)' }}>
+        <button onClick={() => navigate("kline", { code: item.code })} className="hover:underline" style={{ color: 'var(--color-accent)' }}>
           {item.code}
         </button>
       </td>
@@ -244,6 +246,7 @@ function SortableDesktopRow({ item, quote, sparkData, pct, overId, onRemove, edi
 
 // ─── Sortable Mobile Card ────────────────────────────────────────────────
 function SortableMobileCard({ item, quote, sparkData, pct, overId, onRemove, editMode, selected, onToggleSelect, tags }: SortableRowProps) {
+  const { navigate } = useView();
   const {
     attributes,
     listeners,
@@ -293,7 +296,7 @@ function SortableMobileCard({ item, quote, sparkData, pct, overId, onRemove, edi
         <GripVertical className="w-4 h-4" />
       </button>
       <div className="flex-1 min-w-0">
-        <button onClick={() => onNavigateKline(item.code)} className="font-mono text-sm" style={{ color: 'var(--color-accent)' }}>
+        <button onClick={() => navigate("kline", { code: item.code })} className="font-mono text-sm" style={{ color: 'var(--color-accent)' }}>
           {item.code}
         </button>
         <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
@@ -360,7 +363,7 @@ export default function WatchlistPage() {
   const [itemTags, setItemTags] = useState<Map<string, string[]>>(new Map());
 
   // ─── DnD state ─────────────────────────────────────────────────────────
-  const [activeId, _setActiveId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [useManualOrder, setUseManualOrder] = useState(false);
   const [alpha300Open, setAlpha300Open] = useState(false);

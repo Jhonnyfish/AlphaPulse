@@ -29,7 +29,9 @@ export default function StrategiesPage() {
     setError('');
     try {
       const res = await strategiesApi.list();
-      setStrategies(res.data ?? []);
+      const payload = res.data;
+      const list = Array.isArray(payload) ? payload : (payload?.strategies ?? []);
+      setStrategies(list);
     } catch {
       setError('加载策略列表失败');
     } finally {

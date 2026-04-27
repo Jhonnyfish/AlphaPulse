@@ -62,7 +62,7 @@ export default function WatchlistAnalysisPage() {
     try {
       const res = await watchlistAnalysisApi.ranking();
       const d = res.data;
-      setRanking(Array.isArray(d) ? d : Array.isArray(d.items) ? d.items : Array.isArray(d.data) ? d.data : []);
+      setRanking(Array.isArray(d) ? d : Array.isArray(d) ? d : []);
     } catch {
       setError('加载排名失败');
     } finally {
@@ -76,7 +76,7 @@ export default function WatchlistAnalysisPage() {
     try {
       const res = await watchlistAnalysisApi.groups();
       const d = res.data;
-      setGroups(Array.isArray(d) ? d : Array.isArray(d.groups) ? d.groups : d.data && Array.isArray(d.data.groups) ? d.data.groups : []);
+      setGroups(Array.isArray(d) ? d : Array.isArray(d) ? d : []);
     } catch {
       setError('加载分组失败');
     } finally {
@@ -194,7 +194,11 @@ export default function WatchlistAnalysisPage() {
       {tab === '热力图' && (
         <div className="bg-gray-800 rounded-xl p-4">
           {loading ? (
-            <div className="text-center text-gray-400 py-12">加载中...</div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="bg-gray-700/50 rounded-lg p-3 h-20 animate-pulse" />
+              ))}
+            </div>
           ) : heatmap.length === 0 ? (
             <div className="text-center text-gray-400 py-12">暂无自选股数据</div>
           ) : (
@@ -212,7 +216,7 @@ export default function WatchlistAnalysisPage() {
                     key={item.code}
                     className="rounded-lg p-3 text-center cursor-pointer hover:ring-1 hover:ring-gray-500 transition"
                     style={{ backgroundColor: bg }}
-                    title={`${item.name} (${item.code})\n涨跌: ${item.change_pct.toFixed(2)}%\n成交量: ${item.volume.toLocaleString()}\n板块: ${item.sector}`}
+                    title={`${item.name} (${item.code})\n涨跌: ${(item.change_pct ?? 0).toFixed(2)}%\n成交量: ${(item.volume ?? 0).toLocaleString()}\n板块: ${item.sector}`}
                   >
                     <div className="text-sm font-medium text-gray-100 truncate">{item.name}</div>
                     <div className="text-xs text-gray-300 mt-0.5">{item.code}</div>
@@ -221,7 +225,7 @@ export default function WatchlistAnalysisPage() {
                       style={{ color: changeColor(item.change_pct) }}
                     >
                       {item.change_pct > 0 ? '+' : ''}
-                      {item.change_pct.toFixed(2)}%
+                      {(item.change_pct ?? 0).toFixed(2)}%
                     </div>
                   </div>
                 );
@@ -235,7 +239,15 @@ export default function WatchlistAnalysisPage() {
       {tab === '板块分布' && (
         <div className="bg-gray-800 rounded-xl p-4">
           {loading ? (
-            <div className="text-center text-gray-400 py-12">加载中...</div>
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-28 h-4 bg-gray-700/50 rounded animate-pulse" />
+                  <div className="flex-1 bg-gray-700/50 rounded-full h-5 animate-pulse" />
+                  <div className="w-16 h-4 bg-gray-700/50 rounded animate-pulse" />
+                </div>
+              ))}
+            </div>
           ) : sectorEntries.length === 0 ? (
             <div className="text-center text-gray-400 py-12">暂无板块数据</div>
           ) : (
@@ -268,7 +280,18 @@ export default function WatchlistAnalysisPage() {
       {tab === '排名' && (
         <div className="bg-gray-800 rounded-xl overflow-hidden">
           {loading ? (
-            <div className="text-center text-gray-400 py-12">加载中...</div>
+            <div className="space-y-2 p-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <div className="w-8 h-8 bg-gray-700/50 rounded-full animate-pulse" />
+                  <div className="w-16 h-4 bg-gray-700/50 rounded animate-pulse" />
+                  <div className="w-24 h-4 bg-gray-700/50 rounded animate-pulse" />
+                  <div className="flex-1" />
+                  <div className="w-12 h-4 bg-gray-700/50 rounded animate-pulse" />
+                  <div className="w-16 h-4 bg-gray-700/50 rounded animate-pulse" />
+                </div>
+              ))}
+            </div>
           ) : ranking.length === 0 ? (
             <div className="text-center text-gray-400 py-12">暂无排名数据</div>
           ) : (
@@ -309,7 +332,7 @@ export default function WatchlistAnalysisPage() {
                       style={{ color: changeColor(item.change_pct) }}
                     >
                       {item.change_pct > 0 ? '+' : ''}
-                      {item.change_pct.toFixed(2)}%
+                      {(item.change_pct ?? 0).toFixed(2)}%
                     </td>
                   </tr>
                 ))}
@@ -346,7 +369,16 @@ export default function WatchlistAnalysisPage() {
           {/* Groups list */}
           <div className="bg-gray-800 rounded-xl overflow-hidden">
             {loading ? (
-              <div className="text-center text-gray-400 py-12">加载中...</div>
+              <div className="space-y-2 p-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <div className="w-28 h-4 bg-gray-700/50 rounded animate-pulse" />
+                    <div className="flex-1" />
+                    <div className="w-8 h-4 bg-gray-700/50 rounded animate-pulse" />
+                    <div className="w-16 h-4 bg-gray-700/50 rounded animate-pulse" />
+                  </div>
+                ))}
+              </div>
             ) : groups.length === 0 ? (
               <div className="text-center text-gray-400 py-12">暂无分组</div>
             ) : (

@@ -63,7 +63,7 @@ export default function MultiTrendPage() {
       trigger: 'item' as const,
       formatter: (p: { data: [number, number, string, number] }) => {
         const [x, y, name, score] = p.data;
-        return `${name}<br/>涨跌幅: ${x.toFixed(2)}%<br/>趋势评分: ${score}`;
+        return `${name}<br/>涨跌幅: ${(x ?? 0).toFixed(2)}%<br/>趋势评分: ${score}`;
       },
     },
     grid: { left: '5%', right: '5%', bottom: '5%', top: '5%', containLabel: true },
@@ -165,11 +165,11 @@ export default function MultiTrendPage() {
                     <span className="text-xs ml-2 font-mono" style={{ color: 'var(--color-text-muted)' }}>{s.code}</span>
                   </div>
                   <span className="text-lg font-bold font-mono" style={{ color: s.change_pct > 0 ? 'var(--color-danger)' : s.change_pct < 0 ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
-                    {s.change_pct > 0 ? '+' : ''}{s.change_pct.toFixed(2)}%
+                    {s.change_pct > 0 ? '+' : ''}{(s.change_pct ?? 0).toFixed(2)}%
                   </span>
                 </div>
                 <div className="text-sm font-mono mb-3" style={{ color: 'var(--color-text-secondary)' }}>
-                  ¥{s.price.toFixed(2)}
+                  ¥{(s.price ?? 0).toFixed(2)}
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {[
@@ -191,10 +191,10 @@ export default function MultiTrendPage() {
                   <span className="text-sm font-bold font-mono">{s.trend_score}</span>
                 </div>
                 <div className="flex gap-2 mt-2 text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>
-                  <span>MA5:{s.ma5.toFixed(2)}</span>
-                  <span>MA10:{s.ma10.toFixed(2)}</span>
-                  <span>MA20:{s.ma20.toFixed(2)}</span>
-                  <span>MA60:{s.ma60.toFixed(2)}</span>
+                  <span>MA5:{(s.ma5 ?? 0).toFixed(2)}</span>
+                  <span>MA10:{(s.ma10 ?? 0).toFixed(2)}</span>
+                  <span>MA20:{(s.ma20 ?? 0).toFixed(2)}</span>
+                  <span>MA60:{(s.ma60 ?? 0).toFixed(2)}</span>
                 </div>
               </div>
             ))}

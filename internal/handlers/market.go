@@ -146,7 +146,18 @@ func (h *MarketHandler) Kline(c *gin.Context) {
 
 	points, err := h.eastMoney.FetchKline(c.Request.Context(), code, days)
 	if err != nil {
-		writeError(c, http.StatusInternalServerError, "KLINE_FETCH_FAILED", "failed to fetch kline data")
+		logger.L().Warn("failed to fetch kline, returning degraded response",
+			zap.String("code", code),
+			zap.Int("days", days),
+			zap.Error(err),
+		)
+		c.JSON(http.StatusOK, gin.H{
+			"code":     code,
+			"klines":   []models.KlinePoint{},
+			"days":     days,
+			"degraded": true,
+			"message":  "upstream data temporarily unavailable",
+		})
 		return
 	}
 	h.klineCache.Set(cacheKey, points, 30*time.Second)

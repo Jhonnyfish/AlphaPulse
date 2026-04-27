@@ -265,26 +265,26 @@ export default function ComparePage() {
                           className="px-4 py-2.5 font-mono text-right"
                           style={{ color: changeColor(m.change_pct) }}
                         >
-                          {m.change_pct >= 0 ? '+' : ''}
-                          {m.change_pct.toFixed(2)}%
+                          {(m.change_pct ?? 0) >= 0 ? '+' : ''}
+                          {(m.change_pct ?? 0).toFixed(2)}%
                         </td>
                         <td
                           className="px-4 py-2.5 font-mono text-right"
                           style={{ color: 'var(--color-text-secondary)' }}
                         >
-                          {m.pe.toFixed(2)}
+                          {(m.pe ?? 0).toFixed(2)}
                         </td>
                         <td
                           className="px-4 py-2.5 font-mono text-right"
                           style={{ color: 'var(--color-text-secondary)' }}
                         >
-                          {m.pb.toFixed(2)}
+                          {(m.pb ?? 0).toFixed(2)}
                         </td>
                         <td
                           className="px-4 py-2.5 font-mono text-right"
                           style={{ color: 'var(--color-text-secondary)' }}
                         >
-                          {(m.amount / 10000).toFixed(0)}
+                          {((m.amount ?? 0) / 10000).toFixed(0)}
                         </td>
                       </tr>
                     ))}
@@ -417,20 +417,20 @@ export default function ComparePage() {
                               : 'var(--color-success)',
                           }}
                         >
-                          {r.win_rate.toFixed(1)}%
+                          {(r.win_rate ?? 0).toFixed(1)}%
                         </td>
                         <td
                           className="px-4 py-2.5 font-mono text-right"
                           style={{ color: changeColor(r.avg_return_pct) }}
                         >
-                          {r.avg_return_pct >= 0 ? '+' : ''}
-                          {r.avg_return_pct.toFixed(2)}%
+                          {(r.avg_return_pct ?? 0) >= 0 ? '+' : ''}
+                          {(r.avg_return_pct ?? 0).toFixed(2)}%
                         </td>
                         <td
                           className="px-4 py-2.5 font-mono text-right"
                           style={{ color: 'var(--color-success)' }}
                         >
-                          -{r.max_drawdown_pct.toFixed(2)}%
+                          -{(r.max_drawdown_pct ?? 0).toFixed(2)}%
                         </td>
                       </tr>
                     ))}
@@ -447,7 +447,7 @@ export default function ComparePage() {
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {btResults
-                  .filter((r) => !r.error && r.equity_curve.length > 1)
+                  .filter((r) => !r.error && (r.equity_curve ?? []).length > 1)
                   .map((r) => (
                     <div
                       key={r.code}

@@ -154,7 +154,7 @@ function FactorRadar({ candidate }: { candidate: Candidate }) {
   const avgScore = values.reduce((a, b) => a + b, 0) / values.length;
   const fillColor = scoreToRadarColor(avgScore);
 
-  const option: EChartsOption = {
+  const option: any = {
     radar: {
       indicator: RADAR_DIMENSIONS.map(d => ({ name: d.label, max: 100 })),
       shape: 'polygon',
@@ -313,7 +313,7 @@ export default function CandidatesPage() {
     setError('');
     try {
       const res = await candidatesApi.list({ limit: 50 });
-      setData(res.data.data);
+      setData(res.data.data as any);
     } catch {
       setError('加载 Alpha300 排行榜失败');
     } finally {

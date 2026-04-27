@@ -53,7 +53,8 @@ export default function BacktestPage() {
     setResults([]);
     try {
       const res = await compareApi.backtestCompare(codeList.join(','), days);
-      setResults(res.data);
+      const raw = res.data as any;
+      setResults(raw?.results ?? (Array.isArray(raw) ? raw : []));
     } catch {
       setError('回测请求失败，请检查股票代码是否正确');
     } finally {
@@ -82,7 +83,7 @@ export default function BacktestPage() {
     const trades: (BacktestTrade & { code: string; name: string })[] = [];
     for (const r of results) {
       if (r.error) continue;
-      for (const t of r.trades) {
+      for (const t of (r.trades ?? [])) {
         trades.push({ ...t, code: r.code, name: r.name });
       }
     }
@@ -98,7 +99,7 @@ export default function BacktestPage() {
 
   // Build ECharts option for equity curves
   const equityChartOption = useMemo(() => {
-    const validResults = results.filter((r) => !r.error && r.equity_curve.length > 1);
+    const validResults = results.filter((r) => !r.error && (r.equity_curve ?? []).length > 1);
     if (validResults.length === 0) return null;
 
     const colors = ['#3b82f6', '#f59e0b', '#ef4444', '#22c55e', '#a855f7'];
@@ -118,7 +119,7 @@ export default function BacktestPage() {
       grid: { left: '3%', right: '4%', bottom: '3%', top: '40px', containLabel: true },
       xAxis: {
         type: 'category' as const,
-        data: Array.from({ length: Math.max(...validResults.map((r) => r.equity_curve.length)) }, (_, i) => `T${i}`),
+        data: Array.from({ length: Math.max(...validResults.map((r) => (r.equity_curve ?? []).length)) }, (_, i) => `T${i}`),
         axisLabel: { color: '#64748b', fontSize: 10 },
         axisLine: { lineStyle: { color: '#334155' } },
       },
@@ -130,7 +131,7 @@ export default function BacktestPage() {
       series: validResults.map((r, i) => ({
         name: r.name || r.code,
         type: 'line' as const,
-        data: r.equity_curve,
+        data: r.equity_curve ?? [],
         smooth: true,
         symbol: 'none',
         lineStyle: { width: 2, color: colors[i % colors.length] },
@@ -152,10 +153,10 @@ export default function BacktestPage() {
   const stats = useMemo(() => {
     const valid = results.filter((r) => !r.error);
     if (valid.length === 0) return null;
-    const avgWinRate = valid.reduce((s, r) => s + r.win_rate, 0) / valid.length;
-    const avgReturn = valid.reduce((s, r) => s + r.avg_return_pct, 0) / valid.length;
-    const maxDrawdown = Math.max(...valid.map((r) => r.max_drawdown_pct));
-    const totalSignals = valid.reduce((s, r) => s + r.signal_count, 0);
+    const avgWinRate = valid.reduce((s, r) => s + (r.win_rate ?? 0), 0) / valid.length;
+    const avgReturn = valid.reduce((s, r) => s + (r.avg_return_pct ?? 0), 0) / valid.length;
+    const maxDrawdown = Math.max(...valid.map((r) => r.max_drawdown_pct ?? 0));
+    const totalSignals = valid.reduce((s, r) => s + (r.signal_count ?? 0), 0);
     return { avgWinRate, avgReturn, maxDrawdown, totalSignals, count: valid.length };
   }, [results]);
 
@@ -319,13 +320,13 @@ export default function BacktestPage() {
                           {r.error ? '-' : r.signal_count}
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono" style={{ color: r.error ? 'var(--color-text-muted)' : changeColor(r.win_rate - 50) }}>
-                          {r.error ? '-' : `${r.win_rate.toFixed(1)}%`}
+                          {r.error ? '-' : `${(r.win_rate ?? 0).toFixed(1)}%`}
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono" style={{ color: r.error ? 'var(--color-text-muted)' : changeColor(r.avg_return_pct) }}>
-                          {r.error ? '-' : `${r.avg_return_pct >= 0 ? '+' : ''}${r.avg_return_pct.toFixed(2)}%`}
+                          {r.error ? '-' : `${(r.avg_return_pct ?? 0) >= 0 ? '+' : ''}${(r.avg_return_pct ?? 0).toFixed(2)}%`}
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono" style={{ color: 'var(--color-success)' }}>
-                          {r.error ? '-' : `-${r.max_drawdown_pct.toFixed(2)}%`}
+                          {r.error ? '-' : `-${(r.max_drawdown_pct ?? 0).toFixed(2)}%`}
                         </td>
                         <td className="px-4 py-2.5 text-right">
                           {r.error ? (
@@ -384,12 +385,12 @@ export default function BacktestPage() {
                           <span className="text-xs">{t.name}</span>
                           <span className="text-xs font-mono ml-1" style={{ color: 'var(--color-text-muted)' }}>{t.code}</span>
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-xs">{t.buy_price.toFixed(2)}</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs">{t.sell_price.toFixed(2)}</td>
+                        <td className="px-3 py-2 text-right font-mono text-xs">{(t.buy_price ?? 0).toFixed(2)}</td>
+                        <td className="px-3 py-2 text-right font-mono text-xs">{(t.sell_price ?? 0).toFixed(2)}</td>
                         <td className="px-3 py-2 text-right font-mono text-xs" style={{ color: 'var(--color-text-secondary)' }}>{t.holding_days}天</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs" style={{ color: 'var(--color-accent)' }}>{t.score.toFixed(0)}</td>
+                        <td className="px-3 py-2 text-right font-mono text-xs" style={{ color: 'var(--color-accent)' }}>{(t.score ?? 0).toFixed(0)}</td>
                         <td className="px-3 py-2 text-right font-mono text-xs" style={{ color: changeColor(t.return_pct) }}>
-                          {t.return_pct >= 0 ? '+' : ''}{t.return_pct.toFixed(2)}%
+                          {(t.return_pct ?? 0) >= 0 ? '+' : ''}{(t.return_pct ?? 0).toFixed(2)}%
                         </td>
                       </tr>
                     ))}
@@ -414,6 +415,11 @@ export default function BacktestPage() {
           <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>支持1-5只股票，基于8维评分策略的买卖信号模拟</p>
         </div>
       )}
+      <Alpha300Selector
+        open={alpha300Open}
+        onClose={() => setAlpha300Open(false)}
+        onSelect={(code: string) => setCodes((prev: string) => prev ? prev + "," + code : code)}
+      />
     </div>
   );
 }
@@ -509,7 +515,7 @@ function StockBacktestDetail({
   if (result.error) return null;
 
   // Build per-stock equity chart
-  const chartOption = result.equity_curve.length > 1
+  const chartOption = (result.equity_curve ?? []).length > 1
     ? {
         tooltip: {
           trigger: 'axis' as const,
@@ -520,7 +526,7 @@ function StockBacktestDetail({
         grid: { left: '3%', right: '4%', bottom: '3%', top: '10px', containLabel: true },
         xAxis: {
           type: 'category' as const,
-          data: result.equity_curve.map((_, i) => `T${i}`),
+          data: (result.equity_curve ?? []).map((_, i) => `T${i}`),
           axisLabel: { color: '#64748b', fontSize: 10 },
           axisLine: { lineStyle: { color: '#334155' } },
         },
@@ -531,7 +537,7 @@ function StockBacktestDetail({
         },
         series: [{
           type: 'line' as const,
-          data: result.equity_curve,
+          data: result.equity_curve ?? [],
           smooth: true,
           symbol: 'none',
           lineStyle: { width: 2, color: '#3b82f6' },
@@ -559,11 +565,11 @@ function StockBacktestDetail({
         </div>
         <div className="flex items-center gap-4 text-xs">
           <span style={{ color: 'var(--color-text-muted)' }}>
-            胜率 <span className="font-mono font-medium" style={{ color: changeColor(result.win_rate - 50) }}>{result.win_rate.toFixed(1)}%</span>
+            胜率 <span className="font-mono font-medium" style={{ color: changeColor((result.win_rate ?? 0) - 50) }}>{(result.win_rate ?? 0).toFixed(1)}%</span>
           </span>
           <span style={{ color: 'var(--color-text-muted)' }}>
             均收 <span className="font-mono font-medium" style={{ color: changeColor(result.avg_return_pct) }}>
-              {result.avg_return_pct >= 0 ? '+' : ''}{result.avg_return_pct.toFixed(2)}%
+              {(result.avg_return_pct ?? 0) >= 0 ? '+' : ''}{(result.avg_return_pct ?? 0).toFixed(2)}%
             </span>
           </span>
           <span style={{ color: 'var(--color-text-muted)' }}>
@@ -577,10 +583,10 @@ function StockBacktestDetail({
       )}
 
       {/* Trades for this stock */}
-      {result.trades.length > 0 && (
+      {(result.trades ?? []).length > 0 && (
         <div className="mt-3">
           <div className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>
-            交易明细（{result.trades.length}笔）
+            交易明细（{(result.trades ?? []).length}笔）
           </div>
           <div className="overflow-x-auto max-h-60 overflow-y-auto rounded-lg" style={{ border: '1px solid var(--color-border)' }}>
             <table className="w-full text-xs">
@@ -596,16 +602,16 @@ function StockBacktestDetail({
                 </tr>
               </thead>
               <tbody>
-                {result.trades.map((t, i) => (
+                {(result.trades ?? []).map((t, i) => (
                   <tr key={i} className="border-t hover:bg-[var(--color-bg-hover)] transition-colors" style={{ borderColor: 'var(--color-border)' }}>
                     <td className="px-3 py-1.5 font-mono">{t.signal_date}</td>
                     <td className="px-3 py-1.5 font-mono">{t.sell_date}</td>
-                    <td className="px-3 py-1.5 text-right font-mono">{t.buy_price.toFixed(2)}</td>
-                    <td className="px-3 py-1.5 text-right font-mono">{t.sell_price.toFixed(2)}</td>
+                    <td className="px-3 py-1.5 text-right font-mono">{(t.buy_price ?? 0).toFixed(2)}</td>
+                    <td className="px-3 py-1.5 text-right font-mono">{(t.sell_price ?? 0).toFixed(2)}</td>
                     <td className="px-3 py-1.5 text-right font-mono" style={{ color: 'var(--color-text-secondary)' }}>{t.holding_days}</td>
-                    <td className="px-3 py-1.5 text-right font-mono" style={{ color: 'var(--color-accent)' }}>{t.score.toFixed(0)}</td>
+                    <td className="px-3 py-1.5 text-right font-mono" style={{ color: 'var(--color-accent)' }}>{(t.score ?? 0).toFixed(0)}</td>
                     <td className="px-3 py-1.5 text-right font-mono" style={{ color: changeColor(t.return_pct) }}>
-                      {t.return_pct >= 0 ? '+' : ''}{t.return_pct.toFixed(2)}%
+                      {(t.return_pct ?? 0) >= 0 ? '+' : ''}{(t.return_pct ?? 0).toFixed(2)}%
                     </td>
                   </tr>
                 ))}
@@ -614,11 +620,6 @@ function StockBacktestDetail({
           </div>
         </div>
       )}
-      <Alpha300Selector
-        open={alpha300Open}
-        onClose={() => setAlpha300Open(false)}
-        onSelect={(code) => setCodes((prev) => prev ? prev + ',' + code : code)}
-      />
     </div>
   );
 }
