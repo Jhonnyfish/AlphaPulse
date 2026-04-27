@@ -229,7 +229,8 @@ export default function SignalsPage() {
     setError('');
     try {
       const res = await signalApi.calendar({ days: d });
-      setCalendar(res.data ?? []);
+      const data = res.data;
+      setCalendar(Array.isArray(data) ? data : []);
     } catch {
       setError('加载信号日历失败');
     } finally {
@@ -242,7 +243,7 @@ export default function SignalsPage() {
     setError('');
     try {
       const res = await signalApi.history({ days: d });
-      setHistory(res.data ?? []);
+      setHistory(res.data?.items ?? []);
     } catch {
       setError('加载信号历史失败');
     } finally {
@@ -255,7 +256,8 @@ export default function SignalsPage() {
     setError('');
     try {
       const res = await signalApi.anomalies(d);
-      setAnomalies(res.data ?? []);
+      const data = res.data;
+      setAnomalies(Array.isArray(data) ? data : (data as any)?.anomalies ?? []);
     } catch {
       setError('加载异常检测数据失败');
     } finally {
@@ -268,7 +270,8 @@ export default function SignalsPage() {
     setError('');
     try {
       const res = await alertsApi.list();
-      setAlerts(res.data ?? []);
+      const data = res.data;
+      setAlerts(Array.isArray(data) ? data : (data as any)?.alerts ?? []);
     } catch {
       setError('加载系统告警失败');
     } finally {

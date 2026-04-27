@@ -15,10 +15,12 @@ import {
 } from 'lucide-react';
 import EChart from '@/components/charts/EChart';
 import ErrorState from '@/components/ErrorState';
+import Alpha300Selector from '@/components/Alpha300Selector';
 
 type Tab = 'sector' | 'backtest';
 
 export default function ComparePage() {
+  const [alpha300Open, setAlpha300Open] = useState(false);
   const [tab, setTab] = useState<Tab>('sector');
 
   // Sector state
@@ -140,6 +142,10 @@ export default function ComparePage() {
                 color: 'var(--color-text-primary)',
               }}
             />
+            <button type="button" onClick={() => setAlpha300Open(true)}
+              className="px-2.5 py-2 rounded-lg text-sm shrink-0 transition-colors hover:bg-[var(--color-bg-hover)]"
+              style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+              title="从 Alpha300 选择">🎯</button>
             <button
               onClick={handleSectorSearch}
               disabled={sectorLoading}
@@ -306,6 +312,10 @@ export default function ComparePage() {
                 color: 'var(--color-text-primary)',
               }}
             />
+            <button type="button" onClick={() => setAlpha300Open(true)}
+              className="px-2.5 py-2 rounded-lg text-sm shrink-0 transition-colors hover:bg-[var(--color-bg-hover)]"
+              style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+              title="从 Alpha300 选择">🎯</button>
             <select
               value={btDays}
               onChange={(e) => setBtDays(Number(e.target.value))}
@@ -486,6 +496,17 @@ export default function ComparePage() {
           )}
         </div>
       )}
+      <Alpha300Selector
+        open={alpha300Open}
+        onClose={() => setAlpha300Open(false)}
+        onSelect={(code) => {
+          if (tab === 'sector') {
+            setSectorCode(code);
+          } else {
+            setBtCodes((prev) => prev ? prev + ',' + code : code);
+          }
+        }}
+      />
     </div>
   );
 }

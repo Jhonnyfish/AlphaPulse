@@ -6,6 +6,7 @@ import {
   BarChart3,
   Zap,
 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 interface StrategyItem {
   label: string;

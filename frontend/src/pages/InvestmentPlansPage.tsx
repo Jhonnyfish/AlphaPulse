@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { Target, RefreshCw, Plus, Trash2, X, TrendingUp, Shield, DollarSign } from 'lucide-react';
 import { useToast } from '@/lib/toast';
+import Alpha300Selector from '@/components/Alpha300Selector';
 
 interface InvestmentPlan {
   code: string;
@@ -25,6 +26,7 @@ export default function InvestmentPlansPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ code: '', name: '', target_price: 0, stop_loss: 0, buy_amount: 0, notes: '' });
   const { toast: showToast } = useToast();
+  const [alpha300Open, setAlpha300Open] = useState(false);
 
   const fetchPlans = () => {
     setLoading(true);
@@ -129,13 +131,19 @@ export default function InvestmentPlansPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
             <div>
               <label className="text-xs mb-1 block" style={{ color: 'var(--color-text-muted)' }}>股票代码</label>
-              <input
-                value={form.code}
-                onChange={(e) => setForm({ ...form, code: e.target.value })}
-                placeholder="如 sh600000"
-                className="w-full px-3 py-2 rounded-lg text-sm"
-                style={{ background: 'var(--color-bg-hover)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  value={form.code}
+                  onChange={(e) => setForm({ ...form, code: e.target.value })}
+                  placeholder="如 sh600000"
+                  className="flex-1 px-3 py-2 rounded-lg text-sm"
+                  style={{ background: 'var(--color-bg-hover)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}
+                />
+                <button type="button" onClick={() => setAlpha300Open(true)}
+                  className="px-2.5 py-2 rounded-lg text-sm shrink-0 transition-colors hover:bg-[var(--color-bg-hover)]"
+                  style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+                  title="从 Alpha300 选择">🎯</button>
+              </div>
             </div>
             <div>
               <label className="text-xs mb-1 block" style={{ color: 'var(--color-text-muted)' }}>名称</label>
@@ -253,6 +261,11 @@ export default function InvestmentPlansPage() {
           ))}
         </div>
       )}
+      <Alpha300Selector
+        open={alpha300Open}
+        onClose={() => setAlpha300Open(false)}
+        onSelect={(code) => setForm(prev => ({ ...prev, code }))}
+      />
     </div>
   );
 }

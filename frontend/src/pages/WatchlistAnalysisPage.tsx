@@ -47,7 +47,8 @@ export default function WatchlistAnalysisPage() {
     setError('');
     try {
       const res = await watchlistAnalysisApi.sectors();
-      setSectors(res.data && typeof res.data === 'object' ? res.data : {});
+      const d = res.data;
+      setSectors(d && typeof d === 'object' && 'sectors' in d ? d.sectors : d && typeof d === 'object' ? d : {});
     } catch {
       setError('加载板块分布失败');
     } finally {
@@ -60,7 +61,8 @@ export default function WatchlistAnalysisPage() {
     setError('');
     try {
       const res = await watchlistAnalysisApi.ranking();
-      setRanking(Array.isArray(res.data) ? res.data : []);
+      const d = res.data;
+      setRanking(Array.isArray(d) ? d : Array.isArray(d.items) ? d.items : Array.isArray(d.data) ? d.data : []);
     } catch {
       setError('加载排名失败');
     } finally {
@@ -73,7 +75,8 @@ export default function WatchlistAnalysisPage() {
     setError('');
     try {
       const res = await watchlistAnalysisApi.groups();
-      setGroups(Array.isArray(res.data) ? res.data : []);
+      const d = res.data;
+      setGroups(Array.isArray(d) ? d : Array.isArray(d.groups) ? d.groups : d.data && Array.isArray(d.data.groups) ? d.data.groups : []);
     } catch {
       setError('加载分组失败');
     } finally {

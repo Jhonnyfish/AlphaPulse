@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import ReactECharts from 'echarts-for-react';
+import { Heart, RefreshCw, ArrowUpCircle, ArrowDownCircle, Thermometer, TrendingUp } from 'lucide-react';
 
 interface SentimentData {
   ok: boolean;

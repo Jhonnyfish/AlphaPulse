@@ -40,7 +40,8 @@ export default function DragonTigerPage() {
     setError('');
     try {
       const res = await dragonTigerApi.list(d);
-      setItems(res.data);
+      const r = res.data;
+      setItems(Array.isArray(r) ? r : Array.isArray(r.items) ? r.items : []);
     } catch {
       setError('加载龙虎榜数据失败');
     } finally {
@@ -53,7 +54,7 @@ export default function DragonTigerPage() {
     try {
       const res = await dragonTigerApi.institutions(days);
       const data = res.data;
-      setInstitutions(Array.isArray(data) ? data : []);
+      setInstitutions(Array.isArray(data) ? data : Array.isArray(data.institutions) ? data.institutions : Array.isArray(data.data) ? data.data : []);
     } catch {
       // ignore — section will show empty
     } finally {
@@ -79,9 +80,9 @@ export default function DragonTigerPage() {
   };
 
   // Summary
-  const totalNet = items.reduce((s, i) => s + i.net_amount, 0);
-  const buyCount = items.filter((i) => i.net_amount > 0).length;
-  const sellCount = items.filter((i) => i.net_amount < 0).length;
+  const totalNet = items.reduce((s, i) => s + i.net_buy, 0);
+  const buyCount = items.filter((i) => i.net_buy > 0).length;
+  const sellCount = items.filter((i) => i.net_buy < 0).length;
 
   // Pie chart option
   const pieOption: EChartsOption = {
@@ -284,7 +285,7 @@ export default function DragonTigerPage() {
             <tbody>
               {items.map((item, idx) => (
                 <tr
-                  key={`${item.code}-${item.date}-${idx}`}
+                  key={`${item.code}-${item.trade_date}-${idx}`}
                   className="border-b transition-colors hover:opacity-90"
                   style={{ borderColor: 'var(--color-border)' }}
                 >
@@ -295,7 +296,7 @@ export default function DragonTigerPage() {
                     {item.name}
                   </td>
                   <td className="px-3 py-2.5 font-mono text-right" style={{ color: 'var(--color-text-primary)' }}>
-                    {item.close_price.toFixed(2)}
+                    {item.close.toFixed(2)}
                   </td>
                   <td className="px-3 py-2.5 font-mono text-right" style={{ color: changeColor(item.change_pct) }}>
                     {item.change_pct >= 0 ? '+' : ''}{item.change_pct.toFixed(2)}%
@@ -304,16 +305,16 @@ export default function DragonTigerPage() {
                     {item.reason || '-'}
                   </td>
                   <td className="px-3 py-2.5 font-mono text-right text-xs" style={{ color: 'var(--color-danger)' }}>
-                    {formatAmount(item.buy_amount)}
+                    {formatAmount(item.buy_total)}
                   </td>
                   <td className="px-3 py-2.5 font-mono text-right text-xs" style={{ color: 'var(--color-success)' }}>
-                    {formatAmount(item.sell_amount)}
+                    {formatAmount(item.sell_total)}
                   </td>
-                  <td className="px-3 py-2.5 font-mono text-right font-medium" style={{ color: changeColor(item.net_amount) }}>
-                    {formatAmount(item.net_amount)}
+                  <td className="px-3 py-2.5 font-mono text-right font-medium" style={{ color: changeColor(item.net_buy) }}>
+                    {formatAmount(item.net_buy)}
                   </td>
                   <td className="px-3 py-2.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                    {item.date}
+                    {item.trade_date}
                   </td>
                 </tr>
               ))}

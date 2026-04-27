@@ -11,9 +11,11 @@ import {
   Minus,
   BarChart3,
   RefreshCw,
+  Loader2,
 } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
 import StockSearch from '@/components/StockSearch';
+import Alpha300Selector from '@/components/Alpha300Selector';
 import { SortableHeader, TableToolbar, Pagination } from '@/components/table';
 import ErrorState from '@/components/ErrorState';
 import { useTableSort } from '@/hooks/useTableSort';
@@ -73,6 +75,7 @@ export default function MarketPage() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState('');
+  const [alpha300Open, setAlpha300Open] = useState(false);
 
   const handleSelect = useCallback(async (suggestion: SearchSuggestion) => {
     setQuoteLoading(true);
@@ -166,10 +169,27 @@ export default function MarketPage() {
         }}
       >
         <div className="mb-4 max-w-sm">
-          <StockSearch
-            onSelect={handleSelect}
-            placeholder="搜索股票代码或名称..."
-          />
+          <div className="flex items-center gap-2">
+            <StockSearch
+              onSelect={handleSelect}
+              placeholder="搜索股票代码或名称..."
+              className="flex-1"
+            />
+            <button
+              type="button"
+              onClick={() => setAlpha300Open(true)}
+              className="px-3 py-2 rounded-lg text-sm shrink-0 transition-colors hover:bg-[var(--color-bg-hover)]"
+              style={{
+                background: 'var(--color-bg-card)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text-secondary)',
+              }}
+              title="从 Alpha300 选择"
+              aria-label="从 Alpha300 选择"
+            >
+              🎯
+            </button>
+          </div>
         </div>
 
         {quoteLoading && (
@@ -296,6 +316,14 @@ export default function MarketPage() {
           </div>
         )}
       </div>
+
+      <Alpha300Selector
+        open={alpha300Open}
+        onClose={() => setAlpha300Open(false)}
+        onSelect={(selectedCode) => {
+          void handleSelect({ code: selectedCode, name: selectedCode });
+        }}
+      />
 
       {/* ─── Top Movers Data Table ────────────────────────── */}
       <div

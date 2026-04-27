@@ -30,4 +30,30 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('node_modules/')) {
+            // Core React runtime — loaded on every page
+            if (id.includes('/react/') || id.includes('/react-dom/')) {
+              return 'vendor';
+            }
+            // ECharts and wrapper — used by multiple chart-heavy pages
+            if (id.includes('/echarts/') || id.includes('/echarts-for-react/') || id.includes('/lightweight-charts/')) {
+              return 'charts';
+            }
+            // Animation library — used across many pages
+            if (id.includes('/framer-motion/')) {
+              return 'motion';
+            }
+            // Icon library — used by Layout and most pages
+            if (id.includes('/lucide-react/')) {
+              return 'icons';
+            }
+          }
+        },
+      },
+    },
+  },
 })

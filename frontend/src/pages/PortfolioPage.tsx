@@ -9,6 +9,7 @@ import ErrorState from '@/components/ErrorState';
 import EChart from '@/components/charts/EChart';
 import type { EChartsOption } from 'echarts';
 import { SkeletonInlineTable } from '@/components/ui/Skeleton';
+import Alpha300Selector from '@/components/Alpha300Selector';
 
 interface AddForm {
   code: string;
@@ -35,6 +36,7 @@ export default function PortfolioPage() {
   const [form, setForm] = useState<AddForm>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [alpha300Open, setAlpha300Open] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -45,9 +47,9 @@ export default function PortfolioPage() {
         portfolioApi.analytics(),
         portfolioApi.risk(),
       ]);
-      if (posRes.status === 'fulfilled') setPositions(posRes.value.data);
-      if (anaRes.status === 'fulfilled') setAnalytics(anaRes.value.data);
-      if (riskRes.status === 'fulfilled') setRisk(riskRes.value.data);
+      if (posRes.status === 'fulfilled') setPositions(posRes.value.data.data);
+      if (anaRes.status === 'fulfilled') setAnalytics(anaRes.value.data.data);
+      if (riskRes.status === 'fulfilled') setRisk(riskRes.value.data.data);
     } catch {
       setError('加载数据失败');
     } finally {
@@ -736,17 +738,23 @@ export default function PortfolioPage() {
             <div className="space-y-3">
               <div>
                 <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>股票代码</label>
-                <input
-                  value={form.code}
-                  onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
-                  placeholder="如 600519"
-                  className="w-full px-3 py-2 rounded-lg text-sm outline-none"
-                  style={{
-                    background: 'var(--color-bg-primary)',
-                    border: '1px solid var(--color-border)',
-                    color: 'var(--color-text-primary)',
-                  }}
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    value={form.code}
+                    onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+                    placeholder="如 600519"
+                    className="flex-1 px-3 py-2 rounded-lg text-sm outline-none"
+                    style={{
+                      background: 'var(--color-bg-primary)',
+                      border: '1px solid var(--color-border)',
+                      color: 'var(--color-text-primary)',
+                    }}
+                  />
+                  <button type="button" onClick={() => setAlpha300Open(true)}
+                    className="px-2.5 py-2 rounded-lg text-sm shrink-0 transition-colors hover:bg-[var(--color-bg-hover)]"
+                    style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+                    title="从 Alpha300 选择">🎯</button>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -816,6 +824,11 @@ export default function PortfolioPage() {
           </div>
         </div>
       )}
+      <Alpha300Selector
+        open={alpha300Open}
+        onClose={() => setAlpha300Open(false)}
+        onSelect={(code) => setForm((f) => ({ ...f, code }))}
+      />
     </div>
   );
 }

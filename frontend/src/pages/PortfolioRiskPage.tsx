@@ -24,7 +24,7 @@ export default function PortfolioRiskPage() {
     setError('');
     try {
       const res = await portfolioApi.risk();
-      setRisk(res.data);
+      setRisk(res.data.data);
     } catch {
       setError('加载风险数据失败');
     } finally {
@@ -137,14 +137,14 @@ export default function PortfolioRiskPage() {
     <div>
       {/* Back link */}
       <div className="flex items-center gap-2 mb-6">
-        <Link
-          to="/portfolio"
+        <button
+          onClick={() => navigate('portfolio')}
           className="flex items-center gap-1 text-sm hover:underline"
           style={{ color: 'var(--color-text-muted)' }}
         >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          返回组合
-        </Link>
+          <ArrowLeft className="w-4 h-4" />
+          返回持仓
+        </button>
       </div>
 
       {/* Header */}

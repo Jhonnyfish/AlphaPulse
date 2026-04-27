@@ -1,8 +1,78 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useView } from '@/lib/ViewContext';
 import { analyzeApi, type AnalyzeResult } from '@/lib/api';
+
+// Raw API response type (actual backend structure)
+interface RawAnalyzeResponse {
+  code: string;
+  name: string;
+  fetched_at: string;
+  quote: Record<string, unknown>;
+  order_flow: { verdict: string; [k: string]: unknown };
+  volume_price: { verdict: string; turnover_level?: string; [k: string]: unknown };
+  valuation: { verdict: string; pe_level?: string; pb_level?: string; [k: string]: unknown };
+  volatility: { verdict: string; amplitude_level?: string; [k: string]: unknown };
+  money_flow: { verdict: string; [k: string]: unknown };
+  technical: { verdict: string; [k: string]: unknown };
+  sector: { verdict: string; [k: string]: unknown };
+  sentiment: { verdict: string; sentiment_score?: number; [k: string]: unknown };
+  summary: {
+    overall_score: number;
+    overall_signal: string;
+    strengths: string[];
+    risks: string[];
+    suggestion: string;
+  };
+}
+
+function levelToScore(level: string | undefined): number {
+  if (!level) return 5;
+  const map: Record<string, number> = {
+    '偏低': 7, '低': 7, '低波动': 6,
+    '正常': 5, '中性': 5, '适中': 5,
+    '偏高': 3, '高': 3, '高波动': 4,
+    '强势': 8, '偏强': 7, '偏弱': 3, '弱势': 2,
+    '大盘股': 6, '中盘股': 5, '小盘股': 4,
+  };
+  return map[level] ?? 5;
+}
+
+function transformResponse(raw: RawAnalyzeResponse): AnalyzeResult {
+  const s = raw.summary;
+  const dims: { name: string; score: number; detail: string }[] = [
+    { name: 'order_flow',   score: levelToScore(raw.order_flow.net_direction as string),   detail: raw.order_flow.verdict },
+    { name: 'volume_price', score: levelToScore(raw.volume_price.turnover_level),          detail: raw.volume_price.verdict },
+    { name: 'valuation',    score: levelToScore(raw.valuation.pe_level),                   detail: raw.valuation.verdict },
+    { name: 'volatility',   score: levelToScore(raw.volatility.amplitude_level),           detail: raw.volatility.verdict },
+    { name: 'money_flow',   score: levelToScore(raw.money_flow.today_main_direction as string), detail: raw.money_flow.verdict },
+    { name: 'technical',    score: levelToScore(raw.technical.rsi_level as string),        detail: raw.technical.verdict },
+    { name: 'sector',       score: raw.sector.is_sector_leader ? 7 : 5,                   detail: raw.sector.verdict },
+    { name: 'sentiment',    score: Math.max(1, Math.min(10, ((s.strengths.length - s.risks.length) * 1.5) + 5)), detail: raw.sentiment.verdict },
+  ];
+
+  const parts: string[] = [s.suggestion];
+  if (s.strengths.length) parts.push(`优势: ${s.strengths.join('、')}`);
+  if (s.risks.length) parts.push(`风险: ${s.risks.join('、')}`);
+
+  // Detect staleness: if fetched_at date differs from today
+  const fetchedDate = raw.fetched_at ? raw.fetched_at.slice(0, 10) : '';
+  const today = new Date().toISOString().slice(0, 10);
+  const dataStale = fetchedDate !== today && fetchedDate !== '';
+
+  return {
+    code: raw.code,
+    name: raw.name,
+    score: s.overall_score / 10,
+    dimensions: dims,
+    recommendation: s.overall_signal,
+    summary: parts.join('。'),
+    fetched_at: raw.fetched_at,
+    data_stale: dataStale,
+  };
+}
 import EChart from '@/components/charts/EChart';
 import StockSearch from '@/components/StockSearch';
+import Alpha300Selector from '@/components/Alpha300Selector';
 import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import { Search, TrendingUp, TrendingDown, Star, Activity, BarChart3, Shield, Zap, AlertCircle, RefreshCw } from 'lucide-react';
 
@@ -49,6 +119,7 @@ export default function AnalyzePage() {
   const [data, setData] = useState<AnalyzeResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [alpha300Open, setAlpha300Open] = useState(false);
 
   const fetchAnalysis = useCallback(async (stockCode: string) => {
     setLoading(true);
@@ -56,7 +127,7 @@ export default function AnalyzePage() {
     setData(null);
     try {
       const res = await analyzeApi.analyze(stockCode);
-      setData(res.data);
+      setData(transformResponse(res.data as unknown as RawAnalyzeResponse));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '分析失败，请稍后重试';
       setError(msg);
@@ -88,8 +159,29 @@ export default function AnalyzePage() {
           <p className="text-sm text-center" style={{ color: 'var(--color-text-secondary)' }}>
             输入股票代码或名称，获取多维度综合评分与雷达图分析
           </p>
-          <StockSearch onSelect={handleSelect} autoFocus className="w-full" />
+          <div className="flex items-center gap-2 w-full">
+            <StockSearch onSelect={handleSelect} autoFocus className="flex-1" />
+            <button
+              type="button"
+              onClick={() => setAlpha300Open(true)}
+              className="px-3 py-2 rounded-lg text-sm shrink-0 transition-colors hover:bg-[var(--color-bg-hover)]"
+              style={{
+                background: 'var(--color-bg-card)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text-secondary)',
+              }}
+              title="从 Alpha300 选择"
+              aria-label="从 Alpha300 选择"
+            >
+              🎯
+            </button>
+          </div>
         </div>
+        <Alpha300Selector
+          open={alpha300Open}
+          onClose={() => setAlpha300Open(false)}
+          onSelect={(selectedCode) => navigate('analyze', { code: selectedCode })}
+        />
       </div>
     );
   }
@@ -98,7 +190,23 @@ export default function AnalyzePage() {
     <div className="space-y-4 max-w-7xl mx-auto">
       {/* Search bar */}
       <div className="flex items-center gap-4">
-        <StockSearch onSelect={handleSelect} className="w-72" placeholder="切换股票..." />
+        <div className="flex items-center gap-2 w-72">
+          <StockSearch onSelect={handleSelect} className="flex-1" placeholder="切换股票..." />
+          <button
+            type="button"
+            onClick={() => setAlpha300Open(true)}
+            className="px-3 py-2 rounded-lg text-sm shrink-0 transition-colors hover:bg-[var(--color-bg-hover)]"
+            style={{
+              background: 'var(--color-bg-card)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-text-secondary)',
+            }}
+            title="从 Alpha300 选择"
+            aria-label="从 Alpha300 选择"
+          >
+            🎯
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -139,6 +247,19 @@ export default function AnalyzePage() {
 
       {data && !loading && (
         <>
+          {/* Staleness warning */}
+          {data.data_stale && data.fetched_at && (
+            <div
+              className="glass-panel px-4 py-2.5 flex items-center gap-2 text-xs"
+              style={{ background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.2)' }}
+            >
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" style={{ color: '#f59e0b' }} />
+              <span style={{ color: '#f59e0b' }}>
+                数据截至 {data.fetched_at.slice(0, 10)}，非今日实时数据，仅供参考
+              </span>
+            </div>
+          )}
+
           {/* Header */}
           <div className="glass-panel p-5 flex items-center gap-4">
             <div className="flex-1">
@@ -153,6 +274,11 @@ export default function AnalyzePage() {
               </div>
               <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                 综合评分 · {scoreLabel(data.score)}
+                {data.fetched_at && (
+                  <span className="ml-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                    数据 {data.fetched_at.slice(0, 10)}
+                  </span>
+                )}
               </p>
             </div>
             <div className="text-right">
@@ -203,6 +329,12 @@ export default function AnalyzePage() {
           </div>
         </>
       )}
+
+      <Alpha300Selector
+        open={alpha300Open}
+        onClose={() => setAlpha300Open(false)}
+        onSelect={(selectedCode) => navigate('analyze', { code: selectedCode })}
+      />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useToast } from '@/lib/toast'
 import EChart from '@/components/charts/EChart'
 import { Skeleton, SkeletonCard, SkeletonTable } from '@/components/ui/Skeleton'
 import { ArrowUpRight, ArrowDownRight, Droplets, Filter, Search } from 'lucide-react'
+import Alpha300Selector from '@/components/Alpha300Selector'
 
 const YI = 100_000_000
 
@@ -46,6 +47,7 @@ export default function FlowPanelPage() {
   const [stockCode, setStockCode] = useState('')
   const [stockData, setStockData] = useState<FundFlowItem[]>([])
   const [stockLoading, setStockLoading] = useState(false)
+  const [alpha300Open, setAlpha300Open] = useState(false)
 
   useEffect(() => {
     fundFlowApi.flow()
@@ -273,6 +275,15 @@ export default function FlowPanelPage() {
             >
               查询
             </button>
+            <button
+              type="button"
+              onClick={() => setAlpha300Open(true)}
+              className="px-2.5 py-2 rounded-lg text-sm shrink-0 transition-colors hover:bg-[var(--color-bg-hover)]"
+              style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+              title="从 Alpha300 选择"
+            >
+              🎯
+            </button>
           </div>
 
           {stockLoading && <SkeletonCard />}
@@ -331,6 +342,12 @@ export default function FlowPanelPage() {
           )}
         </>
       )}
+
+      <Alpha300Selector
+        open={alpha300Open}
+        onClose={() => setAlpha300Open(false)}
+        onSelect={(code) => setStockCode(code)}
+      />
     </div>
   )
 }

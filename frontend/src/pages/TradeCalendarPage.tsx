@@ -6,6 +6,7 @@ import {
   ChevronRight,
   RefreshCw,
 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
 const MONTHS = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
@@ -21,7 +22,7 @@ export default function TradeCalendarPage() {
     setLoading(true);
     setError('');
     tradingJournalApi.calendar({ year: y, month: m })
-      .then((res) => setData(res.data))
+      .then((res) => setData(res.data.data.daily))
       .catch(() => setError('加载交易日历失败'))
       .finally(() => setLoading(false));
   };

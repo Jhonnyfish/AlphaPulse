@@ -313,7 +313,7 @@ export default function CandidatesPage() {
     setError('');
     try {
       const res = await candidatesApi.list({ limit: 50 });
-      setData(res.data);
+      setData(res.data.data);
     } catch {
       setError('加载 Alpha300 排行榜失败');
     } finally {

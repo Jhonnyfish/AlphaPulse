@@ -36,7 +36,8 @@ export default function HotConceptsPage() {
     setError('');
     try {
       const res = await hotConceptsApi.list();
-      setConcepts(res.data);
+      const d = res.data;
+      setConcepts(Array.isArray(d) ? d : Array.isArray(d.concepts) ? d.concepts : []);
     } catch {
       setError('加载热门概念失败');
     } finally {
@@ -108,7 +109,7 @@ export default function HotConceptsPage() {
   const mockTrendData = useMemo(() => {
     if (concepts.length === 0) return null;
     const topConcepts = [...concepts]
-      .sort((a, b) => b.stock_count - a.stock_count)
+      .sort((a, b) => (b.rise_count + b.fall_count) - (a.rise_count + a.fall_count))
       .slice(0, 6);
     const dates = generateMockDates(10);
 
@@ -281,20 +282,20 @@ export default function HotConceptsPage() {
                       {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
                     </span>
                     <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                      {concept.stock_count} 只股票
+                      {(concept.rise_count + concept.fall_count)} 只股票
                     </span>
                   </div>
 
                   {/* Leader info */}
-                  {concept.leader_name && (
+                  {concept.leader_stock && (
                     <div
                       className="mt-2 flex items-center gap-1.5 text-xs rounded-md px-2 py-1"
                       style={{ background: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)' }}
                     >
                       <Star className="w-3 h-3" style={{ color: 'var(--color-accent)' }} />
-                      <span>龙头: {concept.leader_name}</span>
-                      <span className="font-mono" style={{ color: changeColor(concept.leader_change_pct) }}>
-                        {concept.leader_change_pct >= 0 ? '+' : ''}{concept.leader_change_pct.toFixed(2)}%
+                      <span>龙头: {concept.leader_stock.name}</span>
+                      <span className="font-mono" style={{ color: changeColor(concept.leader_stock.change_pct) }}>
+                        {concept.leader_stock.change_pct >= 0 ? '+' : ''}{concept.leader_stock.change_pct.toFixed(2)}%
                       </span>
                     </div>
                   )}

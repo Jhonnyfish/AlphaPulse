@@ -13,6 +13,7 @@ import ReactECharts from 'echarts-for-react';
 import { marketApi, type KlinePoint, type Quote, type SearchSuggestion } from '@/lib/api';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import StockSearch from '@/components/StockSearch';
+import Alpha300Selector from '@/components/Alpha300Selector';
 import ErrorState from '@/components/ErrorState';
 import { calcMA, calcMACD, calcKDJ, calcRSI } from '@/lib/indicators';
 
@@ -71,6 +72,7 @@ export default function KlinePage() {
   // Indicator toggles
   const [showMA, setShowMA] = useState(false);
   const [activeSub, setActiveSub] = useState<SubIndicator | null>(null);
+  const [alpha300Open, setAlpha300Open] = useState(false);
 
   // Data cache for indicators (raw kline points)
   const klinePointsRef = useRef<KlinePoint[]>([]);
@@ -507,11 +509,20 @@ export default function KlinePage() {
 
       {/* Search with autocomplete */}
       <div className="flex gap-2 mb-4">
-        <div className="flex-1 max-w-sm">
+        <div className="flex-1 max-w-sm flex items-center gap-2">
           <StockSearch
             onSelect={handleSearch}
             placeholder="搜索股票代码或名称..."
           />
+          <button
+            type="button"
+            onClick={() => setAlpha300Open(true)}
+            className="px-2.5 py-2 rounded-lg text-sm shrink-0 transition-colors hover:bg-[var(--color-bg-hover)]"
+            style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+            title="从 Alpha300 选择"
+          >
+            🎯
+          </button>
         </div>
       </div>
 
@@ -660,6 +671,14 @@ export default function KlinePage() {
           </p>
         </div>
       )}
+      <Alpha300Selector
+        open={alpha300Open}
+        onClose={() => setAlpha300Open(false)}
+        onSelect={(selectedCode) => {
+          setCode(selectedCode);
+          handleSearch({ code: selectedCode, name: selectedCode });
+        }}
+      />
     </div>
   );
 }

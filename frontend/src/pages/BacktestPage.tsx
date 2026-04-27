@@ -4,6 +4,7 @@ import {
   type BacktestResult,
   type BacktestTrade,
 } from '@/lib/api';
+import Alpha300Selector from '@/components/Alpha300Selector';
 import ReactECharts from 'echarts-for-react';
 import {
   FlaskConical,
@@ -19,12 +20,14 @@ import {
   Shield,
   Hash,
 } from 'lucide-react';
+import { SkeletonStatCards, SkeletonList } from '@/components/ui/Skeleton';
 
 type SortKey = 'signal_date' | 'return_pct' | 'holding_days' | 'score';
 type SortDir = 'asc' | 'desc';
 
 export default function BacktestPage() {
   const [codes, setCodes] = useState('');
+  const [alpha300Open, setAlpha300Open] = useState(false);
   const [days, setDays] = useState(60);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -193,6 +196,10 @@ export default function BacktestPage() {
               }}
             />
           </div>
+          <button type="button" onClick={() => setAlpha300Open(true)}
+            className="px-2.5 py-2 rounded-lg text-sm shrink-0 transition-colors hover:bg-[var(--color-bg-hover)]"
+            style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+            title="从 Alpha300 选择">🎯</button>
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
               回测天数
@@ -607,6 +614,11 @@ function StockBacktestDetail({
           </div>
         </div>
       )}
+      <Alpha300Selector
+        open={alpha300Open}
+        onClose={() => setAlpha300Open(false)}
+        onSelect={(code) => setCodes((prev) => prev ? prev + ',' + code : code)}
+      />
     </div>
   );
 }

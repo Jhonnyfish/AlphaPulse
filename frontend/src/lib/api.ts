@@ -246,14 +246,14 @@ export interface PortfolioRisk {
 }
 
 export const portfolioApi = {
-  list: () => api.get<PortfolioPosition[]>('/portfolio'),
+  list: () => api.get<WrappedResponse<PortfolioPosition[]>>('/portfolio'),
   add: (data: { code: string; quantity: number; cost_price: number; buy_date: string; notes?: string }) =>
     api.post('/portfolio', data),
   update: (id: string, data: Partial<PortfolioPosition>) =>
     api.put(`/portfolio/${id}`, data),
   remove: (id: string) => api.delete(`/portfolio/${id}`),
-  analytics: () => api.get<PortfolioAnalytics>('/portfolio/analytics'),
-  risk: () => api.get<PortfolioRisk>('/portfolio/risk'),
+  analytics: () => api.get<WrappedResponse<PortfolioAnalytics>>('/portfolio/analytics'),
+  risk: () => api.get<WrappedResponse<PortfolioRisk>>('/portfolio/risk'),
 };
 
 // --- Trading Journal ---
@@ -295,13 +295,13 @@ export interface TradeCalendarDay {
 
 export const tradingJournalApi = {
   list: (params?: { page?: number; limit?: number; code?: string }) =>
-    api.get<TradeRecord[]>('/trading-journal', { params }),
+    api.get<WrappedResponse<TradeRecord[]>>('/trading-journal', { params }),
   create: (data: Omit<TradeRecord, 'id'>) =>
     api.post('/trading-journal', data),
   remove: (id: string) => api.delete(`/trading-journal/${id}`),
-  stats: () => api.get<TradeStats>('/trading-journal/stats'),
+  stats: () => api.get<WrappedResponse<TradeStats>>('/trading-journal/stats'),
   calendar: (params?: { year?: number; month?: number }) =>
-    api.get<TradeCalendarDay[]>('/trading-journal/calendar', { params }),
+    api.get<WrappedResponse<TradeCalendarDay[]>>('/trading-journal/calendar', { params }),
   strategyEval: () => api.get('/trade-strategy-eval'),
 };
 
@@ -369,13 +369,14 @@ export const stockNotesApi = {
 export interface DragonTigerItem {
   code: string;
   name: string;
-  close_price: number;
+  close: number;
   change_pct: number;
   reason: string;
-  buy_amount: number;
-  sell_amount: number;
-  net_amount: number;
-  date: string;
+  buy_total: number;
+  sell_total: number;
+  net_buy: number;
+  trade_date: string;
+  departments?: string;
 }
 
 export const dragonTigerApi = {
@@ -385,14 +386,21 @@ export const dragonTigerApi = {
 };
 
 // --- Hot Concepts ---
-export interface HotConcept {
+export interface HotConceptLeaderStock {
   code: string;
   name: string;
   change_pct: number;
-  stock_count: number;
-  leader_code: string;
-  leader_name: string;
-  leader_change_pct: number;
+}
+
+export interface HotConcept {
+  code: string;
+  name: string;
+  price: number;
+  change_pct: number;
+  change: number;
+  rise_count: number;
+  fall_count: number;
+  leader_stock: HotConceptLeaderStock | null;
 }
 
 export const hotConceptsApi = {
@@ -606,6 +614,8 @@ export interface AnalyzeResult {
   dimensions: { name: string; score: number; detail: string }[];
   recommendation: string;
   summary: string;
+  fetched_at?: string;
+  data_stale?: boolean;
 }
 
 export const analyzeApi = {
@@ -614,9 +624,29 @@ export const analyzeApi = {
 };
 
 // --- Candidates & Screener ---
+export interface CandidateListItem {
+  code: string;
+  name: string;
+  rank: number;
+  score: number;
+  recommendation_tier: string;
+}
+
+export interface CandidatesListPayload {
+  limit: number;
+  items: CandidateListItem[];
+  tier_counts: Record<string, number>;
+  fetched_at: string;
+}
+
+export interface WrappedResponse<T> {
+  ok: boolean;
+  data: T;
+}
+
 export const candidatesApi = {
-  list: (params?: { strategy_id?: string }) =>
-    api.get('/candidates', { params }),
+  list: (params?: { strategy_id?: string; limit?: number }) =>
+    api.get<WrappedResponse<CandidatesListPayload>>('/candidates', { params }),
 };
 
 export const screenerApi = {

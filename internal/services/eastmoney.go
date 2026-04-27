@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	randv2 "math/rand/v2"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -20,13 +21,123 @@ import (
 	"go.uber.org/zap"
 )
 
+// eastMoneyCache is an in-memory TTL cache for HTTP response bodies.
+type eastMoneyCache struct {
+	mu      sync.RWMutex
+	entries map[string]cacheEntry
+}
+
+type cacheEntry struct {
+	data   []byte
+	expiry time.Time
+}
+
+// emRateLimiter is a simple token-bucket rate limiter using a ticker.
+type emRateLimiter struct {
+	ticker *time.Ticker
+	ch     chan struct{}
+	stop   chan struct{}
+}
+
+func newEMRateLimiter(rps int) *emRateLimiter {
+	interval := time.Second / time.Duration(rps)
+	rl := &emRateLimiter{
+		ticker: time.NewTicker(interval),
+		ch:     make(chan struct{}, 1),
+		stop:   make(chan struct{}),
+	}
+	// Pre-fill one token so the first request goes through immediately.
+	rl.ch <- struct{}{}
+	go rl.run()
+	return rl
+}
+
+func (rl *emRateLimiter) run() {
+	for {
+		select {
+		case <-rl.ticker.C:
+			// Non-blocking send: only add a token if the channel isn't full.
+			select {
+			case rl.ch <- struct{}{}:
+			default:
+			}
+		case <-rl.stop:
+			rl.ticker.Stop()
+			return
+		}
+	}
+}
+
+// Wait blocks until a rate-limit token is available or ctx is done.
+func (rl *emRateLimiter) Wait(ctx context.Context) error {
+	select {
+	case <-rl.ch:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func newEastMoneyCache() *eastMoneyCache {
+	c := &eastMoneyCache{
+		entries: make(map[string]cacheEntry),
+	}
+	go c.cleanup()
+	return c
+}
+
+func (c *eastMoneyCache) cleanup() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		now := time.Now()
+		c.mu.Lock()
+		for k, e := range c.entries {
+			if now.After(e.expiry) {
+				delete(c.entries, k)
+			}
+		}
+		c.mu.Unlock()
+	}
+}
+
+func (c *eastMoneyCache) get(key string) ([]byte, bool) {
+	c.mu.RLock()
+	e, ok := c.entries[key]
+	c.mu.RUnlock()
+	if !ok || time.Now().After(e.expiry) {
+		return nil, false
+	}
+	return e.data, true
+}
+
+func (c *eastMoneyCache) set(key string, data []byte, ttl time.Duration) {
+	c.mu.Lock()
+	c.entries[key] = cacheEntry{data: data, expiry: time.Now().Add(ttl)}
+	c.mu.Unlock()
+}
+
+// cacheTTLForURL returns the appropriate TTL for a given request URL.
+func cacheTTLForURL(u string) time.Duration {
+	if strings.Contains(u, "push2his.eastmoney.com") ||
+		strings.Contains(u, "push2.eastmoney.com") ||
+		strings.Contains(u, "datacenter-web.eastmoney.com") {
+		return 60 * time.Second
+	}
+	return 30 * time.Second
+}
+
 type EastMoneyService struct {
-	client *http.Client
+	client  *http.Client
+	cache   *eastMoneyCache
+	limiter *emRateLimiter
 }
 
 func NewEastMoneyService(timeout time.Duration) *EastMoneyService {
 	return &EastMoneyService{
-		client: &http.Client{Timeout: timeout},
+		client:  &http.Client{Timeout: timeout},
+		cache:   newEastMoneyCache(),
+		limiter: newEMRateLimiter(2),
 	}
 }
 
@@ -75,21 +186,35 @@ func (s *EastMoneyService) FetchSectors(ctx context.Context) ([]models.Sector, e
 
 	var response struct {
 		Data struct {
-			Diff []struct {
-				Price         float64 `json:"f2"`
-				ChangePercent float64 `json:"f3"`
-				Change        float64 `json:"f4"`
-				Code          string  `json:"f12"`
-				Name          string  `json:"f14"`
-			} `json:"diff"`
+			Diff json.RawMessage `json:"diff"`
 		} `json:"data"`
 	}
 	if err := s.getJSON(ctx, "https://push2.eastmoney.com/api/qt/clist/get", params, &response); err != nil {
 		return nil, err
 	}
 
-	sectors := make([]models.Sector, 0, len(response.Data.Diff))
-	for _, item := range response.Data.Diff {
+	type sectorFields struct {
+		Price         float64 `json:"f2"`
+		ChangePercent float64 `json:"f3"`
+		Change        float64 `json:"f4"`
+		Code          string  `json:"f12"`
+		Name          string  `json:"f14"`
+	}
+
+	var items []sectorFields
+	// Try parsing as array first
+	if err := json.Unmarshal(response.Data.Diff, &items); err != nil || len(items) == 0 {
+		// Try parsing as map (EastMoney sometimes returns diff as {"0": {...}, "1": {...}})
+		var m map[string]sectorFields
+		if err := json.Unmarshal(response.Data.Diff, &m); err == nil {
+			for _, v := range m {
+				items = append(items, v)
+			}
+		}
+	}
+
+	sectors := make([]models.Sector, 0, len(items))
+	for _, item := range items {
 		sector := models.Sector{
 			Code:          item.Code,
 			Name:          item.Name,
@@ -681,7 +806,7 @@ func (s *EastMoneyService) SearchStocks(ctx context.Context, query string, limit
 			Data []struct {
 				Code string `json:"Code"`
 				Name string `json:"Name"`
-				Type int    `json:"SecurityTypeName"`
+				Type string `json:"SecurityTypeName"`
 			} `json:"Data"`
 		} `json:"QuotationCodeTable"`
 	}
@@ -1648,56 +1773,123 @@ func firstString(values ...string) string {
 	return ""
 }
 
+// getBody fetches the response body for the given endpoint+params.
+// It checks the in-memory cache first, then acquires the rate limiter,
+// executes the HTTP request with retry+backoff on transient failures,
+// and caches the successful result.
 func (s *EastMoneyService) getBody(ctx context.Context, endpoint string, params url.Values) ([]byte, error) {
 	requestURL := endpoint
 	if encoded := params.Encode(); encoded != "" {
 		requestURL = requestURL + "?" + encoded
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if err != nil {
+	// 1. Check cache
+	if data, ok := s.cache.get(requestURL); ok {
+		return data, nil
+	}
+
+	// 2. Rate limit
+	if err := s.limiter.Wait(ctx); err != nil {
 		return nil, err
 	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "AlphaPulse/1.0")
 
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, err
+	// 3. Execute with retry
+	const maxAttempts = 3
+	var lastErr error
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		body, err, retryable := s.doRequest(ctx, requestURL)
+		if err == nil {
+			// Success — cache and return
+			ttl := cacheTTLForURL(requestURL)
+			s.cache.set(requestURL, body, ttl)
+			return body, nil
+		}
+
+		lastErr = err
+
+		if !retryable || attempt == maxAttempts {
+			break
+		}
+
+		// Exponential backoff with jitter: 1s, 2s, 4s (±50% jitter)
+		base := time.Duration(1<<uint(attempt-1)) * time.Second
+		jitter := time.Duration(randv2.Float64()*float64(base)) - base/2 // ±50% of base
+		backoff := base + jitter
+		if backoff < 100*time.Millisecond {
+			backoff = 100 * time.Millisecond
+		}
+
+		zap.L().Warn("eastmoney request retry",
+			zap.String("url", requestURL),
+			zap.Int("attempt", attempt),
+			zap.Duration("backoff", backoff),
+			zap.Error(err),
+		)
+
+		select {
+		case <-time.After(backoff):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+
+		// Re-acquire rate limiter before retry
+		if err := s.limiter.Wait(ctx); err != nil {
+			return nil, err
+		}
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode >= http.StatusBadRequest {
-		return nil, fmt.Errorf("eastmoney request failed: %s", resp.Status)
-	}
-
-	return io.ReadAll(resp.Body)
+	return nil, lastErr
 }
 
-func (s *EastMoneyService) getJSON(ctx context.Context, endpoint string, params url.Values, target interface{}) error {
-	requestURL := endpoint
-	if encoded := params.Encode(); encoded != "" {
-		requestURL = requestURL + "?" + encoded
-	}
-
+// doRequest executes a single HTTP GET and returns the body.
+// The second return value indicates whether the caller should retry.
+func (s *EastMoneyService) doRequest(ctx context.Context, requestURL string) ([]byte, error, bool) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
-		return err
+		return nil, err, false // bad URL, no retry
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "AlphaPulse/1.0")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return err
+		// Network error — retryable
+		return nil, fmt.Errorf("eastmoney request error: %w", err), true
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode >= http.StatusBadRequest {
-		return fmt.Errorf("eastmoney request failed: %s", resp.Status)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("eastmoney read body error: %w", err), true
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return nil, fmt.Errorf("eastmoney rate limited: %s", resp.Status), true
+	}
+	if resp.StatusCode >= 500 {
+		return nil, fmt.Errorf("eastmoney server error: %s", resp.Status), true
+	}
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("eastmoney request failed: %s", resp.Status), false
+	}
+
+	return body, nil, false
+}
+
+// getJSON fetches the response body via getBody (which handles caching,
+// rate limiting, and retry) and decodes the JSON into target.
+func (s *EastMoneyService) getJSON(ctx context.Context, endpoint string, params url.Values, target interface{}) error {
+	body, err := s.getBody(ctx, endpoint, params)
+	if err != nil {
+		return err
+	}
+
+	if err := json.Unmarshal(body, target); err != nil {
 		return err
 	}
 

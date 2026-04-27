@@ -80,7 +80,7 @@ export default function SettingsPage() {
     { method: 'GET', path: '/api/market/quote', desc: '个股行情' },
     { method: 'GET', path: '/api/watchlist', desc: '自选股列表' },
     { method: 'POST', path: '/api/watchlist', desc: '添加自选股' },
-    { method: 'GET', path: '/api/sectors', desc: '板块行情' },
+    { method: 'GET', path: '/api/market/sectors', desc: '板块行情' },
     { method: 'GET', path: '/api/auth/verify', desc: '验证令牌' },
   ];
 

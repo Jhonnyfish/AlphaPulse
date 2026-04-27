@@ -1,0 +1,11 @@
+.animated-view {
+  opacity: 0;
+  transform: translateY(8px);
+  will-change: opacity, transform;
+  transition: opacity 250ms ease, transform 250ms ease;
+}
+
+.animated-view.enter {
+  opacity: 1;
+  transform: translateY(0);
+}
