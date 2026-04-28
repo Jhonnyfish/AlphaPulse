@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '@/components/charts/ReactECharts';
 import { Activity, RefreshCw, ArrowUpCircle, ArrowDownCircle, MinusCircle } from 'lucide-react';
 
 interface BreadthData {
@@ -44,6 +44,7 @@ export default function BreadthPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, []);
 

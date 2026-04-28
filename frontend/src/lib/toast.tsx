@@ -20,6 +20,7 @@ interface ToastContextValue {
 
 const ToastContext = createContext<ToastContextValue | null>(null)
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useToast() {
   const ctx = useContext(ToastContext)
   if (!ctx) throw new Error('useToast must be used within ToastProvider')
@@ -67,7 +68,7 @@ const colorMap: Record<ToastType, string> = {
 
 export function Toaster({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: number) => void }) {
   return (
-    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none" aria-live="polite" aria-label="通知">
       <AnimatePresence>
         {toasts.map(t => {
           const Icon = iconMap[t.type]
@@ -85,7 +86,7 @@ export function Toaster({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id
                 <p className="font-medium text-sm">{t.title}</p>
                 {t.message && <p className="mt-0.5 text-xs opacity-80">{t.message}</p>}
               </div>
-              <button onClick={() => onDismiss(t.id)} className="shrink-0 opacity-60 hover:opacity-100">
+              <button onClick={() => onDismiss(t.id)} className="shrink-0 opacity-60 hover:opacity-100" aria-label="关闭通知">
                 <X className="h-4 w-4" />
               </button>
             </motion.div>

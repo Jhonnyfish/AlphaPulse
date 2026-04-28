@@ -1,9 +1,10 @@
 import { useState, useCallback, useMemo } from 'react';
 import { screenerApi } from '@/lib/api';
+import DegradedBanner from '@/components/DegradedBanner';
 import EChart from '@/components/charts/EChart';
 import EmptyState from '@/components/EmptyState';
 import ErrorState from '@/components/ErrorState';
-import { Filter, RefreshCw, ArrowUpDown, TrendingUp, Search, X, Target, Hash, BarChart3, PieChart as PieChartIcon } from 'lucide-react';
+import { Filter, ArrowUpDown, TrendingUp, Search, X, Target, Hash, BarChart3, PieChart as PieChartIcon } from 'lucide-react';
 
 interface ScreenerResult {
   code: string;
@@ -29,6 +30,7 @@ interface ScreenerResponse {
   total_candidates: number;
   filtered: number;
   results: ScreenerResult[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   filters: Record<string, any>;
 }
 
@@ -38,6 +40,7 @@ export default function ScreenerPage() {
   const [data, setData] = useState<ScreenerResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [degraded, setDegraded] = useState(false);
   const [sortField, setSortField] = useState<SortField>('score');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
@@ -152,8 +155,10 @@ export default function ScreenerPage() {
       if (industry) params.industry = industry;
       const res = await screenerApi.screen(params);
       setData(res.data);
+      setDegraded(!!res.data.degraded);
     } catch {
       setError('选股筛选失败');
+      setDegraded(false);
     } finally {
       setLoading(false);
     }
@@ -275,6 +280,11 @@ export default function ScreenerPage() {
         </div>
       </div>
 
+      <DegradedBanner
+        visible={degraded}
+        message="Alpha300 排名服务暂时不可用，筛选功能暂不可用"
+      />
+
       {/* Filter bar */}
       <div
         className="rounded-lg border p-4 space-y-3"
@@ -284,6 +294,7 @@ export default function ScreenerPage() {
           borderColor: 'var(--color-border)',
         }}
       >
+        // eslint-disable-next-line react-hooks/static-components
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <InputField
             label="最低评分"
@@ -467,10 +478,15 @@ export default function ScreenerPage() {
                 </th>
                 <th className="px-3 py-2.5 text-left text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
                   名称
+                // eslint-disable-next-line react-hooks/static-components
                 </th>
+                // eslint-disable-next-line react-hooks/static-components
                 <SortHeader field="score" label="评分" />
+                // eslint-disable-next-line react-hooks/static-components
                 <SortHeader field="close" label="现价" />
+                // eslint-disable-next-line react-hooks/static-components
                 <SortHeader field="momentum" label="动量" />
+                // eslint-disable-next-line react-hooks/static-components
                 <SortHeader field="trend" label="趋势" />
                 <SortHeader field="volatility" label="波动" />
                 <th className="px-3 py-2.5 text-left text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>

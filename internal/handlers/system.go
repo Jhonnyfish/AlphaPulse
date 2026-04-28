@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -26,6 +27,19 @@ type SystemHandler struct {
 	cacheMap map[string]cache.Sizer
 	log      *zap.Logger
 	tracker  *services.PerfTracker
+	vitalsMu   sync.RWMutex
+	vitalsRing []VitalEntry
+	vitalsIdx  int
+	vitalsCap  int
+}
+
+// VitalEntry represents a single web vitals measurement from the frontend.
+type VitalEntry struct {
+	Name      string  `json:"name"`
+	Value     float64 `json:"value"`
+	Rating    string  `json:"rating"`
+	Timestamp int64   `json:"timestamp"`
+	ID        string  `json:"id"`
 }
 func NewSystemHandler(db *pgxpool.Pool, version string, started time.Time, cacheMap map[string]cache.Sizer, tracker *services.PerfTracker) *SystemHandler {
 	return &SystemHandler{
@@ -35,6 +49,8 @@ func NewSystemHandler(db *pgxpool.Pool, version string, started time.Time, cache
 		cacheMap: cacheMap,
 		log:      zap.L(),
 		tracker:  tracker,
+		vitalsRing: make([]VitalEntry, 1000),
+		vitalsCap:  1000,
 	}
 }
 
@@ -324,6 +340,51 @@ func (h *SystemHandler) Status(c *gin.Context) {
 
 // requestCounter tracks total requests for performance stats.
 var requestCounter atomic.Int64
+
+// ReceiveVitals handles POST /api/system/vitals — store a web vitals entry.
+func (h *SystemHandler) ReceiveVitals(c *gin.Context) {
+	var entry VitalEntry
+	if err := c.ShouldBindJSON(&entry); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "invalid payload"})
+		return
+	}
+
+	h.vitalsMu.Lock()
+	h.vitalsRing[h.vitalsIdx%h.vitalsCap] = entry
+	h.vitalsIdx++
+	h.vitalsMu.Unlock()
+
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// GetVitals handles GET /api/system/vitals — return stored vitals entries.
+func (h *SystemHandler) GetVitals(c *gin.Context) {
+	h.vitalsMu.RLock()
+	defer h.vitalsMu.RUnlock()
+
+	count := h.vitalsIdx
+	if count > h.vitalsCap {
+		count = h.vitalsCap
+	}
+
+	entries := make([]VitalEntry, 0, count)
+	// Return in chronological order (oldest first)
+	start := 0
+	if h.vitalsIdx > h.vitalsCap {
+		start = h.vitalsIdx % h.vitalsCap
+	}
+	for i := 0; i < count; i++ {
+		idx := (start + i) % h.vitalsCap
+		entries = append(entries, h.vitalsRing[idx])
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"ok":      true,
+		"data":    entries,
+		"count":   count,
+		"version": h.version,
+	})
+}
 
 func formatCN(format string, args ...interface{}) string {
 	// Simple Chinese format helper

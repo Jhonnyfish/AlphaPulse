@@ -89,7 +89,7 @@ export function SkeletonList({ rows = 5, className }: SkeletonListProps) {
           className="rounded-lg border p-4 space-y-2"
           style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}
         >
-          <Skeleton variant="text" width={`${55 + Math.random() * 30}%`} height={16} />
+          <Skeleton variant="text" width={`${55 + (i * 7) % 30}%`} height={16} />
           <Skeleton variant="text" width="100%" height={12} />
           <div className="flex items-center gap-3">
             <Skeleton variant="text" width={60} height={10} />
@@ -116,7 +116,7 @@ export function SkeletonInlineTable({ rows = 5, columns = 6, className }: Skelet
           <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
             {Array.from({ length: columns }).map((_, i) => (
               <th key={i} className="px-4 py-2.5 text-left">
-                <Skeleton variant="text" width={`${40 + Math.random() * 40}%`} height={12} />
+                <Skeleton variant="text" width={`${40 + (i * 11) % 40}%`} height={12} />
               </th>
             ))}
           </tr>

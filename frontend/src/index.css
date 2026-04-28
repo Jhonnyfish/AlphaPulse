@@ -91,6 +91,23 @@ body {
     linear-gradient(180deg, #e2e8f0 0%, #f1f5f9 38%, #f8fafc 100%);
 }
 
+/* ── Theme transition animation ─────────────────────────────── */
+/* Only active during theme switch (class added/removed by theme.tsx).
+   Uses !important to override any existing transition properties so
+   color crossfade happens uniformly across all elements.              */
+.theme-transitioning,
+.theme-transitioning *,
+.theme-transitioning *::before,
+.theme-transitioning *::after {
+  transition: background-color 0.3s ease-in-out,
+              color 0.3s ease-in-out,
+              border-color 0.3s ease-in-out,
+              box-shadow 0.3s ease-in-out,
+              outline-color 0.3s ease-in-out,
+              fill 0.3s ease-in-out,
+              stroke 0.3s ease-in-out !important;
+}
+
 /* ── Grid texture overlay ──────────────────────────────── */
 body::before {
   content: "";

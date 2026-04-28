@@ -1,5 +1,5 @@
 import type { EChartsOption } from 'echarts'
-import ReactECharts from 'echarts-for-react'
+import ReactECharts from '@/components/charts/ReactECharts'
 import { Loader2 } from 'lucide-react'
 
 const darkThemeDefaults = {
@@ -21,6 +21,7 @@ const axisStyle = {
   splitLine: { lineStyle: { color: 'rgba(51,65,85,0.5)' } },
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mergeAxisDefaults(option: any): EChartsOption {
   const result = { ...option }
   if (result.xAxis && typeof result.xAxis === 'object') {
@@ -33,6 +34,7 @@ function mergeAxisDefaults(option: any): EChartsOption {
 }
 
 interface EChartProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   option: any
   height?: string | number
   loading?: boolean

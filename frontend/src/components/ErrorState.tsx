@@ -11,6 +11,7 @@ export default function ErrorState({ title = '加载失败', description, onRetr
   return (
     <div
       className="flex flex-col items-center justify-center py-16 rounded-xl animate-fade-in"
+      role="alert"
       style={{
         background: 'rgba(15, 23, 42, 0.4)',
         backdropFilter: 'blur(18px)',

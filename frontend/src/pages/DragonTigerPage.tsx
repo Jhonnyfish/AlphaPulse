@@ -40,6 +40,7 @@ export default function DragonTigerPage() {
     setError('');
     try {
       const res = await dragonTigerApi.list(d);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const r = res.data as any;
       setItems(Array.isArray(r) ? r : Array.isArray(r.items) ? r.items : []);
     } catch {

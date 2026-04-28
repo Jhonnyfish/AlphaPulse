@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useView } from '@/lib/ViewContext';
-import { patternScannerApi, type PatternResult, type PatternScannerResponse } from '@/lib/api';
+import { patternScannerApi, type PatternScannerResponse } from '@/lib/api';
 import { Scan, TrendingUp, TrendingDown, Minus, RefreshCw, Filter, BarChart3 } from 'lucide-react';
 
 type DirectionFilter = 'all' | 'bullish' | 'bearish' | 'neutral';

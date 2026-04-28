@@ -109,45 +109,59 @@ export default function TradingJournalPage() {
       ]);
       if (tradesRes.status === 'fulfilled') {
         const d = tradesRes.value.data.data;
-        const items = Array.isArray(d) ? d : (d?.items ?? []);
+        const items = Array.isArray(d) ? d : ((d as Record<string, unknown>)?.items as TradeRecord[] ?? []);
         // Normalize field names from backend to match frontend interface
-        setTrades(items.map((t: any) => ({
-          id: t.id,
-          code: t.code,
-          name: t.name,
-          direction: t.direction ?? t.type ?? 'buy',
-          price: t.price ?? 0,
-          quantity: t.quantity ?? 0,
-          amount: t.amount ?? (t.price * t.quantity) ?? 0,
-          trade_date: t.trade_date ?? t.date ?? '',
-          strategy: t.strategy ?? t.strategy_label ?? '',
-          reason: t.reason ?? t.notes ?? '',
-          emotion: t.emotion ?? '',
-          result: t.result ?? '',
-          profit_loss: t.profit_loss ?? 0,
-          profit_loss_pct: t.profit_loss_pct ?? 0,
-          notes: t.notes ?? '',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const validItems = (items as any[]).filter(Boolean);
+        setTrades(validItems.map((t: any) => ({
+          id: t?.id ?? '',
+          code: t?.code ?? '',
+          name: t?.name ?? '',
+          direction: t?.direction ?? t?.type ?? 'buy',
+          price: t?.price ?? 0,
+          quantity: t?.quantity ?? 0,
+          amount: t?.amount ?? ((t?.price * t?.quantity) || 0),
+          trade_date: t?.trade_date ?? t?.date ?? '',
+          strategy: t?.strategy ?? t?.strategy_label ?? '',
+          reason: t?.reason ?? t?.notes ?? '',
+          emotion: t?.emotion ?? '',
+          result: t?.result ?? '',
+          profit_loss: t?.profit_loss ?? 0,
+          profit_loss_pct: t?.profit_loss_pct ?? 0,
+          notes: t?.notes ?? '',
         })));
       }
       if (statsRes.status === 'fulfilled') {
-        const raw = statsRes.value.data.data;
-        // Normalize stats from backend structure
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const raw: any = statsRes.value.data.data;
+        // Normalize stats from backend structure (may have .summary wrapper or flat shape)
         const s = raw?.summary ?? raw ?? {};
+        // win_loss holds the aggregated counts; s is StatsSummary with percentages
+        const wl = raw?.win_loss ?? {};
         setStats({
-          total_trades: s.total_trades ?? raw?.total_trades ?? 0,
-          win_rate: s.win_rate ?? raw?.win_rate ?? 0,
+          total_trades: wl.total_trades ?? s.total_trades ?? raw?.total_trades ?? 0,
+          win_rate: (wl.win_rate ?? s.win_rate ?? raw?.win_rate ?? 0) / 100,
           avg_profit_pct: s.avg_profit_pct ?? raw?.avg_profit_pct ?? 0,
           avg_loss_pct: s.avg_loss_pct ?? raw?.avg_loss_pct ?? 0,
           total_profit_loss: s.total_realized_pnl ?? raw?.total_realized_pnl ?? s.total_profit_loss ?? 0,
-          best_trade: raw?.best_trade ?? raw?.top_performers?.[0] ?? null,
-          worst_trade: raw?.worst_trade ?? raw?.bottom_performers?.[0] ?? null,
+          best_trade: raw?.best_trade ??
+            (() => { const b = raw?.sell_results?.reduce((best: any, cur: any) => (!best || (cur.return_pct ?? 0) > (best.return_pct ?? 0)) ? cur : best, null); return b ? { id: b.id, code: b.code, name: b.name, direction: 'sell' as const, price: b.sell_price, quantity: b.sell_qty, amount: (b.sell_price ?? 0) * (b.sell_qty ?? 0), trade_date: b.date, strategy: b.strategy_label ?? '', profit_loss: b.realized_pnl ?? 0, profit_loss_pct: b.return_pct ?? 0 } : null; })() ?? null,
+          worst_trade: raw?.worst_trade ??
+            (() => { const w = raw?.sell_results?.reduce((worst: any, cur: any) => (!worst || (cur.return_pct ?? 0) < (worst.return_pct ?? 0)) ? cur : worst, null); return w ? { id: w.id, code: w.code, name: w.name, direction: 'sell' as const, price: w.sell_price, quantity: w.sell_qty, amount: (w.sell_price ?? 0) * (w.sell_qty ?? 0), trade_date: w.date, strategy: w.strategy_label ?? '', profit_loss: w.realized_pnl ?? 0, profit_loss_pct: w.return_pct ?? 0 } : null; })() ?? null,
           avg_holding_days: s.avg_holding_days ?? raw?.avg_holding_days ?? 0,
           profit_factor: s.profit_factor ?? raw?.profit_factor ?? 0,
         });
       }
       if (calRes.status === 'fulfilled') {
         const cd = calRes.value.data.data;
-        setCalendarDays(Array.isArray(cd) ? cd : (cd?.daily ?? []));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rawDays: any[] = Array.isArray(cd) ? cd : ((cd as Record<string, unknown>)?.daily as any[] ?? []);
+        // Normalize field names: backend sends { pnl, trades }, frontend expects { profit_loss, trade_count }
+        setCalendarDays(rawDays.map((d: any) => ({
+          date: d.date,
+          trade_count: d.trade_count ?? d.trades ?? 0,
+          profit_loss: d.profit_loss ?? d.pnl ?? 0,
+        })));
       }
     } catch {
       setError('加载数据失败');
@@ -174,16 +188,14 @@ export default function TradingJournalPage() {
       await tradingJournalApi.create({
         code: form.code.trim().toUpperCase(),
         name: form.name.trim(),
-        direction: form.direction,
+        type: form.direction,
         price,
         quantity,
-        amount: price * quantity,
-        trade_date: form.trade_date,
-        profit_loss: 0,
-        profit_loss_pct: 0,
-        strategy: form.strategy.trim(),
+        fees: 0,
+        date: form.trade_date,
+        strategy_label: form.strategy.trim(),
         notes: parts.length > 0 ? parts.join(' | ') : undefined,
-      });
+      } as any);
       setShowModal(false);
       setForm(emptyForm);
       await fetchData();
@@ -281,6 +293,7 @@ export default function TradingJournalPage() {
         backgroundColor: 'rgba(15,23,42,0.95)',
         borderColor: 'rgba(148,163,184,0.2)',
         textStyle: { color: '#e2e8f0', fontSize: 12 },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         formatter(params: any) {
           if (!params.data) return '';
           const [date, value] = params.data as [string, number];
@@ -396,6 +409,7 @@ export default function TradingJournalPage() {
         backgroundColor: 'rgba(15,23,42,0.95)',
         borderColor: 'rgba(148,163,184,0.2)',
         textStyle: { color: '#e2e8f0', fontSize: 12 },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         formatter(params: any) {
           const p = params[0];
           return `<div style="font-weight:600">${p.name}</div><div>交易次数: <b>${p.value}</b></div>`;

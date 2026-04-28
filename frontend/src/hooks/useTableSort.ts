@@ -76,13 +76,9 @@ export function useTableSort<T extends Record<string, unknown>>(
       if (aVal == null) return 1;
       if (bVal == null) return -1;
 
-      let cmp = 0;
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
-        cmp = aVal - bVal;
-      } else {
-        // String comparison (works for Chinese via localeCompare)
-        cmp = String(aVal).localeCompare(String(bVal), 'zh-CN');
-      }
+      const cmp = (typeof aVal === 'number' && typeof bVal === 'number')
+        ? aVal - bVal
+        : String(aVal).localeCompare(String(bVal), 'zh-CN');
 
       return sort.direction === 'asc' ? cmp : -cmp;
     });

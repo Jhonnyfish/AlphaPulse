@@ -3,6 +3,7 @@ import {
   marketApi,
   signalApi,
   systemApi,
+  dashboardApi,
   type MarketOverview,
   type Sector,
   type DashboardSignal,
@@ -33,6 +34,7 @@ const REFRESH_INTERVAL = 60_000;
 const changeColor = (n: number) =>
   n > 0 ? 'text-red-500' : n < 0 ? 'text-green-500' : 'text-white/60';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const TrendIcon = (pct: number) =>
   pct > 0 ? TrendingUp : pct < 0 ? TrendingDown : Minus;
 
@@ -85,6 +87,128 @@ function EmptyState({ text }: { text: string }) {
   );
 }
 
+/* ───────────────── Skeleton Shimmer Components ───────────────── */
+
+function ChartSkeleton({ height }: { height: number }) {
+  return (
+    <div
+      className="w-full rounded-lg animate-pulse bg-gray-700/50"
+      style={{ height }}
+    />
+  );
+}
+
+function IndexChartSkeleton() {
+  return (
+    <div className="animate-pulse">
+      {/* Legend dots placeholder */}
+      <div className="flex items-center gap-6 mb-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-gray-700/50" />
+            <div className="w-16 h-3 rounded bg-gray-700/50" />
+          </div>
+        ))}
+      </div>
+      <ChartSkeleton height={300} />
+    </div>
+  );
+}
+
+function BreadthChartSkeleton() {
+  return (
+    <div className="animate-pulse">
+      <ChartSkeleton height={180} />
+      {/* Bar shape placeholders */}
+      <div className="flex items-end justify-center gap-8 mt-4">
+        {[80, 60, 40].map((h, i) => (
+          <div
+            key={i}
+            className="w-12 rounded-t bg-gray-700/50"
+            style={{ height: h }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TreemapSkeleton() {
+  return (
+    <div className="w-full rounded-lg bg-gray-700/30 p-3 animate-pulse" style={{ height: 280 }}>
+      <div className="grid grid-cols-4 gap-2 h-full">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div
+            key={i}
+            className="rounded bg-gray-700/50"
+            style={{
+              gridColumn: i === 0 ? 'span 2' : i === 3 ? 'span 2' : 'span 1',
+              gridRow: i === 0 ? 'span 2' : 'span 1',
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SignalSkeleton() {
+  return (
+    <div className="space-y-2 animate-pulse">
+      {/* Summary cards placeholder */}
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="flex flex-col items-center py-3 rounded-lg bg-gray-700/30">
+            <div className="w-8 h-5 rounded bg-gray-700/50" />
+            <div className="w-10 h-2.5 rounded bg-gray-700/50 mt-1.5" />
+          </div>
+        ))}
+      </div>
+      {/* Signal row placeholders */}
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="flex items-start gap-3 px-3 py-2.5 rounded-xl bg-white/[0.03]"
+        >
+          <div className="w-3.5 h-3.5 rounded-full bg-gray-700/50 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <div className="w-12 h-3 rounded bg-gray-700/50" />
+              <div className="w-20 h-3 rounded bg-gray-700/50" />
+              <div className="w-10 h-2.5 rounded bg-gray-700/50 ml-auto" />
+            </div>
+            <div className="w-3/4 h-2.5 rounded bg-gray-700/50" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TimelineSkeleton() {
+  return (
+    <div className="space-y-0 animate-pulse">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} className="flex items-start gap-3">
+          {/* Timeline dot + line */}
+          <div className="flex flex-col items-center flex-shrink-0">
+            <div className="w-2 h-2 rounded-full bg-gray-700/50 mt-1.5" />
+            <div className="w-px flex-1 min-h-[20px] bg-white/[0.06]" />
+          </div>
+          {/* Content placeholder */}
+          <div className="pb-3 flex-1 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <div className="w-24 h-3 rounded bg-gray-700/50" />
+              <div className="w-10 h-2.5 rounded bg-gray-700/50" />
+            </div>
+            <div className="w-3/5 h-2.5 rounded bg-gray-700/50" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    DashboardPage
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -107,34 +231,92 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const [overviewRes, sectorsRes, signalsRes, activityRes] =
-        await Promise.allSettled([
-          marketApi.overview(),
-          marketApi.sectors(),
-          signalApi.history({ days: 7 }),
-          systemApi.activityLog(),
-        ]);
-
+      // Try composite endpoint first
+      let compositeUsed = false;
       let ov: MarketOverview | null = null;
-      if (overviewRes.status === 'fulfilled') {
-        ov = overviewRes.value.data;
-        setOverview(ov);
+      try {
+        const compositeRes = await dashboardApi.summary();
+        const data = compositeRes.data;
+
+        if (data.ok) {
+          compositeUsed = true;
+
+          // Extract market_overview → MarketOverview
+          if (data.market_overview) {
+            const mo = data.market_overview;
+            // Map IndexQuote fields (change_pct) to OverviewIndex fields (change_percent)
+            const mappedIndices: MarketOverview['indices'] = (mo.indices ?? []).map(
+              (idx) => ({
+                code: idx.code,
+                name: idx.name,
+                price: idx.price,
+                change: idx.change,
+                change_percent: idx.change_pct ?? 0,
+                advance_count: 0,
+                decline_count: 0,
+                flat_count: 0,
+              }),
+            );
+            ov = {
+              advance_count: mo.market?.up_count ?? 0,
+              decline_count: mo.market?.down_count ?? 0,
+              flat_count: mo.market?.flat_count ?? 0,
+              indices: mappedIndices,
+              updated_at: mo.updated_at ?? '',
+            };
+            setOverview(ov);
+          }
+
+          // Extract sectors
+          if (data.sectors) {
+            setSectors(data.sectors);
+          }
+
+          // Extract signals
+          if (data.signals) {
+            setSignals(data.signals);
+          }
+
+          // Extract recent_activity
+          if (data.recent_activity) {
+            setActivity(data.recent_activity);
+          }
+        }
+      } catch {
+        // Composite endpoint failed, fall through to individual calls
+        compositeUsed = false;
       }
 
-      if (sectorsRes.status === 'fulfilled') {
-        setSectors(sectorsRes.value.data ?? []);
+      // Fallback: use individual API calls if composite failed
+      if (!compositeUsed) {
+        const [overviewRes, sectorsRes, signalsRes, activityRes] =
+          await Promise.allSettled([
+            marketApi.overview(),
+            marketApi.sectors(),
+            signalApi.history({ days: 7 }),
+            systemApi.activityLog(),
+          ]);
+
+        if (overviewRes.status === 'fulfilled') {
+          ov = overviewRes.value.data;
+          setOverview(ov);
+        }
+
+        if (sectorsRes.status === 'fulfilled') {
+          setSectors(sectorsRes.value.data ?? []);
+        }
+
+        if (signalsRes.status === 'fulfilled') {
+          const body = signalsRes.value.data;
+          setSignals(body?.items ?? []);
+        }
+
+        if (activityRes.status === 'fulfilled') {
+          setActivity(activityRes.value.data?.entries ?? []);
+        }
       }
 
-      if (signalsRes.status === 'fulfilled') {
-        const body = signalsRes.value.data;
-        setSignals(body?.items ?? []);
-      }
-
-      if (activityRes.status === 'fulfilled') {
-        setActivity(activityRes.value.data?.entries ?? []);
-      }
-
-      // fetch klines for each index (up to 3)
+      // Fetch klines for each index (up to 3) — always separate calls
       if (ov && ov.indices.length > 0) {
         const klineResults = await Promise.allSettled(
           ov.indices.slice(0, 3).map((idx) =>
@@ -161,6 +343,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -434,8 +617,10 @@ export default function DashboardPage() {
           </div>
           {(overview?.indices ?? []).length > 0 ? (
             <EChart option={indexLineOption} height={320} loading={loading} />
+          ) : loading ? (
+            <IndexChartSkeleton />
           ) : (
-            <EmptyState text={loading ? '加载指数数据...' : '暂无指数数据'} />
+            <EmptyState text="暂无指数数据" />
           )}
         </GlassCard>
 
@@ -466,8 +651,10 @@ export default function DashboardPage() {
                 </div>
               </div>
             </>
+          ) : loading ? (
+            <BreadthChartSkeleton />
           ) : (
-            <EmptyState text={loading ? '加载涨跌数据...' : '暂无涨跌数据'} />
+            <EmptyState text="暂无涨跌数据" />
           )}
         </GlassCard>
 
@@ -479,8 +666,10 @@ export default function DashboardPage() {
           </div>
           {sectors.length > 0 ? (
             <EChart option={sectorTreemapOption} height={280} loading={loading} />
+          ) : loading ? (
+            <TreemapSkeleton />
           ) : (
-            <EmptyState text={loading ? '加载板块数据...' : '暂无板块数据'} />
+            <EmptyState text="暂无板块数据" />
           )}
         </GlassCard>
 
@@ -552,8 +741,10 @@ export default function DashboardPage() {
                 </div>
               ))}
             </div>
+          ) : loading ? (
+            <SignalSkeleton />
           ) : (
-            <EmptyState text={loading ? '加载信号数据...' : '近7日暂无信号'} />
+            <EmptyState text="近7日暂无信号" />
           )}
         </GlassCard>
 
@@ -611,8 +802,10 @@ export default function DashboardPage() {
                 );
               })}
             </div>
+          ) : loading ? (
+            <TimelineSkeleton />
           ) : (
-            <EmptyState text={loading ? '加载活动记录...' : '暂无活动记录'} />
+            <EmptyState text="暂无活动记录" />
           )}
         </GlassCard>
       </div>

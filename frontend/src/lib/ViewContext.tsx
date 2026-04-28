@@ -9,7 +9,8 @@ export type ViewName =
   | 'trade-calendar' | 'signals' | 'portfolio-risk' | 'investment-plans'
   | 'watchlist-analysis' | 'news' | 'daily-brief' | 'institutions' | 'anomalies'
   | 'diag' | 'settings' | 'quick-actions'
-  | 'daily-report' | 'perf-stats' | 'multi-trend' | 'correlation';
+  | 'daily-report' | 'perf-stats' | 'multi-trend' | 'correlation'
+  | 'vitals';
 
 /** Map from URL-style path to ViewName */
 export const pathToView: Record<string, ViewName> = {
@@ -51,6 +52,7 @@ export const pathToView: Record<string, ViewName> = {
   '/perf-stats': 'perf-stats',
   '/multi-trend': 'multi-trend',
   '/correlation': 'correlation',
+  '/vitals': 'vitals',
 };
 
 export interface ViewContextValue {

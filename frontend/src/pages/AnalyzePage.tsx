@@ -39,6 +39,8 @@ function levelToScore(level: string | undefined): number {
 
 function transformResponse(raw: RawAnalyzeResponse): AnalyzeResult {
   const s = raw.summary;
+  const strengths = s.strengths ?? [];
+  const risks = s.risks ?? [];
   const dims: { name: string; score: number; detail: string }[] = [
     { name: 'order_flow',   score: levelToScore(raw.order_flow.net_direction as string),   detail: raw.order_flow.verdict },
     { name: 'volume_price', score: levelToScore(raw.volume_price.turnover_level),          detail: raw.volume_price.verdict },
@@ -47,12 +49,12 @@ function transformResponse(raw: RawAnalyzeResponse): AnalyzeResult {
     { name: 'money_flow',   score: levelToScore(raw.money_flow.today_main_direction as string), detail: raw.money_flow.verdict },
     { name: 'technical',    score: levelToScore(raw.technical.rsi_level as string),        detail: raw.technical.verdict },
     { name: 'sector',       score: raw.sector.is_sector_leader ? 7 : 5,                   detail: raw.sector.verdict },
-    { name: 'sentiment',    score: Math.max(1, Math.min(10, ((s.strengths.length - s.risks.length) * 1.5) + 5)), detail: raw.sentiment.verdict },
+    { name: 'sentiment',    score: Math.max(1, Math.min(10, ((strengths.length - risks.length) * 1.5) + 5)), detail: raw.sentiment.verdict },
   ];
 
   const parts: string[] = [s.suggestion];
-  if (s.strengths.length) parts.push(`优势: ${s.strengths.join('、')}`);
-  if (s.risks.length) parts.push(`风险: ${s.risks.join('、')}`);
+  if (strengths.length) parts.push(`优势: ${strengths.join('、')}`);
+  if (risks.length) parts.push(`风险: ${risks.join('、')}`);
 
   // Detect staleness: if fetched_at date differs from today
   const fetchedDate = raw.fetched_at ? raw.fetched_at.slice(0, 10) : '';
@@ -138,6 +140,7 @@ export default function AnalyzePage() {
 
   useEffect(() => {
     if (code) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchAnalysis(code);
     } else {
       setData(null);

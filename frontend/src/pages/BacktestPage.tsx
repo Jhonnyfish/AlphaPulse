@@ -5,18 +5,16 @@ import {
   type BacktestTrade,
 } from '@/lib/api';
 import Alpha300Selector from '@/components/Alpha300Selector';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '@/components/charts/ReactECharts';
 import {
   FlaskConical,
   Play,
   Loader2,
   AlertCircle,
   TrendingUp,
-  TrendingDown,
   BarChart3,
   ArrowUpDown,
   Trophy,
-  Target,
   Shield,
   Hash,
 } from 'lucide-react';
@@ -53,6 +51,7 @@ export default function BacktestPage() {
     setResults([]);
     try {
       const res = await compareApi.backtestCompare(codeList.join(','), days);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const raw = res.data as any;
       setResults(raw?.results ?? (Array.isArray(raw) ? raw : []));
     } catch {
@@ -480,7 +479,6 @@ function SortableTh({
   label,
   sortKey: key,
   currentSort,
-  sortDir,
   onToggle,
   align = 'left',
 }: {

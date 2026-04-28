@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '@/components/charts/ReactECharts';
 import { TrendingUp, TrendingDown, Minus, BarChart3 } from 'lucide-react';
 
 interface TrendStock {
@@ -19,11 +19,20 @@ interface TrendsData {
 }
 
 function TrendCard({ stock }: { stock: TrendStock }) {
-  const getChangeColor = (val: number | null) => {
+  // Returns CSS variable for JSX style props
+  const getChangeColorCSS = (val: number | null) => {
     if (val === null || val === undefined) return 'var(--color-text-muted)';
     if (val > 0) return 'var(--color-danger)';
     if (val < 0) return 'var(--color-success)';
     return 'var(--color-text-muted)';
+  };
+
+  // Returns hex color for ECharts canvas (CSS vars don't work in canvas)
+  const getChangeColorHex = (val: number | null) => {
+    if (val === null || val === undefined) return '#94a3b8';
+    if (val > 0) return '#ef4444';
+    if (val < 0) return '#22c55e';
+    return '#94a3b8';
   };
 
   const formatChange = (val: number | null) => {
@@ -43,13 +52,13 @@ function TrendCard({ stock }: { stock: TrendStock }) {
           data: stock.kline_data,
           smooth: true,
           symbol: 'none',
-          lineStyle: { width: 1.5, color: getChangeColor(stock.change_1d) },
+          lineStyle: { width: 1.5, color: getChangeColorHex(stock.change_1d) },
           areaStyle: {
             color: {
               type: 'linear' as const,
               x: 0, y: 0, x2: 0, y2: 1,
               colorStops: [
-                { offset: 0, color: `${getChangeColor(stock.change_1d)}33` },
+                { offset: 0, color: `${getChangeColorHex(stock.change_1d)}33` },
                 { offset: 1, color: 'transparent' },
               ],
             },
@@ -68,7 +77,7 @@ function TrendCard({ stock }: { stock: TrendStock }) {
           <div className="font-medium text-sm">{stock.name || stock.code}</div>
           <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{stock.code}</div>
         </div>
-        <div className="flex items-center gap-1" style={{ color: getChangeColor(stock.change_1d) }}>
+        <div className="flex items-center gap-1" style={{ color: getChangeColorCSS(stock.change_1d) }}>
           {stock.change_1d !== null && stock.change_1d > 0 && <TrendingUp className="w-3.5 h-3.5" />}
           {stock.change_1d !== null && stock.change_1d < 0 && <TrendingDown className="w-3.5 h-3.5" />}
           {stock.change_1d !== null && stock.change_1d === 0 && <Minus className="w-3.5 h-3.5" />}
@@ -89,19 +98,19 @@ function TrendCard({ stock }: { stock: TrendStock }) {
       <div className="grid grid-cols-3 gap-2 text-xs">
         <div>
           <div style={{ color: 'var(--color-text-muted)' }}>5日</div>
-          <div className="font-mono" style={{ color: getChangeColor(stock.change_5d) }}>
+          <div className="font-mono" style={{ color: getChangeColorCSS(stock.change_5d) }}>
             {formatChange(stock.change_5d)}
           </div>
         </div>
         <div>
           <div style={{ color: 'var(--color-text-muted)' }}>20日</div>
-          <div className="font-mono" style={{ color: getChangeColor(stock.change_20d) }}>
+          <div className="font-mono" style={{ color: getChangeColorCSS(stock.change_20d) }}>
             {formatChange(stock.change_20d)}
           </div>
         </div>
         <div>
           <div style={{ color: 'var(--color-text-muted)' }}>30日</div>
-          <div className="font-mono" style={{ color: getChangeColor(stock.change_30d) }}>
+          <div className="font-mono" style={{ color: getChangeColorCSS(stock.change_30d) }}>
             {formatChange(stock.change_30d)}
           </div>
         </div>

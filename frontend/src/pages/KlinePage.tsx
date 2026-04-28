@@ -8,8 +8,7 @@ import {
   type IChartApi,
   type ISeriesApi,
 } from 'lightweight-charts';
-import type { EChartsOption } from 'echarts';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '@/components/charts/ReactECharts';
 import { marketApi, type KlinePoint, type Quote, type SearchSuggestion } from '@/lib/api';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import StockSearch from '@/components/StockSearch';
@@ -30,6 +29,7 @@ const PERIODS = [
 type OverlayIndicator = 'MA';
 /** Sub-chart (pane) indicator ids */
 type SubIndicator = 'MACD' | 'KDJ' | 'RSI';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type IndicatorId = OverlayIndicator | SubIndicator;
 
 const SUB_INDICATORS: { id: SubIndicator; label: string }[] = [
@@ -247,14 +247,18 @@ export default function KlinePage() {
 
   /* ── Sub-chart ECharts options ───────────────────────────────── */
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const subChartOption = useMemo<any | null>(() => {
     if (!activeSub) return null;
 
     const points = klinePointsRef.current;
     if (!points.length) return null;
 
+    // eslint-disable-next-line react-hooks/refs
     const dates = points.map((p) => p.date);
+    // eslint-disable-next-line react-hooks/refs
     const closes = points.map((p) => p.close);
+    // eslint-disable-next-line react-hooks/refs
     const highs = points.map((p) => p.high);
     const lows = points.map((p) => p.low);
 

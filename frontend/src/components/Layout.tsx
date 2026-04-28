@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useKeyboard } from '@/lib/useKeyboard';
 import { useTheme } from '@/lib/theme';
@@ -64,6 +64,7 @@ const navItems: NavItem[] = [
   { view: 'institutions', label: '机构动向', icon: Building2, group: '工具' },
   { view: 'anomalies', label: '异常检测', icon: AlertTriangle, group: '工具' },
   { view: 'diag', label: '系统诊断', icon: Monitor, group: '工具' },
+  { view: 'vitals', label: '性能监控', icon: Activity, group: '工具' },
   { view: 'settings', label: '设置', icon: Settings, group: '工具' },
   { view: 'quick-actions', label: '快捷操作', icon: Bolt, group: '工具' },
 ];
@@ -101,6 +102,7 @@ export default function Layout({ children }: LayoutProps) {
 
   // Close sidebar on view change (mobile)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSidebarOpen(false);
   }, [activeView]);
 
@@ -142,6 +144,14 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="flex h-screen relative">
+      {/* Skip to main content link */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[999] focus:bg-blue-600 focus:text-white focus:px-4 focus:py-2 focus:rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        跳转到主内容
+      </a>
+
       {/* Command Palette */}
       <CommandPalette
         open={commandPaletteOpen}
@@ -164,6 +174,8 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Sidebar */}
       <aside
+        role="navigation"
+        aria-label="主导航"
         className={`
           fixed inset-y-0 left-0 z-50 w-56 flex flex-col border-r transform transition-transform duration-200 ease-in-out
           lg:relative lg:translate-x-0
@@ -195,6 +207,7 @@ export default function Layout({ children }: LayoutProps) {
           <button
             onClick={() => setSidebarOpen(false)}
             className="p-1 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors lg:hidden"
+            aria-label="关闭导航菜单"
           >
             <X className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
           </button>
@@ -205,6 +218,7 @@ export default function Layout({ children }: LayoutProps) {
           <button
             onClick={() => setCommandPaletteOpen(true)}
             className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-colors hover:bg-[var(--color-bg-hover)]"
+            aria-label="搜索"
             style={{
               color: 'var(--color-text-muted)',
               border: '1px solid var(--color-border)',
@@ -225,7 +239,7 @@ export default function Layout({ children }: LayoutProps) {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 py-2 px-2 overflow-y-auto">
+        <nav className="flex-1 py-2 px-2 overflow-y-auto" aria-label="主导航菜单">
           {grouped.map(([group, items]) => (
             <div key={group} className="mb-2">
               <div
@@ -240,6 +254,7 @@ export default function Layout({ children }: LayoutProps) {
                   <button
                     key={view}
                     onClick={() => navigate(view)}
+                    aria-current={isActive ? 'page' : undefined}
                     className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150 w-full text-left ${
                       isActive
                         ? 'font-medium'
@@ -284,6 +299,7 @@ export default function Layout({ children }: LayoutProps) {
               onClick={() => setKeyboardHelpOpen(true)}
               className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
               title="快捷键帮助"
+              aria-label="快捷键帮助"
             >
               <Keyboard className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
             </button>
@@ -291,6 +307,7 @@ export default function Layout({ children }: LayoutProps) {
               onClick={toggleTheme}
               className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
               title={theme === 'dark' ? '切换到亮色模式' : '切换到暗色模式'}
+              aria-label={theme === 'dark' ? '切换到亮色模式' : '切换到暗色模式'}
             >
               {theme === 'dark' ? (
                 <Sun className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
@@ -302,6 +319,7 @@ export default function Layout({ children }: LayoutProps) {
               onClick={logout}
               className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
               title="退出登录"
+              aria-label="退出登录"
             >
               <LogOut className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
             </button>
@@ -324,6 +342,8 @@ export default function Layout({ children }: LayoutProps) {
           <button
             onClick={() => setSidebarOpen(true)}
             className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
+            aria-label="打开导航菜单"
+            aria-expanded={sidebarOpen}
           >
             <Menu className="w-5 h-5" style={{ color: 'var(--color-text-primary)' }} />
           </button>
@@ -336,6 +356,7 @@ export default function Layout({ children }: LayoutProps) {
               onClick={toggleTheme}
               className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
               title={theme === 'dark' ? '切换到亮色模式' : '切换到暗色模式'}
+              aria-label={theme === 'dark' ? '切换到亮色模式' : '切换到暗色模式'}
             >
               {theme === 'dark' ? (
                 <Sun className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
@@ -346,6 +367,7 @@ export default function Layout({ children }: LayoutProps) {
             <button
               onClick={() => setCommandPaletteOpen(true)}
               className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
+              aria-label="搜索"
             >
               <Search className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
             </button>
@@ -356,7 +378,7 @@ export default function Layout({ children }: LayoutProps) {
         <TickerTape />
 
         {/* Content */}
-        <main className="flex-1 overflow-auto p-4 sm:p-6">
+        <main id="main-content" role="main" className="flex-1 overflow-auto p-4 sm:p-6">
           {children}
         </main>
       </div>

@@ -40,8 +40,12 @@ export default defineConfig({
               return 'vendor';
             }
             // ECharts and wrapper — used by multiple chart-heavy pages
-            if (id.includes('/echarts/') || id.includes('/echarts-for-react/') || id.includes('/lightweight-charts/')) {
+            if (id.includes('/echarts/') || id.includes('/echarts-for-react/')) {
               return 'charts';
+            }
+            // Lightweight charts — only used by KlinePage, separate from ECharts
+            if (id.includes('/lightweight-charts/')) {
+              return 'lightweight-charts';
             }
             // Animation library — used across many pages
             if (id.includes('/framer-motion/')) {

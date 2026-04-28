@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '@/components/charts/ReactECharts';
 import { Network, RefreshCw } from 'lucide-react';
 
 interface CorrelationData {
@@ -26,15 +26,8 @@ export default function CorrelationPage() {
       .finally(() => setLoading(false));
   };
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(); }, []);
-
-  const getCorrelationColor = (val: number) => {
-    if (val >= 0.7) return '#ef4444';
-    if (val >= 0.4) return '#f59e0b';
-    if (val >= -0.4) return '#6b7280';
-    if (val >= -0.7) return '#3b82f6';
-    return '#22c55e';
-  };
 
   // Heatmap chart
   const heatmapChart = data?.matrix && data.matrix.length > 0 ? {

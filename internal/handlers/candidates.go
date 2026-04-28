@@ -103,9 +103,17 @@ func (h *CandidatesHandler) candidatesBuiltin(c *gin.Context, limit int) {
 	// Fetch from Alpha300 API
 	candidates, err := h.alpha300.FetchCandidates(c.Request.Context(), limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"ok":    false,
-			"error": "failed to fetch candidates",
+		logger.L().Warn("candidates: alpha300 unreachable, returning degraded response",
+			zap.Error(err))
+		c.JSON(http.StatusOK, gin.H{
+			"ok":       true,
+			"degraded": true,
+			"data": CandidatesPayload{
+				Limit:      limit,
+				Items:      []services.Alpha300Candidate{},
+				TierCounts: map[string]int{},
+				FetchedAt:  time.Now().Format(time.RFC3339),
+			},
 		})
 		return
 	}
@@ -198,9 +206,15 @@ func (h *CandidatesHandler) candidatesByStrategy(c *gin.Context, strategyID stri
 	if err != nil {
 		logger.L().Warn("strategy candidates: failed to fetch alpha300 pool",
 			zap.String("strategy", strategyID), zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"ok":    false,
-			"error": "failed to fetch candidate pool",
+		c.JSON(http.StatusOK, gin.H{
+			"ok":       true,
+			"degraded": true,
+			"data": CandidatesPayload{
+				Limit:      limit,
+				Items:      []services.Alpha300Candidate{},
+				TierCounts: map[string]int{},
+				FetchedAt:  time.Now().Format(time.RFC3339),
+			},
 		})
 		return
 	}

@@ -30,7 +30,7 @@ export default function StrategiesPage() {
     try {
       const res = await strategiesApi.list();
       const payload = res.data;
-      const list = Array.isArray(payload) ? payload : (payload?.strategies ?? []);
+      const list = Array.isArray(payload) ? payload : ((payload as Record<string, unknown>)?.strategies as Strategy[] ?? []);
       setStrategies(list);
     } catch {
       setError('加载策略列表失败');
@@ -40,6 +40,7 @@ export default function StrategiesPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, [fetchData]);
 

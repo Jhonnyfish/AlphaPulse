@@ -8,8 +8,7 @@ import {
  Search,
  Play,
  Loader2,
- AlertCircle,
- TrendingUp,
+  TrendingUp,
  BarChart3,
  Radar as RadarIcon,
 } from 'lucide-react';
@@ -525,7 +524,8 @@ function buildRadarOption(results: BacktestResult[]) {
     { name: '综合评分', max: 100 },
   ];
 
-  const seriesData = valid.map((r, i) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const seriesData = valid.map((r, _i) => {
     // Derive multi-dimensional scores from backtest data
     const winScore = Math.min(r.win_rate, 100);
     const returnScore = Math.min(Math.max(r.avg_return_pct + 10, 0), 30);

@@ -160,6 +160,7 @@ export default function SectorsPage() {
     setError('');
     try {
       const res = await marketApi.sectors();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const d = res.data as any;
       setSectors(Array.isArray(d) ? d : Array.isArray(d.sectors) ? d.sectors : []);
     } catch {

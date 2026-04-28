@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '@/components/charts/ReactECharts';
 import { GitBranch, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
 
 interface TrendStock {
@@ -38,6 +38,7 @@ export default function MultiTrendPage() {
       .finally(() => setLoading(false));
   };
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(); }, []);
 
   const getTrendColor = (trend: string) => {
@@ -62,7 +63,8 @@ export default function MultiTrendPage() {
     tooltip: {
       trigger: 'item' as const,
       formatter: (p: { data: [number, number, string, number] }) => {
-        const [x, y, name, score] = p.data;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const [x, _y, name, score] = p.data;
         return `${name}<br/>涨跌幅: ${(x ?? 0).toFixed(2)}%<br/>趋势评分: ${score}`;
       },
     },

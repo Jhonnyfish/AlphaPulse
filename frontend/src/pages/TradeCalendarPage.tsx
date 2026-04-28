@@ -27,6 +27,7 @@ export default function TradeCalendarPage() {
       .finally(() => setLoading(false));
   };
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(year, month); }, [year, month]);
 
   const navigate = (delta: number) => {

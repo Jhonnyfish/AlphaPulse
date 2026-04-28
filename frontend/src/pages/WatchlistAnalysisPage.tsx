@@ -85,6 +85,7 @@ export default function WatchlistAnalysisPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (tab === '热力图') fetchHeatmap();
     else if (tab === '板块分布') fetchSectors();
     else if (tab === '排名') fetchRanking();

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { portfolioApi, type PortfolioPosition, type PortfolioAnalytics, type PortfolioRisk } from '@/lib/api';
 import {
   Plus, Trash2, TrendingUp, TrendingDown, PieChart, Shield, RefreshCw,
-  Activity, Target, BarChart3, Percent, Award, Scale, Briefcase,
+  Activity, Target, BarChart3, Award, Scale, Briefcase,
 } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
 import ErrorState from '@/components/ErrorState';
@@ -58,6 +58,7 @@ export default function PortfolioPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, [fetchData]);
 
@@ -167,6 +168,7 @@ export default function PortfolioPage() {
         backgroundColor: 'rgba(15, 23, 42, 0.92)',
         borderColor: 'rgba(148, 163, 184, 0.2)',
         textStyle: { color: '#e2e8f0', fontSize: 12 },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         formatter: (params: any) => {
           const p = Array.isArray(params) ? params[0] : params;
           const val = p.value as number;
@@ -212,6 +214,7 @@ export default function PortfolioPage() {
                 { offset: 0, color: gradStart },
                 { offset: 1, color: gradEnd },
               ],
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } as any,
           },
           markLine: {
@@ -290,6 +293,7 @@ export default function PortfolioPage() {
         backgroundColor: 'rgba(15, 23, 42, 0.92)',
         borderColor: 'rgba(148, 163, 184, 0.2)',
         textStyle: { color: '#e2e8f0' },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         formatter: (params: any) => {
           const val = params.value as number;
           return `<b>${params.name}</b><br/>市值: ${formatNum(val)}<br/>占比: ${params.percent}%`;

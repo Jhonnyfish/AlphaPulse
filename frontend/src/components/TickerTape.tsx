@@ -58,6 +58,7 @@ export default function TickerTape() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchQuotes();
     // Refresh every 60 seconds
     const interval = setInterval(fetchQuotes, 60000);
@@ -90,6 +91,8 @@ export default function TickerTape() {
     <div
       ref={containerRef}
       className="relative overflow-hidden border-b"
+      aria-label="自选股行情滚动条"
+      role="marquee"
       style={{
         height: '32px',
         background: 'rgba(15, 23, 42, 0.6)',

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { fundFlowApi, type FundFlowItem } from '@/lib/api'
 import { useToast } from '@/lib/toast'
 import EChart from '@/components/charts/EChart'
-import { Skeleton, SkeletonCard, SkeletonTable } from '@/components/ui/Skeleton'
+import { SkeletonCard, SkeletonTable } from '@/components/ui/Skeleton'
 import { ArrowUpRight, ArrowDownRight, Droplets, Filter, Search } from 'lucide-react'
 import Alpha300Selector from '@/components/Alpha300Selector'
 import DegradedBanner from '@/components/DegradedBanner'
@@ -55,22 +55,12 @@ export default function FlowPanelPage() {
   const [stockDegradedMsg, setStockDegradedMsg] = useState<string | undefined>()
 
   useEffect(() => {
-    fundFlowApi.flow()
-      .then(res => {
-        const body = res.data as unknown
-        if (body && typeof body === 'object' && !Array.isArray(body) && 'degraded' in body) {
-          const d = body as { degraded: boolean; items?: FundFlowItem[]; message?: string }
-          setDegraded(!!d.degraded)
-          setDegradedMsg(d.message)
-          setData(d.items ?? [])
-        } else {
-          setDegraded(false)
-          setDegradedMsg(undefined)
-          setData(body as FundFlowItem[])
-        }
-      })
-      .catch(err => toast({ type: 'error', title: '加载失败', message: err.message }))
-      .finally(() => setLoading(false))
+    // /fund-flow/flow requires a stock code — skip the call on the market overview tab
+    // and show degraded state immediately to avoid a 400 error
+    setDegraded(true)
+    setDegradedMsg('市场资金流向排名数据暂不可用，请使用个股查询')
+    setData([])
+    setLoading(false)
   }, [])
 
   const filteredData = useMemo(() => {

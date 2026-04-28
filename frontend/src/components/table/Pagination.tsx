@@ -74,7 +74,7 @@ export default function Pagination({
     }) as React.CSSProperties;
 
   return (
-    <div className="flex items-center justify-between mt-3 gap-4">
+    <div className="flex items-center justify-between mt-3 gap-4" role="navigation" aria-label="分页导航">
       {/* Left: info */}
       <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
         {totalItems != null && pageSize != null && (
@@ -93,6 +93,7 @@ export default function Pagination({
           disabled={page === 1}
           onClick={() => onPageChange(1)}
           title="第一页"
+          aria-label="第一页"
         >
           <ChevronsLeft className="w-4 h-4" />
         </button>
@@ -102,6 +103,7 @@ export default function Pagination({
           disabled={page === 1}
           onClick={() => onPageChange(page - 1)}
           title="上一页"
+          aria-label="上一页"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -121,6 +123,8 @@ export default function Pagination({
               key={p}
               style={btnStyle(p === page, false)}
               onClick={() => onPageChange(p)}
+              aria-label={`第 ${p} 页`}
+              aria-current={p === page ? 'page' : undefined}
             >
               {p}
             </button>
@@ -133,6 +137,7 @@ export default function Pagination({
           disabled={page === totalPages}
           onClick={() => onPageChange(page + 1)}
           title="下一页"
+          aria-label="下一页"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -142,6 +147,7 @@ export default function Pagination({
           disabled={page === totalPages}
           onClick={() => onPageChange(totalPages)}
           title="最后一页"
+          aria-label="最后一页"
         >
           <ChevronsRight className="w-4 h-4" />
         </button>

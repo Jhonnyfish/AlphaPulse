@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -23,12 +24,27 @@ type DragonTigerHandler struct {
 }
 
 func NewDragonTigerHandler(eastMoney *services.EastMoneyService) *DragonTigerHandler {
-	return &DragonTigerHandler{
+	h := &DragonTigerHandler{
 		eastMoney:        eastMoney,
 		dragonTigerCache: cache.New[models.DragonTigerResponse](),
 		historyCache:     cache.New[models.DragonTigerHistoryResponse](),
 		institutionCache: cache.New[models.InstitutionTrackerResponse](),
 	}
+	// Pre-warm history cache in background
+	if eastMoney != nil {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+			defer cancel()
+			resp, err := eastMoney.FetchDragonTigerHistory(ctx, 5)
+			if err != nil {
+				zap.L().Warn("dragon-tiger history pre-warm failed", zap.Error(err))
+				return
+			}
+			h.historyCache.Set("history:5", *resp, 24*time.Hour)
+			zap.L().Info("dragon-tiger history cache pre-warmed")
+		}()
+	}
+	return h
 }
 
 // @Summary      获取龙虎榜数据
@@ -96,7 +112,7 @@ func (h *DragonTigerHandler) GetHistory(c *gin.Context) {
 		return
 	}
 
-	h.historyCache.Set(cacheKey, *response, 10*time.Minute)
+	h.historyCache.Set(cacheKey, *response, 24*time.Hour)
 	c.JSON(http.StatusOK, response)
 }
 
@@ -133,7 +149,7 @@ func (h *DragonTigerHandler) GetInstitutionTracker(c *gin.Context) {
 		Period:       fmt.Sprintf("%d days", days),
 		Cached:       false,
 	}
-	h.institutionCache.Set(cacheKey, response, 10*time.Minute)
+	h.institutionCache.Set(cacheKey, response, 24*time.Hour)
 	c.JSON(http.StatusOK, response)
 }
 

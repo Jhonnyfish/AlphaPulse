@@ -11,7 +11,9 @@ interface Alpha300SelectorProps {
 const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours — Alpha300 list refreshes daily
 const LS_KEY = 'alpha300_cache';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 let cachedItems: CandidateListItem[] | null = null;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 let cachedAt = 0;
 let inflightRequest: Promise<CandidateListItem[]> | null = null;
 
@@ -152,6 +154,9 @@ export default function Alpha300Selector({
       className="modal-backdrop animate-fade-in"
       style={{ zIndex: 220 }}
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Alpha300 快速选股"
     >
       <div
         className="modal-content animate-scale-in w-full h-full sm:h-auto sm:max-h-[80vh] max-w-2xl mx-0 sm:mx-4 rounded-none sm:rounded-2xl overflow-hidden"
@@ -198,6 +203,10 @@ export default function Alpha300Selector({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="搜索股票代码或名称..."
+              role="combobox"
+              aria-expanded={filteredItems.length > 0}
+              aria-controls="alpha300-listbox"
+              aria-label="搜索股票代码或名称"
               className="w-full pl-9 pr-3 py-2.5 rounded-xl border text-sm outline-none"
               style={{
                 background: 'var(--color-bg-card)',
@@ -244,13 +253,14 @@ export default function Alpha300Selector({
                 未找到匹配的 Alpha300 标的
               </div>
             ) : (
-              <div className="max-h-[50vh] sm:max-h-[420px] overflow-y-auto divide-y" style={{ borderColor: 'var(--color-border)' }}>
+              <div id="alpha300-listbox" role="listbox" aria-label="Alpha300 候选列表" className="max-h-[50vh] sm:max-h-[420px] overflow-y-auto divide-y" style={{ borderColor: 'var(--color-border)' }}>
                 {filteredItems.map((item) => {
                   const tier = tierStyle(item.recommendation_tier);
                   return (
                     <button
                       key={item.code}
                       type="button"
+                      role="option"
                       onClick={() => {
                         onSelect(item.code);
                         onClose();

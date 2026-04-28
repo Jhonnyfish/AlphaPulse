@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"alphapulse/internal/models"
 	"alphapulse/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -23,17 +24,19 @@ const defaultReportsDir = "/home/finn/.uzi-skill/reports"
 type DashboardHandler struct {
 	db            *pgxpool.Pool
 	tencentSvc    *services.TencentService
+	eastMoneySvc  *services.EastMoneyService
 	watchlistH    *WatchlistHandler
 	log           *zap.Logger
 }
 
 // NewDashboardHandler creates a new DashboardHandler.
-func NewDashboardHandler(db *pgxpool.Pool, tencentSvc *services.TencentService, watchlistH *WatchlistHandler, log *zap.Logger) *DashboardHandler {
+func NewDashboardHandler(db *pgxpool.Pool, tencentSvc *services.TencentService, eastMoneySvc *services.EastMoneyService, watchlistH *WatchlistHandler, log *zap.Logger) *DashboardHandler {
 	return &DashboardHandler{
-		db:         db,
-		tencentSvc: tencentSvc,
-		watchlistH: watchlistH,
-		log:        log,
+		db:           db,
+		tencentSvc:   tencentSvc,
+		eastMoneySvc: eastMoneySvc,
+		watchlistH:   watchlistH,
+		log:          log,
 	}
 }
 
@@ -105,6 +108,36 @@ func (h *DashboardHandler) DashboardSummary(c *gin.Context) {
 		date := h.lastReportDate()
 		mu.Lock()
 		result["last_report_date"] = date
+		mu.Unlock()
+	}()
+
+	// 6. Market overview (advance/decline/flat + indices)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		overview := h.fetchMarketOverview(ctx)
+		mu.Lock()
+		result["market_overview"] = overview
+		mu.Unlock()
+	}()
+
+	// 7. Sectors (top 20)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		sectors := h.fetchTopSectors(ctx)
+		mu.Lock()
+		result["sectors"] = sectors
+		mu.Unlock()
+	}()
+
+	// 8. Recent signals (last 7 days)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		signals := h.fetchRecentSignals(ctx, 7)
+		mu.Lock()
+		result["signals"] = signals
 		mu.Unlock()
 	}()
 
@@ -361,4 +394,115 @@ func (h *DashboardHandler) lastReportDate() string {
 
 	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
 	return dates[0]
+}
+
+// fetchMarketOverview returns market overview data: indices with advance/decline/flat counts.
+func (h *DashboardHandler) fetchMarketOverview(ctx context.Context) gin.H {
+	// Define the 6 major indices (same as MarketHandler.MarketOverview)
+	indices := [][2]string{
+		{"sh000001", "上证指数"},
+		{"sz399001", "深证成指"},
+		{"sz399006", "创业板指"},
+		{"sh000688", "科创50"},
+		{"sh000300", "沪深300"},
+		{"sh000905", "中证500"},
+	}
+
+	type indexResult struct {
+		quotes []models.IndexQuote
+		err    error
+	}
+	type breadthResult struct {
+		breadth models.MarketBreadth
+		err     error
+	}
+
+	idxCh := make(chan indexResult, 1)
+	brCh := make(chan breadthResult, 1)
+
+	go func() {
+		quotes, err := h.tencentSvc.FetchIndexQuotes(ctx, indices)
+		idxCh <- indexResult{quotes: quotes, err: err}
+	}()
+	go func() {
+		breadth, err := h.eastMoneySvc.FetchMarketBreadth(ctx)
+		brCh <- breadthResult{breadth: breadth, err: err}
+	}()
+
+	ir := <-idxCh
+	br := <-brCh
+
+	var indexQuotes []models.IndexQuote
+	if ir.err != nil {
+		h.log.Warn("dashboard: failed to fetch index quotes for overview", zap.Error(ir.err))
+		indexQuotes = []models.IndexQuote{}
+	} else {
+		indexQuotes = ir.quotes
+	}
+
+	breadth := br.breadth
+	if br.err != nil {
+		h.log.Warn("dashboard: failed to fetch market breadth", zap.Error(br.err))
+		breadth = models.MarketBreadth{
+			UpCount: 0, DownCount: 0, FlatCount: 0,
+			Sentiment: "中性", SentimentRatio: 50,
+		}
+	}
+
+	return gin.H{
+		"ok":           true,
+		"indices":      indexQuotes,
+		"market":       breadth,
+		"updated_at":   time.Now().Format(time.RFC3339),
+	}
+}
+
+// fetchTopSectors returns the top 20 sectors by absolute change.
+func (h *DashboardHandler) fetchTopSectors(ctx context.Context) []models.Sector {
+	sectors, err := h.eastMoneySvc.FetchSectors(ctx)
+	if err != nil {
+		h.log.Warn("dashboard: failed to fetch sectors", zap.Error(err))
+		return []models.Sector{}
+	}
+
+	// Limit to top 20
+	if len(sectors) > 20 {
+		sectors = sectors[:20]
+	}
+	return sectors
+}
+
+// fetchRecentSignals returns recent signal history entries (last N days).
+func (h *DashboardHandler) fetchRecentSignals(ctx context.Context, days int) []signalHistoryEntry {
+	const signalHistoryPath = "/home/finn/.hermes/scripts/signal_history.json"
+	entries := loadSignalHistory(signalHistoryPath)
+
+	// Filter by days
+	if days > 0 {
+		cutoff := time.Now().AddDate(0, 0, -days)
+		filtered := make([]signalHistoryEntry, 0, len(entries))
+		for _, e := range entries {
+			t, err := time.Parse(time.RFC3339, e.Timestamp)
+			if err != nil {
+				// Try other formats
+				t, err = time.Parse("2006-01-02 15:04:05", e.Timestamp)
+			}
+			if err == nil && t.After(cutoff) {
+				filtered = append(filtered, e)
+			}
+		}
+		entries = filtered
+	}
+
+	// Sort newest first
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Timestamp > entries[j].Timestamp
+	})
+
+	// Limit to 50 entries for the dashboard
+	if len(entries) > 50 {
+		entries = entries[:50]
+	}
+
+	return entries
 }

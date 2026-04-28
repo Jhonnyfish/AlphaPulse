@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"alphapulse/internal/cache"
@@ -49,24 +50,111 @@ type AlertsResponse struct {
 
 // AlertsHandler provides the smart alerts endpoint.
 type AlertsHandler struct {
-	db        *pgxpool.Pool
-	analyze   *AnalyzeHandler
-	log       *zap.Logger
+	db          *pgxpool.Pool
+	analyze     *AnalyzeHandler
+	log         *zap.Logger
 	alertsCache *cache.Cache[[]Alert]
+	stopCh      chan struct{} // signals background goroutine to stop
+	refreshing  int32         // atomic flag to prevent concurrent refreshes
 }
 
-// NewAlertsHandler creates a new AlertsHandler.
+// NewAlertsHandler creates a new AlertsHandler and starts background pre-computation.
 func NewAlertsHandler(
 	db *pgxpool.Pool,
 	analyze *AnalyzeHandler,
 	log *zap.Logger,
 ) *AlertsHandler {
-	return &AlertsHandler{
+	h := &AlertsHandler{
 		db:          db,
 		analyze:     analyze,
 		log:         log,
 		alertsCache: cache.New[[]Alert](),
+		stopCh:      make(chan struct{}),
 	}
+	go h.backgroundRefresh()
+	return h
+}
+
+// Stop signals the background refresh goroutine to exit.
+func (h *AlertsHandler) Stop() {
+	close(h.stopCh)
+}
+
+// backgroundRefresh warms the cache on startup then refreshes periodically.
+func (h *AlertsHandler) backgroundRefresh() {
+	// Immediate first computation so the cache is warm before the first request.
+	h.refreshAlerts()
+
+	ticker := time.NewTicker(240 * time.Second) // 4 minutes (under the 5-min TTL)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			h.refreshAlerts()
+		case <-h.stopCh:
+			return
+		}
+	}
+}
+
+// refreshAlerts loads all watchlist stocks, analyzes them concurrently, and
+// caches the resulting alerts. It uses an atomic flag to prevent overlapping
+// refreshes. Errors are logged and the goroutine retries on the next tick.
+func (h *AlertsHandler) refreshAlerts() {
+	if !atomic.CompareAndSwapInt32(&h.refreshing, 0, 1) {
+		return // another refresh is already in progress
+	}
+	defer atomic.StoreInt32(&h.refreshing, 0)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	codes, err := h.loadWatchlistCodes(ctx)
+	if err != nil {
+		h.log.Warn("alerts background refresh: load watchlist", zap.Error(err))
+		return
+	}
+	if len(codes) == 0 {
+		return
+	}
+
+	// Analyze each stock concurrently (limit to 8 workers).
+	analyses := make([]models.StockAnalysis, len(codes))
+	sem := make(chan struct{}, 8)
+	var wg sync.WaitGroup
+	for i, code := range codes {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(idx int, cd string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			analyses[idx] = h.analyze.analyzeSingle(context.Background(), cd)
+		}(i, code)
+	}
+	wg.Wait()
+
+	// Generate alerts from analysis results.
+	var allAlerts []Alert
+	for _, analysis := range analyses {
+		alerts := generateAlertsForStock(analysis)
+		allAlerts = append(allAlerts, alerts...)
+	}
+
+	// Sort: warnings first, then opportunities, then info.
+	sort.Slice(allAlerts, func(i, j int) bool {
+		pi := alertPriority(allAlerts[i].Type)
+		pj := alertPriority(allAlerts[j].Type)
+		if pi != pj {
+			return pi < pj
+		}
+		if allAlerts[i].Type == AlertWarning {
+			return allAlerts[i].Score < allAlerts[j].Score
+		}
+		return allAlerts[i].Score > allAlerts[j].Score
+	})
+
+	h.alertsCache.Set("all", allAlerts, 300*time.Second) // 5 min TTL
+	h.log.Info("alerts background refresh completed", zap.Int("count", len(allAlerts)))
 }
 
 // Alerts returns smart alerts for all watchlist stocks.
@@ -135,7 +223,7 @@ func (h *AlertsHandler) Alerts(c *gin.Context) {
 		return allAlerts[i].Score > allAlerts[j].Score
 	})
 
-	h.alertsCache.Set("all", allAlerts, 60*time.Second)
+	h.alertsCache.Set("all", allAlerts, 300*time.Second)
 
 	c.JSON(http.StatusOK, AlertsResponse{
 		OK:     true,

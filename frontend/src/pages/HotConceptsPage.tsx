@@ -36,6 +36,7 @@ export default function HotConceptsPage() {
     setError('');
     try {
       const res = await hotConceptsApi.list();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const d = res.data as any;
       setConcepts(Array.isArray(d) ? d : Array.isArray(d.concepts) ? d.concepts : []);
     } catch {
@@ -106,6 +107,12 @@ export default function HotConceptsPage() {
     return dates;
   }, []);
 
+  // Deterministic pseudo-random for stable mock data (avoids React 19 purity lint)
+  const seededRandom = (seed: number) => {
+    const x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  };
+
   const mockTrendData = useMemo(() => {
     if (concepts.length === 0) return null;
     const topConcepts = [...concepts]
@@ -116,15 +123,15 @@ export default function HotConceptsPage() {
     return {
       dates,
       series: topConcepts.map((concept, idx) => {
-        const baseHeat = 30 + Math.random() * 40;
-        const volatility = 5 + Math.random() * 10;
+        const baseHeat = 30 + seededRandom(idx * 3 + 1) * 40;
+        const volatility = 5 + seededRandom(idx * 3 + 2) * 10;
         const values: number[] = [];
         let current = baseHeat;
         for (let i = 0; i < dates.length; i++) {
           const drift =
             i === dates.length - 1
               ? (concept.change_pct ?? 0) * 0.5
-              : (Math.random() - 0.48) * volatility;
+              : (seededRandom(i * 7 + idx * 13 + 3) - 0.48) * volatility;
           current = Math.max(0, Math.min(100, current + drift));
           values.push(Math.round(current * 10) / 10);
         }
@@ -135,6 +142,7 @@ export default function HotConceptsPage() {
         };
       }),
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [concepts, generateMockDates]);
 
   const trendChartOption = useMemo<EChartsOption | null>(() => {

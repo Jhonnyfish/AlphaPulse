@@ -32,6 +32,9 @@ export default function SortableHeader({
   return (
     <th
       className={`select-none cursor-pointer transition-colors whitespace-nowrap ${className}`}
+      aria-sort={isActive ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSort(sortKey); } }}
       style={{
         textAlign: align,
         color: isActive ? 'var(--color-accent)' : 'var(--color-text-muted)',

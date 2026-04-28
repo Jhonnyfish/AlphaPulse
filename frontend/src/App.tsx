@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { ViewContext, type ViewName, type ViewContextValue } from '@/lib/ViewContext';
 import Layout from '@/components/Layout';
@@ -7,6 +7,7 @@ import LoginPage from '@/pages/LoginPage';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import AnimatedView from '@/components/AnimatedView';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { initVitals } from '@/lib/vitals';
 
 // Lazy-loaded page components — each becomes a separate chunk
 const DashboardPage = React.lazy(() => import('@/pages/DashboardPage'));
@@ -47,11 +48,17 @@ const TradeCalendarPage = React.lazy(() => import('@/pages/TradeCalendarPage'));
 const PatternScannerPage = React.lazy(() => import('@/pages/PatternScannerPage'));
 const PortfolioRiskPage = React.lazy(() => import('@/pages/PortfolioRiskPage'));
 const QuickActionsPage = React.lazy(() => import('@/pages/QuickActionsPage'));
+const VitalsPage = React.lazy(() => import('@/pages/VitalsPage'));
 
 export default function App() {
   const { token, loading } = useAuth();
   const [activeView, setActiveView] = useState<ViewName>('dashboard');
   const [viewParams, setViewParams] = useState<Record<string, string>>({});
+
+  // Initialize web vitals collection once
+  useEffect(() => {
+    initVitals();
+  }, []);
 
   const ctxValue = useMemo<ViewContextValue>(() => ({
     activeView,
@@ -119,6 +126,7 @@ export default function App() {
             {activeView === 'pattern-scanner' && <PatternScannerPage />}
             {activeView === 'portfolio-risk' && <PortfolioRiskPage />}
             {activeView === 'quick-actions' && <QuickActionsPage />}
+            {activeView === 'vitals' && <VitalsPage />}
           </Suspense>
         </AnimatedView>
         </ErrorBoundary>

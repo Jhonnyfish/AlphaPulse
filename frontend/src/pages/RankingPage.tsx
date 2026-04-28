@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useView } from '@/lib/ViewContext';
 import api from '@/lib/api';
 import type { RankingItem, RankingSummary, RankingResponse } from '@/lib/api';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '@/components/charts/ReactECharts';
 import {
   Trophy, RefreshCw, TrendingUp, TrendingDown,
   ChevronUp, ChevronDown, Award, AlertTriangle,
@@ -97,6 +97,7 @@ export default function RankingPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, [fetchData]);
 

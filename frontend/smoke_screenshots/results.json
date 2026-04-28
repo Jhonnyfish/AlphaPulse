@@ -1,0 +1,341 @@
+{
+  "timestamp": "2026-04-28T02:03:00.990646",
+  "pages": [
+    {
+      "view": "dashboard",
+      "name": "Dashboard",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4017
+    },
+    {
+      "view": "watchlist",
+      "name": "Watchlist",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4014
+    },
+    {
+      "view": "market",
+      "name": "Market",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4009
+    },
+    {
+      "view": "kline",
+      "name": "Kline",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4006
+    },
+    {
+      "view": "analyze",
+      "name": "Analyze",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4015
+    },
+    {
+      "view": "sectors",
+      "name": "Sectors",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4009
+    },
+    {
+      "view": "compare",
+      "name": "Compare",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4013
+    },
+    {
+      "view": "news",
+      "name": "News",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4008
+    },
+    {
+      "view": "settings",
+      "name": "Settings",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4009
+    },
+    {
+      "view": "portfolio",
+      "name": "Portfolio",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4010
+    },
+    {
+      "view": "journal",
+      "name": "Trading Journal",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4009
+    },
+    {
+      "view": "candidates",
+      "name": "Candidates",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4011
+    },
+    {
+      "view": "screener",
+      "name": "Screener",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4010
+    },
+    {
+      "view": "dragon-tiger",
+      "name": "Dragon Tiger",
+      "status": "CONSOLE_ERROR",
+      "console_errors": [
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+        }
+      ],
+      "has_content": true,
+      "render_time_ms": 4010
+    },
+    {
+      "view": "hot-concepts",
+      "name": "Hot Concepts",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4009
+    },
+    {
+      "view": "strategies",
+      "name": "Strategies",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4014
+    },
+    {
+      "view": "signals",
+      "name": "Signals",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4011
+    },
+    {
+      "view": "watchlist-analysis",
+      "name": "Watchlist Analysis",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4016
+    },
+    {
+      "view": "flow",
+      "name": "Flow Panel",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4012
+    },
+    {
+      "view": "trends",
+      "name": "Trends",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4009
+    },
+    {
+      "view": "breadth",
+      "name": "Breadth",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4011
+    },
+    {
+      "view": "sentiment",
+      "name": "Sentiment",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4010
+    },
+    {
+      "view": "daily-brief",
+      "name": "Daily Brief",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4010
+    },
+    {
+      "view": "diag",
+      "name": "Diagnostics",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4010
+    },
+    {
+      "view": "anomalies",
+      "name": "Anomalies",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4010
+    },
+    {
+      "view": "institutions",
+      "name": "Institutions",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4011
+    },
+    {
+      "view": "ranking",
+      "name": "Ranking",
+      "status": "CONSOLE_ERROR",
+      "console_errors": [
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+        }
+      ],
+      "has_content": true,
+      "render_time_ms": 4011
+    },
+    {
+      "view": "daily-report",
+      "name": "Daily Report",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4010
+    },
+    {
+      "view": "perf-stats",
+      "name": "Perf Stats",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4008
+    },
+    {
+      "view": "multi-trend",
+      "name": "Multi Trend",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4013
+    },
+    {
+      "view": "correlation",
+      "name": "Correlation",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4010
+    },
+    {
+      "view": "investment-plans",
+      "name": "Investment Plans",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4023
+    },
+    {
+      "view": "backtest",
+      "name": "Backtest",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4011
+    },
+    {
+      "view": "strategy-eval",
+      "name": "Strategy Eval",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4021
+    },
+    {
+      "view": "trade-calendar",
+      "name": "Trade Calendar",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4010
+    },
+    {
+      "view": "pattern-scanner",
+      "name": "Pattern Scanner",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4017
+    },
+    {
+      "view": "portfolio-risk",
+      "name": "Portfolio Risk",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4010
+    },
+    {
+      "view": "quick-actions",
+      "name": "Quick Actions",
+      "status": "PASS",
+      "console_errors": [],
+      "has_content": true,
+      "render_time_ms": 4056
+    }
+  ],
+  "summary": {
+    "total": 38,
+    "pass": 36,
+    "error": 0,
+    "console_error": 2
+  }
+}

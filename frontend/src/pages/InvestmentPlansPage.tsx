@@ -40,6 +40,7 @@ export default function InvestmentPlansPage() {
       .finally(() => setLoading(false));
   };
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchPlans(); }, []);
 
   const handleAdd = () => {

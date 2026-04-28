@@ -69,6 +69,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   // Reset state when opening
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery('');
       setSelectedIndex(0);
       // Delay focus to next frame so the element is mounted
@@ -88,6 +89,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   // Reset selected index when filter changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedIndex(0);
   }, [query]);
 
@@ -134,6 +136,9 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
       className="modal-backdrop animate-fade-in"
       onClick={onClose}
       style={{ zIndex: 200 }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="搜索与导航"
     >
       <div
         className="modal-content animate-scale-in w-full max-w-lg mx-4"
@@ -151,6 +156,11 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
             onChange={e => setQuery(e.target.value)}
             className="flex-1 bg-transparent outline-none text-sm"
             style={{ color: 'var(--color-text-primary)' }}
+            role="combobox"
+            aria-expanded={filtered.length > 0}
+            aria-controls="command-palette-listbox"
+            aria-activedescendant={filtered[selectedIndex] ? `cmd-${filtered[selectedIndex].id}` : undefined}
+            aria-label="搜索页面或输入股票代码"
           />
           <kbd
             className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
@@ -165,7 +175,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
         </div>
 
         {/* Results */}
-        <div ref={listRef} className="max-h-[360px] overflow-y-auto py-2">
+        <div ref={listRef} id="command-palette-listbox" role="listbox" aria-label="搜索结果" className="max-h-[360px] overflow-y-auto py-2">
           {filtered.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
               未找到匹配结果
@@ -177,6 +187,9 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
               return (
                 <button
                   key={cmd.id}
+                  id={`cmd-${cmd.id}`}
+                  role="option"
+                  aria-selected={isActive}
                   className={`flex items-center gap-3 w-full px-4 py-2.5 text-left transition-colors text-sm ${
                     isActive ? '' : ''
                   }`}

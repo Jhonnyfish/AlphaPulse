@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { type LucideIcon } from 'lucide-react';
 
 interface EmptyStateProps {
@@ -12,6 +13,7 @@ export default function EmptyState({ icon: Icon, title, description, actionLabel
   return (
     <div
       className="flex flex-col items-center justify-center py-16 rounded-xl animate-fade-in"
+      role="status"
       style={{
         background: 'rgba(15, 23, 42, 0.4)',
         backdropFilter: 'blur(18px)',

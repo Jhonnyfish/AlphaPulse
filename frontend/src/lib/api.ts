@@ -1,5 +1,16 @@
 import axios from 'axios';
 
+// Token readiness gate — prevents API calls before auth initialization
+let tokenReadyResolve: () => void;
+export const tokenReady = new Promise<void>((resolve) => {
+  tokenReadyResolve = resolve;
+});
+
+/** Call this from AuthProvider once auth init completes (success or failure) */
+export function resolveTokenReady() {
+  tokenReadyResolve();
+}
+
 const api = axios.create({
   baseURL: '/api',
   timeout: 30000,
@@ -7,11 +18,25 @@ const api = axios.create({
 
 // Request interceptor — attach JWT token
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  const url = config.url ?? '';
+
+  // Auth endpoints bypass the gate to avoid deadlock
+  if (url.includes('/auth/login') || url.includes('/auth/verify')) {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
   }
-  return config;
+
+  // All other requests wait for auth initialization to complete
+  return tokenReady.then(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  });
 });
 
 // Retryable server-error status codes (e.g. EastMoney rate-limiting)
@@ -670,6 +695,7 @@ export interface CandidatesListPayload {
 export interface WrappedResponse<T> {
   ok: boolean;
   data: T;
+  degraded?: boolean;
 }
 
 export const candidatesApi = {
@@ -691,6 +717,59 @@ export interface SystemStatus {
   memory_usage: number;
   goroutines: number;
 }
+
+// --- Dashboard Summary (composite) ---
+export interface DashboardSummaryResponse {
+  ok: boolean;
+  indices?: Array<{
+    code: string;
+    name: string;
+    price: number;
+    change: number;
+    change_pct: number;
+    prev_close?: number;
+    open?: number;
+    high?: number;
+    low?: number;
+    volume: number;
+    amount: number;
+  }>;
+  market_overview?: {
+    ok: boolean;
+    indices: Array<{
+      code: string;
+      name: string;
+      price: number;
+      change: number;
+      change_pct: number;
+      prev_close?: number;
+      volume: number;
+      amount: number;
+    }>;
+    market: {
+      up_count: number;
+      down_count: number;
+      flat_count: number;
+      limit_up: number;
+      limit_down: number;
+      sentiment: string;
+      sentiment_ratio: number;
+    };
+    updated_at: string;
+  };
+  sectors?: Sector[];
+  signals?: DashboardSignal[];
+  recent_activity?: ActivityEntry[];
+  watchlist?: { total: number; avg_change_pct: number | null };
+  top_gainers?: Array<{ code: string; name: string; price: number; change_pct: number }>;
+  top_losers?: Array<{ code: string; name: string; price: number; change_pct: number }>;
+  active_alerts?: number;
+  last_report_date?: string;
+}
+
+export const dashboardApi = {
+  summary: () => api.get<DashboardSummaryResponse>('/dashboard-summary'),
+};
 
 export const systemApi = {
   health: () => api.get('/health'),

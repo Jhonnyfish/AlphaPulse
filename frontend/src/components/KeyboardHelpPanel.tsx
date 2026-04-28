@@ -26,7 +26,7 @@ export default function KeyboardHelpPanel({ open, onClose, shortcuts }: Keyboard
   const items = shortcuts || defaultShortcuts;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label="快捷键帮助">
       <div
         className="modal-content p-6 w-full max-w-md animate-scale-in"
         onClick={(e) => e.stopPropagation()}
@@ -39,6 +39,7 @@ export default function KeyboardHelpPanel({ open, onClose, shortcuts }: Keyboard
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
+            aria-label="关闭"
           >
             <X className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
           </button>

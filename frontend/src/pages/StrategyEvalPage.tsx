@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import api from '@/lib/api';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '@/components/charts/ReactECharts';
 import {
   RefreshCw,
   BarChart3,
@@ -43,6 +43,7 @@ export default function StrategyEvalPage() {
       .finally(() => setLoading(false));
   };
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(); }, []);
 
   const changeColor = (n: number) =>

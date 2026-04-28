@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '@/components/charts/ReactECharts';
 import { Heart, RefreshCw, ArrowUpCircle, ArrowDownCircle, Thermometer, TrendingUp } from 'lucide-react';
 
 interface SentimentData {
@@ -52,6 +52,7 @@ export default function SentimentPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, []);
 

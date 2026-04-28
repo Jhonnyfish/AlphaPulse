@@ -20,6 +20,7 @@ export default function DegradedBanner({ visible, message, onDismiss }: Degraded
   return (
     <div
       className="flex items-center gap-3 px-4 py-3 mb-4 rounded-lg border transition-opacity duration-300"
+      role="alert"
       style={{
         background: 'rgba(245, 158, 11, 0.08)',
         borderColor: 'rgba(245, 158, 11, 0.3)',

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { EChartsOption } from 'echarts';
 import {
   marketApi,
   type MarketOverview,
@@ -37,6 +36,7 @@ function formatAmount(value: number) {
   return value.toFixed(2);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function formatVolume(value: number) {
   if (!Number.isFinite(value)) return '--';
   if (Math.abs(value) >= 1e8) return `${(value / 1e8).toFixed(2)}亿`;
@@ -331,6 +331,7 @@ export default function MarketPage() {
     [movers],
   );
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const breadthOption = useMemo<any>(() => ({
     tooltip: { trigger: 'item' },
     legend: { bottom: 0, textStyle: { color: '#94a3b8' } },
@@ -349,6 +350,7 @@ export default function MarketPage() {
     ],
   }), [overview]);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const indexOption = useMemo<any>(() => ({
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { left: 60, right: 18, top: 16, bottom: 24 },

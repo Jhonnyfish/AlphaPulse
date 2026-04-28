@@ -132,6 +132,11 @@ export default function StockSearch({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           autoFocus={autoFocus}
+          role="combobox"
+          aria-expanded={showDropdown && suggestions.length > 0}
+          aria-controls="stock-search-listbox"
+          aria-activedescendant={activeIndex >= 0 ? `stock-search-option-${activeIndex}` : undefined}
+          aria-label={placeholder}
           className="w-full pl-9 pr-8 py-2 rounded-lg border text-sm outline-none"
           style={{
             background: 'var(--color-bg-card)',
@@ -143,6 +148,7 @@ export default function StockSearch({
           <button
             onClick={clearQuery}
             className="absolute right-3 top-1/2 -translate-y-1/2"
+            aria-label="清除搜索"
           >
             <X className="w-3.5 h-3.5" style={{ color: 'var(--color-text-muted)' }} />
           </button>
@@ -153,6 +159,9 @@ export default function StockSearch({
       {showDropdown && suggestions.length > 0 && (
         <div
           ref={dropdownRef}
+          id="stock-search-listbox"
+          role="listbox"
+          aria-label="搜索结果"
           className="absolute z-50 w-full mt-1 rounded-lg border overflow-hidden shadow-lg"
           style={{
             background: 'var(--color-bg-card)',
@@ -162,6 +171,9 @@ export default function StockSearch({
           {suggestions.map((item, index) => (
             <button
               key={item.code}
+              id={`stock-search-option-${index}`}
+              role="option"
+              aria-selected={index === activeIndex}
               onClick={() => handleSelect(item)}
               className="w-full flex items-center justify-between px-3 py-2.5 text-sm text-left transition-colors"
               style={{

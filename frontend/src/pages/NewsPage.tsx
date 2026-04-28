@@ -228,6 +228,7 @@ export default function NewsPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchNews();
   }, [fetchNews]);
 

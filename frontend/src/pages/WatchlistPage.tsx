@@ -24,7 +24,7 @@ import { Trash2, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown, GripVertical, Star,
 import EmptyState from '@/components/EmptyState';
 import ErrorState from '@/components/ErrorState';
 
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '@/components/charts/ReactECharts';
 import type { EChartsOption } from 'echarts';
 import StockSearch from '@/components/StockSearch';
 import Alpha300Selector from '@/components/Alpha300Selector';
@@ -55,6 +55,7 @@ function getChangeColor(pct: number): ChangeStyle {
 }
 
 // Legacy helper kept for simple inline usage (returns color string only)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const _changeColor = (n: number): string => getChangeColor(n).color;
 
 // Sparkline line color: red for up, green for down (红涨绿跌)
@@ -363,6 +364,7 @@ export default function WatchlistPage() {
   const [itemTags, setItemTags] = useState<Map<string, string[]>>(new Map());
 
   // ─── DnD state ─────────────────────────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [useManualOrder, setUseManualOrder] = useState(false);
@@ -787,10 +789,15 @@ export default function WatchlistPage() {
             <div className="hidden sm:block rounded-lg border overflow-hidden"
               style={{ borderColor: 'var(--color-border)' }}>
               <table className="w-full text-sm border-separate border-spacing-0">
+                // eslint-disable-next-line react-hooks/static-components
                 <thead>
+                  // eslint-disable-next-line react-hooks/static-components
                   <tr style={{ background: 'var(--color-bg-secondary)' }}>
+                    // eslint-disable-next-line react-hooks/static-components
                     {editMode && <th className="w-8 px-2 py-3" />} {/* checkbox column */}
+                    // eslint-disable-next-line react-hooks/static-components
                     <th className="w-8 px-2 py-3" /> {/* drag handle column */}
+                    // eslint-disable-next-line react-hooks/static-components
                     <Th field="code" label="代码" />
                     <Th field="name" label="名称" />
                     <Th field="price" label="最新价" align="right" />

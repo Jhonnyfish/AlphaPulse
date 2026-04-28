@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Skeleton, SkeletonStatCards, SkeletonInlineTable } from "@/components/ui/Skeleton";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { SkeletonStatCards, SkeletonInlineTable } from "@/components/ui/Skeleton";
 import { useView } from '@/lib/ViewContext';
 import { portfolioApi, type PortfolioRisk } from '@/lib/api';
 import { Shield, AlertTriangle, CheckCircle, TrendingDown, PieChart, BarChart3, RefreshCw, ArrowLeft } from 'lucide-react';

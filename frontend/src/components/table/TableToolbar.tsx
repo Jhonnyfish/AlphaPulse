@@ -41,6 +41,7 @@ export default function TableToolbar({
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={searchPlaceholder}
+          aria-label={searchPlaceholder}
           className="w-full pl-9 pr-8 py-2 rounded-lg border text-sm outline-none transition-colors"
           style={{
             background: '#1a1d27',
@@ -54,6 +55,7 @@ export default function TableToolbar({
           <button
             onClick={() => onSearchChange('')}
             className="absolute right-3 top-1/2 -translate-y-1/2"
+            aria-label="清除搜索"
           >
             <X
               className="w-3.5 h-3.5"

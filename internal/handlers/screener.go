@@ -37,6 +37,7 @@ type ScreenerResult struct {
 // ScreenerResponse is the full response for /api/screener.
 type ScreenerResponse struct {
 	OK              bool             `json:"ok"`
+	Degraded        bool             `json:"degraded,omitempty"`
 	Count           int              `json:"count"`
 	TotalCandidates int              `json:"total_candidates"`
 	Filtered        int              `json:"filtered"`
@@ -143,11 +144,14 @@ func (h *ScreenerHandler) Screener(c *gin.Context) {
 	candidates, err := h.alpha300.FetchCandidates(c.Request.Context(), 300)
 	if err != nil {
 		logger.Error("screener: failed to fetch candidates", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, ScreenerResponse{
-			OK:    false,
-			Count: 0,
-			Results: []ScreenerResult{},
-			Filters: buildFiltersMap(minScore, maxScore, minMomentum, minTrend, maxVolatility, sector, tierFilter, limit),
+		c.JSON(http.StatusOK, ScreenerResponse{
+			OK:              true,
+			Degraded:        true,
+			Count:           0,
+			TotalCandidates: 0,
+			Filtered:        0,
+			Results:         []ScreenerResult{},
+			Filters:         buildFiltersMap(minScore, maxScore, minMomentum, minTrend, maxVolatility, sector, tierFilter, limit),
 		})
 		return
 	}

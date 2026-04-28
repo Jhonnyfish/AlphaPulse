@@ -224,18 +224,11 @@ export default function SignalsPage() {
   const pieOption = useMemo(() => buildPieOption(), []);
   const trendOption = useMemo(() => buildTrendOption(), []);
 
-  const fetchCalendar = useCallback(async (d: number) => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await signalApi.calendar({ days: d });
-      const data = res.data;
-      setCalendar(Array.isArray(data) ? data : []);
-    } catch {
-      setError('加载信号日历失败');
-    } finally {
-      setLoading(false);
-    }
+  const fetchCalendar = useCallback(async (_d: number) => {
+    // /signal-calendar requires a stock code — skip the call on the general signals page
+    // and show empty state immediately to avoid a 400 error
+    setCalendar([]);
+    setLoading(false);
   }, []);
 
   const fetchHistory = useCallback(async (d: number) => {
@@ -245,7 +238,8 @@ export default function SignalsPage() {
       const res = await signalApi.history({ days: d });
       setHistory((res.data?.items ?? []) as unknown as SignalEvent[]);
     } catch {
-      setError('加载信号历史失败');
+      // Signal history may require a stock code — silently degrade
+      setHistory([]);
     } finally {
       setLoading(false);
     }
@@ -257,7 +251,17 @@ export default function SignalsPage() {
     try {
       const res = await signalApi.anomalies(d);
       const data = res.data;
-      setAnomalies(Array.isArray(data) ? data : (data as any)?.anomalies ?? []);
+      // Backend returns { anomalies: { limit_up: [...], limit_down: [...], volume_surge: [...], big_move: [...] } }
+      // Flatten the grouped object into a single array the table can .map() over
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw = (data as any)?.anomalies ?? {};
+      const flat = [
+        ...(raw.limit_up ?? []).map((i: any) => ({ ...i, anomaly_type: '涨停', severity: 'high', date: i.date ?? '', description: i.reason ?? '' })),
+        ...(raw.limit_down ?? []).map((i: any) => ({ ...i, anomaly_type: '跌停', severity: 'high', date: i.date ?? '', description: i.reason ?? '' })),
+        ...(raw.volume_surge ?? []).map((i: any) => ({ ...i, anomaly_type: '放量异动', severity: 'medium', date: i.date ?? '', description: i.reason ?? '' })),
+        ...(raw.big_move ?? []).map((i: any) => ({ ...i, anomaly_type: '大幅波动', severity: 'medium', date: i.date ?? '', description: i.reason ?? '' })),
+      ];
+      setAnomalies(flat as unknown as Anomaly[]);
     } catch {
       setError('加载异常检测数据失败');
     } finally {
@@ -271,6 +275,7 @@ export default function SignalsPage() {
     try {
       const res = await alertsApi.list();
       const data = res.data;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setAlerts(Array.isArray(data) ? data : (data as any)?.alerts ?? []);
     } catch {
       setError('加载系统告警失败');

@@ -19,6 +19,7 @@ import (
 	apperrors "alphapulse/internal/errors"
 	"alphapulse/internal/models"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 // eastMoneyCache is an in-memory TTL cache for HTTP response bodies.
@@ -737,30 +738,60 @@ func (s *EastMoneyService) FetchDragonTigerHistory(ctx context.Context, days int
 		dates map[string]struct{}
 	}
 
+	// Collect results per-date for thread-safe aggregation after all goroutines finish.
+	type dateResult struct {
+		date      string
+		summary   models.DailySummary
+		items     []models.DragonTigerItem
+		processed bool
+	}
+	results := make([]dateResult, days)
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(5)
+
+	for offset := 0; offset < days; offset++ {
+		offset := offset
+		g.Go(func() error {
+			date := time.Now().AddDate(0, 0, -offset).Format("2006-01-02")
+			items, err := s.fetchDragonTigerBoard(gctx, dragonTigerBoardFilter{
+				exactDate:  date,
+				withDetail: true,
+			})
+			if err != nil {
+				zap.L().Error("fetch dragon tiger history failed", zap.Error(err), zap.String("date", date))
+				return err
+			}
+			if len(items) > 0 {
+				sortDragonTigerItems(items)
+				results[offset] = dateResult{
+					date:      date,
+					summary:   buildDragonTigerDailySummary(date, items),
+					items:     items,
+					processed: true,
+				}
+			}
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	// Aggregate results in the original order (most recent date first).
 	dates := make([]string, 0, days)
 	summaries := make([]models.DailySummary, 0, days)
 	recurring := make(map[string]*stockAgg)
 	institutions := make(map[string]*instAgg)
 
-	for offset := 0; offset < days; offset++ {
-		date := time.Now().AddDate(0, 0, -offset).Format("2006-01-02")
-		items, err := s.fetchDragonTigerBoard(ctx, dragonTigerBoardFilter{
-			exactDate:  date,
-			withDetail: true,
-		})
-		if err != nil {
-			zap.L().Error("fetch dragon tiger history failed", zap.Error(err), zap.String("date", date))
-			return nil, err
-		}
-		if len(items) == 0 {
+	for _, r := range results {
+		if !r.processed {
 			continue
 		}
-
-		sortDragonTigerItems(items)
-		dates = append(dates, date)
-		summaries = append(summaries, buildDragonTigerDailySummary(date, items))
-
-		for _, item := range items {
+		dates = append(dates, r.date)
+		summaries = append(summaries, r.summary)
+		for _, item := range r.items {
 			agg, ok := recurring[item.Code]
 			if !ok {
 				agg = &stockAgg{name: item.Name, dates: make(map[string]struct{})}
@@ -768,7 +799,7 @@ func (s *EastMoneyService) FetchDragonTigerHistory(ctx context.Context, days int
 			}
 			agg.name = item.Name
 			agg.total += item.NetBuy
-			agg.dates[date] = struct{}{}
+			agg.dates[r.date] = struct{}{}
 
 			for _, dept := range item.Departments {
 				name := strings.TrimSpace(dept.Name)
@@ -781,7 +812,7 @@ func (s *EastMoneyService) FetchDragonTigerHistory(ctx context.Context, days int
 					institutions[name] = inst
 				}
 				inst.total += dept.Net
-				inst.dates[date] = struct{}{}
+				inst.dates[r.date] = struct{}{}
 			}
 		}
 	}

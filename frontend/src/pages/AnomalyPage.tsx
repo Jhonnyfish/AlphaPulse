@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
-import { AlertTriangle, RefreshCw, TrendingUp, TrendingDown, Volume2, ArrowDown } from 'lucide-react';
+import { AlertTriangle, RefreshCw, TrendingUp, Volume2, ArrowDown } from 'lucide-react';
 
 interface AnomalyItem {
   code: string;
@@ -46,6 +46,7 @@ export default function AnomalyPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, []);
 

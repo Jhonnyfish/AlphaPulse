@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { authApi, type User } from './api';
+import { authApi, type User, resolveTokenReady } from './api';
 
 interface AuthContextType {
   user: User | null;
@@ -19,7 +19,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Verify existing token on mount
   useEffect(() => {
     if (!token) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
+      resolveTokenReady(); // No token — auth init is complete immediately
       return;
     }
     authApi.verify()
@@ -33,7 +35,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setToken(null);
         setUser(null);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        resolveTokenReady(); // Auth init complete (success or failure)
+      });
   }, [token]);
 
   const login = async (username: string, password: string) => {
