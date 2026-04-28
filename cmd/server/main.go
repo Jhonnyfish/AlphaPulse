@@ -76,6 +76,7 @@ func main() {
 	eastMoneyService := services.NewEastMoneyService(cfg.HTTPTimeout)
 	tencentService := services.NewTencentService(cfg.HTTPTimeout)
 	alpha300Service := services.NewAlpha300Service(cfg.HTTPTimeout)
+	deepseekClient := services.NewDeepSeekClient(cfg.DeepSeekAPIKey, cfg.DeepSeekBaseURL, cfg.DeepSeekModel, logger.L())
 	authHandler := handlers.NewAuthHandler(db, cfg, logger.L())
 	watchlistHandler := handlers.NewWatchlistHandler(db, logger.L())
 	marketHandler := handlers.NewMarketHandler(eastMoneyService, tencentService, db)
@@ -99,10 +100,11 @@ func main() {
 	perfTracker := services.NewPerfTracker()
 	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats(), perfTracker)
 	signalHandler := handlers.NewSignalHandler(alpha300Service, tencentService, eastMoneyService, logger.L())
-	reportsHandler := handlers.NewReportsHandler(db, tencentService, eastMoneyService, analyzeHandler, watchlistHandler, logger.L())
+	reportsHandler := handlers.NewReportsHandler(db, tencentService, eastMoneyService, analyzeHandler, watchlistHandler, logger.L(), deepseekClient)
 	alertsHandler := handlers.NewAlertsHandler(db, analyzeHandler, logger.L())
+	defer alertsHandler.Stop()
 	docsHandler := handlers.NewDocsHandler()
-	dashboardHandler := handlers.NewDashboardHandler(db, tencentService, watchlistHandler, logger.L())
+	dashboardHandler := handlers.NewDashboardHandler(db, tencentService, eastMoneyService, watchlistHandler, logger.L())
 	watchlistHandler.SetAlpha300(alpha300Service)
 
 	router := gin.New()
@@ -268,6 +270,8 @@ func main() {
 	api.GET("/activity-log", authMiddleware, systemHandler.ActivityLog)
 	api.GET("/slow-queries", authMiddleware, systemHandler.SlowQueries)
 	api.GET("/performance-stats", authMiddleware, systemHandler.PerformanceStats)
+	api.POST("/system/vitals", authMiddleware, systemHandler.ReceiveVitals)
+	api.GET("/system/vitals", authMiddleware, systemHandler.GetVitals)
 	api.GET("/docs", docsHandler.Docs)
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
@@ -315,6 +319,19 @@ func main() {
 
 	// Dashboard summary (composite endpoint)
 	api.GET("/dashboard-summary", authMiddleware, dashboardHandler.DashboardSummary)
+
+	// Built-in scheduler for daily tasks
+	scheduler := services.NewScheduler()
+	scheduler.AddDailyJob("daily-report", 15, 30, func() {
+		log.Println("[scheduler] generating daily report...")
+		reportsHandler.GenerateDailyReportAuto()
+	})
+	defer scheduler.StopAll()
+
+	// Scheduler status API
+	api.GET("/system/scheduler", authMiddleware, func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true, "jobs": scheduler.Status()})
+	})
 
 	// Watchlist sync (Alpha300 pool)
 	watchlistGroup.POST("/sync", watchlistHandler.Sync)

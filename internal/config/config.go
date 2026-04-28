@@ -18,6 +18,11 @@ type Config struct {
 	AdminPassword      string
 	AppVersion         string
 	HTTPTimeout        time.Duration
+
+	// DeepSeek / LLM config (OpenAI-compatible)
+	DeepSeekAPIKey  string
+	DeepSeekBaseURL string
+	DeepSeekModel   string
 }
 
 func Load() (*Config, error) {
@@ -48,6 +53,10 @@ func Load() (*Config, error) {
 		AdminPassword:      os.Getenv("ADMIN_PASSWORD"),
 		AppVersion:         envOrDefault("APP_VERSION", "dev"),
 		HTTPTimeout:        httpTimeout,
+
+		DeepSeekAPIKey:  os.Getenv("DEEPSEEK_API_KEY"),
+		DeepSeekBaseURL: envOrDefault("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+		DeepSeekModel:   envOrDefault("DEEPSEEK_MODEL", "deepseek-chat"),
 	}
 
 	if cfg.DatabaseURL == "" {
