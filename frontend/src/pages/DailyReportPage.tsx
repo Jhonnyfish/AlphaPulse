@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import api, { reportsApi } from '@/lib/api';
-import { FileText, RefreshCw, Calendar, ChevronRight, ArrowLeft, Download, Clock } from 'lucide-react';
+import { FileText, RefreshCw, Calendar, ChevronRight, Clock } from 'lucide-react';
 
 interface ReportItem {
   filename: string;
@@ -39,7 +40,15 @@ export default function DailyReportPage() {
   const fetchReport = (filename: string) => {
     setLoadingContent(true);
     api.get<ReportContent>(`/reports/${filename}`)
-      .then((res) => setSelected(res.data))
+      .then((res) => {
+        const data = res.data;
+        // Extract date from filename if API doesn't return it
+        if (!data.date && filename) {
+          const m = filename.match(/daily_report_(\d{8})\.md/);
+          if (m) data.date = m[1];
+        }
+        setSelected(data);
+      })
       .catch(() => setError('加载日报内容失败'))
       .finally(() => setLoadingContent(false));
   };
@@ -63,6 +72,7 @@ export default function DailyReportPage() {
   };
 
   const formatDate = (date: string) => {
+    if (!date) return '';
     if (date.length === 8) {
       return `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`;
     }
@@ -71,7 +81,7 @@ export default function DailyReportPage() {
 
   // Simple markdown → HTML (handles tables, headers, bold, blockquotes, lists)
   const renderMarkdown = (md: string) => {
-    let html = md
+    const html = md
       // Tables
       .replace(/\|(.+)\|\n\|[-|\s]+\|\n((?:\|.+\|\n?)*)/g, (_match, header, body) => {
         const ths = header.split('|').filter((s: string) => s.trim()).map((s: string) => `<th style="padding:6px 12px;border-bottom:1px solid var(--color-border);text-align:left;font-size:12px;color:var(--color-text-secondary)">${s.trim()}</th>`).join('');
@@ -188,7 +198,7 @@ export default function DailyReportPage() {
           {loadingContent ? (
             <div className="space-y-3">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="animate-pulse rounded" style={{ height: '16px', width: `${60 + Math.random() * 40}%`, background: 'var(--color-bg-hover)' }} />
+                <div key={i} className="animate-pulse rounded" style={{ height: '16px', width: `${60 + (i * 7) % 40}%`, background: 'var(--color-bg-hover)' }} />
               ))}
             </div>
           ) : selected ? (
