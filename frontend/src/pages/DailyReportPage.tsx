@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { useState, useEffect, useCallback } from 'react';
 import api, { reportsApi } from '@/lib/api';
-import { FileText, RefreshCw, Calendar, ChevronRight, Clock } from 'lucide-react';
+import { FileText, RefreshCw, Calendar, ChevronRight, Clock, Play, Loader2 } from 'lucide-react';
 
 interface ReportItem {
   filename: string;
@@ -26,7 +25,9 @@ export default function DailyReportPage() {
   const [selected, setSelected] = useState<ReportContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingContent, setLoadingContent] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
+  const [genMsg, setGenMsg] = useState('');
 
   const fetchList = () => {
     setLoading(true);
@@ -60,6 +61,32 @@ export default function DailyReportPage() {
       .catch(() => setError('暂无日报'))
       .finally(() => setLoadingContent(false));
   };
+
+  const handleGenerate = useCallback(async () => {
+    setGenerating(true);
+    setGenMsg('');
+    try {
+      const res = await reportsApi.generate();
+      const data = res.data as { ok: boolean; error?: string; message?: string; cooldown_remaining?: number; filename?: string };
+      if (data.ok) {
+        setGenMsg('报告生成成功');
+        fetchList();
+        if (data.filename) {
+          fetchReport(data.filename);
+        } else {
+          fetchLatest();
+        }
+      } else if (data.cooldown_remaining) {
+        setGenMsg(`请等待 ${data.cooldown_remaining} 秒后再试`);
+      } else {
+        setGenMsg(data.error || '生成失败');
+      }
+    } catch {
+      setGenMsg('生成请求失败');
+    } finally {
+      setGenerating(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchList();
@@ -148,9 +175,27 @@ export default function DailyReportPage() {
             {reports.length} 份
           </span>
         </div>
-        <button onClick={() => { fetchList(); fetchLatest(); }} className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors">
-          <RefreshCw className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
-        </button>
+        <div className="flex items-center gap-2">
+          {genMsg && (
+            <span className="text-xs" style={{ color: genMsg.includes('成功') ? '#22c55e' : '#f59e0b' }}>{genMsg}</span>
+          )}
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+            style={{
+              background: generating ? 'rgba(59,130,246,0.15)' : 'rgba(59,130,246,0.1)',
+              color: '#3b82f6',
+              border: '1px solid rgba(59,130,246,0.3)',
+            }}
+          >
+            {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+            {generating ? '生成中...' : '生成报告'}
+          </button>
+          <button onClick={() => { fetchList(); fetchLatest(); }} className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors">
+            <RefreshCw className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
