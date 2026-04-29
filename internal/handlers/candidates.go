@@ -37,13 +37,13 @@ type StrategyCandidatePayload struct {
 
 // CandidatesHandler handles stock candidate requests.
 type CandidatesHandler struct {
-	alpha300        *services.Alpha300Service
+	alpha300        *services.Alpha300Cache
 	db              *pgxpool.Pool
 	candidatesCache *cache.Cache[CandidatesPayload]
 }
 
 // NewCandidatesHandler creates a new CandidatesHandler.
-func NewCandidatesHandler(alpha300 *services.Alpha300Service, db *pgxpool.Pool) *CandidatesHandler {
+func NewCandidatesHandler(alpha300 *services.Alpha300Cache, db *pgxpool.Pool) *CandidatesHandler {
 	return &CandidatesHandler{
 		alpha300:        alpha300,
 		db:              db,
@@ -100,8 +100,8 @@ func (h *CandidatesHandler) candidatesBuiltin(c *gin.Context, limit int) {
 		return
 	}
 
-	// Fetch from Alpha300 API
-	candidates, err := h.alpha300.FetchCandidates(c.Request.Context(), limit)
+	// Fetch from Alpha300 shared cache (triggers API refresh if stale)
+	candidates, err := h.alpha300.Refresh(c.Request.Context())
 	if err != nil {
 		logger.L().Warn("candidates: alpha300 unreachable, returning degraded response",
 			zap.Error(err))
@@ -202,7 +202,7 @@ func (h *CandidatesHandler) candidatesByStrategy(c *gin.Context, strategyID stri
 		poolSize = 300
 	}
 
-	candidates, err := h.alpha300.FetchCandidates(ctx, poolSize)
+	candidates, err := h.alpha300.GetTopN(ctx, poolSize)
 	if err != nil {
 		logger.L().Warn("strategy candidates: failed to fetch alpha300 pool",
 			zap.String("strategy", strategyID), zap.Error(err))

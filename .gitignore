@@ -4,6 +4,12 @@
 
 # Compiled binary
 server
+alphapulse
+alphapulse-server
+stock-quote-service
+
+# Builds
+*.apk
 
 # IDE
 .idea/
@@ -14,3 +20,9 @@ server
 # OS
 .DS_Store
 bin/
+
+# Node
+node_modules/
+
+# OpenSpec
+openspec/changes/

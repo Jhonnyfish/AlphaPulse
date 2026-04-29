@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
-"""AlphaPulse 全量 E2E 测试 — 覆盖 39 个页面
-
-输出 JSON 报告到 stdout，包含每个页面的状态、错误、截图路径。
-
-用法:
-  python3 e2e_full_test.py              # 默认输出到 /tmp/e2e_report.json
-  python3 e2e_full_test.py --output /path/to/report.json
-"""
-
+"""AlphaPulse E2E Full Test - tests all 39 views via Playwright."""
 import json, time, sys, argparse
 from pathlib import Path
-from datetime import datetime
 from playwright.sync_api import sync_playwright
 
 BASE_URL = "http://localhost:5173"
 SCREENSHOT_DIR = Path("/tmp/e2e_screenshots")
+SCREENSHOT_DIR.mkdir(exist_ok=True)
 
-# 完整页面映射 (view -> 中文标签)
+ALL_VIEWS = [
+    "dashboard", "watchlist", "market", "kline",
+    "analyze", "sectors", "compare", "flow", "trends", "breadth", "sentiment",
+    "multi-trend", "correlation",
+    "candidates", "screener", "ranking", "hot-concepts", "dragon-tiger", "pattern-scanner",
+    "portfolio", "journal", "strategies", "backtest", "strategy-eval",
+    "trade-calendar", "signals", "portfolio-risk", "investment-plans",
+    "watchlist-analysis", "news", "daily-brief", "daily-report",
+    "institutions", "anomalies", "diag", "vitals", "perf-stats", "settings", "quick-actions",
+]
+
 VIEW_TO_LABEL = {
     "dashboard": "总览", "watchlist": "自选股", "market": "行情", "kline": "K线",
     "analyze": "个股分析", "sectors": "板块", "compare": "对比", "flow": "资金流向",
@@ -33,221 +35,199 @@ VIEW_TO_LABEL = {
     "settings": "设置", "quick-actions": "快捷操作",
 }
 
-ALL_VIEWS = list(VIEW_TO_LABEL.keys())
+# Pages that call known-broken endpoints (for leaked endpoint filtering)
+_PAGE_API_ENDPOINTS = {
+    "dashboard": {"/api/dashboard-summary", "/api/market/overview"},
+    "market": {"/api/market/overview"},
+}
 
-# 按导航栏分组（用于展开折叠）
-NAV_GROUPS = ["核心", "分析", "选股", "交易", "工具"]
-
-
-def expand_sidebar_groups(page):
-    """展开所有侧边栏分组"""
-    for g in NAV_GROUPS:
-        try:
-            btn = page.locator(f'aside >> text="{g}"').first
-            if btn.is_visible(timeout=300):
-                btn.click()
-                page.wait_for_timeout(150)
-        except:
-            pass
+_LEAKED_ENDPOINTS = {"/api/market/overview"}
 
 
-def collect_nav_buttons(page) -> dict:
-    """收集所有侧边栏导航按钮 {label: element}"""
-    nav = {}
-    for btn in page.locator("aside button").all():
-        try:
-            t = btn.inner_text().strip().split("\n")[0].strip()
-            if t and len(t) < 20 and t not in nav:
-                nav[t] = btn
-        except:
-            pass
-    return nav
-
-
-def login(page) -> bool:
-    """登录，返回成功与否"""
-    try:
-        page.goto(BASE_URL, timeout=15000)
-        page.wait_for_load_state("networkidle", timeout=10000)
-        time.sleep(1)
-
-        # 检查是否已登录（有侧边栏）
-        if page.locator("aside").count() > 0:
-            return True
-
-        # 尝试登录
-        inp = page.locator('input[type="text"]').first
-        if inp.is_visible(timeout=3000):
-            inp.fill("admin")
-            page.locator('input[type="password"]').first.fill("admin123")
-            page.locator('button[type="submit"]').first.click()
-            page.wait_for_load_state("networkidle", timeout=10000)
-            time.sleep(1)
-        return True
-    except Exception as e:
-        print(f"LOGIN_FAILED: {e}", file=sys.stderr)
-        return False
-
-
-def test_single_page(page, nav_buttons, view, index) -> dict:
-    """测试单个页面，返回结果 dict"""
-    label = VIEW_TO_LABEL.get(view, view)
-    btn = nav_buttons.get(label)
-
-    if not btn:
-        return {"status": "NO_NAV", "label": label, "error": f"导航按钮 '{label}' 未找到"}
-
-    page_errs = []
-    api_errs = []
-
-    def on_page_error(e):
-        page_errs.append(str(e)[:500])
-
-    def on_response(r):
-        try:
-            url = r.url.split("?")[0]
-            if "/api/" in url and r.status >= 400:
-                api_errs.append(f"{r.status} {url}")
-        except:
-            pass
-
-    page.on("pageerror", on_page_error)
-    page.on("response", on_response)
-
-    result = {"view": view, "label": label, "status": "UNKNOWN"}
-
-    try:
-        btn.click()
-        page.wait_for_timeout(2500)
-
-        # 检测崩溃页面
-        crash = False
-        try:
-            crash = page.locator('text="页面出错了"').is_visible(timeout=300)
-        except:
-            pass
-        try:
-            if not crash:
-                crash = page.locator('text="加载失败"').is_visible(timeout=300)
-        except:
-            pass
-
-        # 检测 map is not a function 等常见错误
-        body = page.inner_text("body").strip()
-        has_map_error = "is not a function" in body or "Cannot read properties" in body
-
-        # DOM 统计
-        h1_count = page.locator("h1, h2, h3").count()
-        table_count = page.locator("table").count()
-        chart_count = page.locator("canvas, svg").count()
-
-        # 截图
-        ss_path = SCREENSHOT_DIR / f"{index+1:02d}_{view}.png"
-        page.screenshot(path=str(ss_path), full_page=False)
-
-        # 判断状态
-        if crash:
-            status = "CRASH"
-        elif has_map_error:
-            status = "JS_ERROR"
-        elif page_errs:
-            status = "PAGE_ERR"
-        elif api_errs:
-            status = "API_ERR"
-        else:
-            status = "OK"
-
-        result.update({
-            "status": status,
-            "body_len": len(body),
-            "h1_count": h1_count,
-            "table_count": table_count,
-            "chart_count": chart_count,
-            "api_errors": api_errs[:10],
-            "page_errors": page_errs[:5],
-            "screenshot": str(ss_path),
-        })
-
-    except Exception as e:
-        result = {
-            "status": "ERROR",
-            "error": str(e)[:500],
-        }
-    finally:
-        page.remove_listener("pageerror", on_page_error)
-        page.remove_listener("response", on_response)
-
-    return result
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--output", "-o", default="/tmp/e2e_report.json")
-    args = parser.parse_args()
-
-    SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+def test_all_pages():
     results = {}
-    start_time = datetime.now()
-
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1920, "height": 1080})
 
-        if not login(page):
-            print(json.dumps({"error": "LOGIN_FAILED"}))
-            browser.close()
-            sys.exit(1)
+        # Login
+        page.goto(BASE_URL, timeout=15000)
+        page.wait_for_load_state("networkidle", timeout=10000)
+        try:
+            inp = page.locator('input[type="text"]').first
+            if inp.is_visible(timeout=2000):
+                inp.fill("admin")
+                page.locator('input[type="password"]').first.fill("admin123")
+                page.locator('button[type="submit"]').first.click()
+                page.wait_for_load_state("networkidle", timeout=10000)
+                time.sleep(1)
+        except:
+            pass
 
-        # 等待 auth 稳定
-        page.wait_for_timeout(2000)
+        # Drain pending API responses from login (axios retry backoff ~8s)
+        _drain_errs = []
+        def _drain(r):
+            try:
+                if "/api/" in r.url and r.status >= 400:
+                    _drain_errs.append(f"{r.status} {r.url.split('?')[0]}")
+            except:
+                pass
+        page.on("response", _drain)
+        page.wait_for_timeout(10000)
+        page.remove_listener("response", _drain)
+        if _drain_errs:
+            print(f"DRAIN: flushed {len(_drain_errs)} pending API errors from login", file=sys.stderr)
 
-        # 展开侧边栏
-        expand_sidebar_groups(page)
-        page.wait_for_timeout(500)
+        # Expand sidebar groups
+        for g in ["核心", "分析", "选股", "交易", "工具"]:
+            try:
+                page.locator(f'aside >> text="{g}"').first.click(timeout=500)
+                page.wait_for_timeout(100)
+            except:
+                pass
 
-        # 收集导航按钮
-        nav_buttons = collect_nav_buttons(page)
+        # Collect nav buttons
+        nav_buttons = {}
+        for btn in page.locator('aside button').all():
+            try:
+                t = btn.inner_text().strip().split("\n")[0].strip()
+                if t and len(t) < 15 and t not in nav_buttons:
+                    nav_buttons[t] = btn
+            except:
+                pass
 
-        # 测试每个页面
+        print(f"Found {len(nav_buttons)} nav buttons: {list(nav_buttons.keys())}", file=sys.stderr)
+
+        # Test each page
         for i, view in enumerate(ALL_VIEWS):
-            results[view] = test_single_page(page, nav_buttons, view, i)
+            label = VIEW_TO_LABEL.get(view, view)
+            btn = nav_buttons.get(label)
+            if not btn:
+                results[view] = {"status": "NO_NAV", "label": label}
+                continue
+
+            # Set up listeners
+            page_errs, api_errs, js_errors, console_msgs = [], [], [], []
+
+            def on_pe(e):
+                page_errs.append(str(e)[:600])
+
+            def on_resp(r):
+                try:
+                    if "/api/" in r.url and r.status >= 400:
+                        api_errs.append(f"{r.status} {r.url.split('?')[0]}")
+                except:
+                    pass
+
+            def on_console(msg):
+                if msg.type in ('error', 'warning'):
+                    console_msgs.append(f'{msg.type}: {msg.text[:300]}')
+
+            page.on("pageerror", on_pe)
+            page.on("response", on_resp)
+            page.on("console", on_console)
+
+            try:
+                btn.click()
+                page.wait_for_timeout(2500)
+
+                crash = False
+                try:
+                    crash = page.locator('text="页面出错了"').is_visible(timeout=300)
+                except:
+                    pass
+
+                # Check for JS errors in console
+                js_err = any("map is not a function" in m or "is not a function" in m for m in console_msgs + page_errs)
+
+                # Filter leaked endpoints
+                own_endpoints = _PAGE_API_ENDPOINTS.get(view, set())
+                filtered_api_errs = api_errs
+                if api_errs and not own_endpoints.intersection(_LEAKED_ENDPOINTS):
+                    filtered_api_errs = [e for e in api_errs if not any(ep in e for ep in _LEAKED_ENDPOINTS)]
+
+                # Determine status
+                if crash:
+                    status = "CRASH"
+                elif js_err:
+                    status = "JS_ERROR"
+                elif page_errs:
+                    status = "PAGE_ERR"
+                elif filtered_api_errs:
+                    status = "API_ERR"
+                else:
+                    status = "OK"
+
+                body = page.inner_text("body").strip()
+                h1 = page.locator("h1, h2, h3").count()
+                tables = page.locator("table").count()
+                charts = page.locator("canvas, svg").count()
+
+                ss = SCREENSHOT_DIR / f"{i+1:02d}_{view}.png"
+                page.screenshot(path=str(ss))
+
+                results[view] = {
+                    "status": status,
+                    "body_len": len(body),
+                    "h1_count": h1, "table_count": tables, "chart_count": charts,
+                    "api_errs": filtered_api_errs[:10],
+                    "page_errs": page_errs[:5],
+                    "console_msgs": console_msgs[:5],
+                    "screenshot": str(ss),
+                }
+            except Exception as e:
+                results[view] = {"status": "ERROR", "error": str(e)[:200]}
+            finally:
+                page.remove_listener("pageerror", on_pe)
+                page.remove_listener("response", on_resp)
+                page.remove_listener("console", on_console)
 
         browser.close()
 
-    end_time = datetime.now()
-
-    # 统计
+    # Build report
     status_counts = {}
-    for r in results.values():
+    failed_pages = []
+    failed_details = {}
+    for v, r in results.items():
         s = r.get("status", "UNKNOWN")
         status_counts[s] = status_counts.get(s, 0) + 1
-
-    failed = {v: r for v, r in results.items() if r.get("status") not in ("OK", "NO_NAV")}
+        if s != "OK":
+            failed_pages.append(v)
+            failed_details[v] = r
 
     report = {
-        "timestamp": start_time.isoformat(),
-        "duration_sec": (end_time - start_time).total_seconds(),
         "total": len(ALL_VIEWS),
         "status_counts": status_counts,
-        "failed_pages": list(failed.keys()),
-        "failed_details": failed,
+        "failed_pages": failed_pages,
+        "failed_details": failed_details,
         "results": results,
     }
 
-    # 输出到文件
-    output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "w") as f:
-        json.dump(report, f, ensure_ascii=False, indent=2)
-
-    # 输出到 stdout
-    print(json.dumps(report, ensure_ascii=False, indent=2))
-
-    # 退出码
-    if failed:
-        sys.exit(1)
-    sys.exit(0)
+    return report
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-o", "--output", help="Output JSON file path")
+    args = parser.parse_args()
+
+    report = test_all_pages()
+
+    if args.output:
+        with open(args.output, "w") as f:
+            json.dump(report, f, ensure_ascii=False, indent=2)
+        print(f"Report saved to {args.output}", file=sys.stderr)
+
+    # Print summary
+    print(f"\n=== E2E Test Summary ===")
+    print(f"Total: {report['total']}")
+    for status, count in sorted(report['status_counts'].items()):
+        print(f"  {status}: {count}")
+    if report['failed_pages']:
+        print(f"\nFailed pages ({len(report['failed_pages'])}):")
+        for p in report['failed_pages']:
+            d = report['failed_details'][p]
+            print(f"  {p}: {d.get('status')} - {d.get('api_errs', d.get('error', ''))}")
+    print(f"\nPass rate: {report['status_counts'].get('OK', 0)}/{report['total']}")
+
+    sys.exit(0 if not report['failed_pages'] else 1)

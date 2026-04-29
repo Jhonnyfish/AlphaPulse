@@ -460,19 +460,13 @@ export default function CandidatesPage() {
       {/* Table */}
       {sorted.length > 0 && (
         <div className="rounded-xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(18px)' }}>
-          // eslint-disable-next-line react-hooks/static-components
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                // eslint-disable-next-line react-hooks/static-components
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  // eslint-disable-next-line react-hooks/static-components
                   <SortHeader label="排名" k="rank" />
-                  // eslint-disable-next-line react-hooks/static-components
                   <th className="px-3 py-2.5 text-left text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>代码 / 名称</th>
-                  // eslint-disable-next-line react-hooks/static-components
                   <th className="px-3 py-2.5 text-left text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>行业</th>
-                  // eslint-disable-next-line react-hooks/static-components
                   <SortHeader label="评分" k="score" />
                   <SortHeader label="动量" k="momentum" />
                   <SortHeader label="趋势" k="trend" />

@@ -734,6 +734,7 @@ func (h *WatchlistAnalysisHandler) AssignStock(c *gin.Context) {
 // ---- Helpers ----
 
 // loadWatchlistCodes returns all stock codes in the user's watchlist.
+// Alpha300 top 10 are auto-synced into the watchlist by the scheduler.
 func (h *WatchlistAnalysisHandler) loadWatchlistCodes(ctx context.Context) ([]string, error) {
 	rows, err := h.db.Query(ctx, `SELECT code FROM watchlist ORDER BY added_at DESC`)
 	if err != nil {

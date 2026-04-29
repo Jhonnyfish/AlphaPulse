@@ -247,7 +247,7 @@ export default function DashboardPage() {
             // Map IndexQuote fields (change_pct) to OverviewIndex fields (change_percent)
             const mappedIndices: MarketOverview['indices'] = (mo.indices ?? []).map(
               (idx) => ({
-                code: idx.code,
+                code: idx.code.replace(/^(sh|sz)/, ''),
                 name: idx.name,
                 price: idx.price,
                 change: idx.change,

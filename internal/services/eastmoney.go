@@ -402,6 +402,7 @@ func (s *EastMoneyService) FetchNews(ctx context.Context, limit int) ([]models.N
 	params.Set("page_index", "1")
 	params.Set("page_size", strconv.Itoa(limit))
 	params.Set("fields", "code,title,showtime,source,url,digest")
+	params.Set("req_trace", strconv.FormatInt(time.Now().UnixMilli(), 10))
 
 	var response struct {
 		Data struct {

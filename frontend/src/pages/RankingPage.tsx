@@ -66,6 +66,39 @@ function scoreBg(score: number): string {
   return 'rgba(34,197,94,0.12)';
 }
 
+/* ---- localStorage cache ---- */
+const CACHE_KEY = 'ranking_cache';
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+interface RankingCache {
+  items: RankingItem[];
+  summary: RankingSummary | null;
+  fetched_at: string;
+  ts: number;
+}
+
+function loadCache(): RankingCache | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const c: RankingCache = JSON.parse(raw);
+    return c;
+  } catch {
+    return null;
+  }
+}
+
+function saveCache(items: RankingItem[], summary: RankingSummary | null, fetched_at: string) {
+  try {
+    const c: RankingCache = { items, summary, fetched_at, ts: Date.now() };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(c));
+  } catch { /* quota exceeded, ignore */ }
+}
+
+function isCacheStale(c: RankingCache): boolean {
+  return Date.now() - c.ts > CACHE_TTL;
+}
+
 /* ---- component ---- */
 export default function RankingPage() {
   const { navigate } = useView();
@@ -73,13 +106,16 @@ export default function RankingPage() {
   const [summary, setSummary] = useState<RankingSummary | null>(null);
   const [fetchedAt, setFetchedAt] = useState('');
   const [loading, setLoading] = useState(true);
+  const [fromCache, setFromCache] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('rank');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
-  const fetchData = useCallback(() => {
-    setLoading(true);
+  const fetchData = useCallback((silent = false) => {
+    if (!silent && data.length === 0) setLoading(true);
+    if (silent) setRefreshing(true);
     setError('');
     api
       .get<RankingResponse>('/watchlist-ranking')
@@ -88,17 +124,32 @@ export default function RankingPage() {
           setData(res.data.items);
           setSummary(res.data.summary);
           setFetchedAt(res.data.fetched_at);
+          setFromCache(false);
+          saveCache(res.data.items, res.data.summary, res.data.fetched_at);
         } else {
-          setError(res.data.error || '加载排名数据失败');
+          if (!silent) setError(res.data.error || '加载排名数据失败');
         }
       })
-      .catch(() => setError('加载排名数据失败，请稍后重试'))
-      .finally(() => setLoading(false));
-  }, []);
+      .catch(() => { if (!silent) setError('加载排名数据失败，请稍后重试'); })
+      .finally(() => { setLoading(false); setRefreshing(false); });
+  }, [data.length]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchData();
+    // Load cached data first for instant display
+    const cached = loadCache();
+    if (cached && cached.items.length > 0) {
+      setData(cached.items);
+      setSummary(cached.summary);
+      setFetchedAt(cached.fetched_at);
+      setFromCache(true);
+      setLoading(false);
+      // Refresh in background if stale
+      if (isCacheStale(cached)) {
+        fetchData(true);
+      }
+    } else {
+      fetchData();
+    }
   }, [fetchData]);
 
   /* ---- sorting ---- */
@@ -328,12 +379,21 @@ export default function RankingPage() {
           >
             {data.length} 只
           </span>
+          {fromCache && (
+            <span
+              className="text-xs px-2 py-0.5 rounded-full"
+              style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}
+            >
+              缓存
+            </span>
+          )}
         </div>
         <button
-          onClick={fetchData}
+          onClick={() => { localStorage.removeItem(CACHE_KEY); fetchData(true); }}
+          disabled={refreshing}
           className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
         >
-          <RefreshCw className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} style={{ color: refreshing ? '#3b82f6' : 'var(--color-text-muted)' }} />
         </button>
       </div>
 

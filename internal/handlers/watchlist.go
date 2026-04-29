@@ -20,11 +20,11 @@ import (
 type WatchlistHandler struct {
 	db           *pgxpool.Pool
 	logger       *zap.Logger
-	alpha300Svc  *services.Alpha300Service // optional, set via SetAlpha300
+	alpha300Svc  *services.Alpha300Cache // optional, set via SetAlpha300
 }
 
-// SetAlpha300 injects the Alpha300 service for watchlist sync.
-func (h *WatchlistHandler) SetAlpha300(svc *services.Alpha300Service) {
+// SetAlpha300 injects the Alpha300 cache for watchlist sync.
+func (h *WatchlistHandler) SetAlpha300(svc *services.Alpha300Cache) {
 	h.alpha300Svc = svc
 }
 
@@ -40,6 +40,38 @@ type batchAddWatchlistRequest struct {
 
 func NewWatchlistHandler(db *pgxpool.Pool, logger *zap.Logger) *WatchlistHandler {
 	return &WatchlistHandler{db: db, logger: logger}
+}
+
+// SyncAlpha300TopN adds Alpha300 top N candidates into the watchlist.
+// Called by the scheduler; does NOT remove existing stocks.
+func (h *WatchlistHandler) SyncAlpha300TopN(ctx context.Context, n int) (int, error) {
+	if h.alpha300Svc == nil {
+		return 0, nil
+	}
+	candidates, err := h.alpha300Svc.GetTopN(ctx, n)
+	if err != nil {
+		return 0, err
+	}
+	added := 0
+	for _, cand := range candidates {
+		code := cleanCode(cand.Code)
+		if code == "" {
+			continue
+		}
+		tag, err := h.db.Exec(ctx,
+			`INSERT INTO watchlist (code, name, group_name)
+			 VALUES ($1, $2, 'alpha300')
+			 ON CONFLICT (code) DO UPDATE
+			 SET name = COALESCE(NULLIF(EXCLUDED.name, ''), watchlist.name)`,
+			code, cand.Name)
+		if err != nil {
+			h.logger.Warn("sync alpha300: upsert failed", zap.String("code", code), zap.Error(err))
+			continue
+		}
+		added += int(tag.RowsAffected())
+	}
+	h.logger.Info("alpha300 auto-sync completed", zap.Int("added", added), zap.Int("candidates", len(candidates)))
+	return added, nil
 }
 
 func (h *WatchlistHandler) List(c *gin.Context) {
@@ -216,7 +248,7 @@ func (h *WatchlistHandler) Sync(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
 
-	candidates, err := h.alpha300Svc.FetchCandidates(ctx, limit)
+	candidates, err := h.alpha300Svc.GetTopN(ctx, limit)
 	if err != nil {
 		h.logger.Error("failed to fetch Alpha300 candidates", zap.Error(err))
 		writeError(c, http.StatusBadGateway, "ALPHA300_FETCH_FAILED", "failed to fetch Alpha300 candidates")

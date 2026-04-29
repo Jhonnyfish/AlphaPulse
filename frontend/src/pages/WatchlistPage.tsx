@@ -48,7 +48,7 @@ function getChangeColor(pct: number): ChangeStyle {
   if (pct >= 5)  return { color: '#fca5a5', background: 'rgba(220,38,38,0.18)' };
   if (pct >= 3)  return { color: '#ef4444' };
   if (pct > 0)   return { color: '#fca5a5' };
-  if (pct === 0) return { color: 'var(--color-text-secondary)' };
+  if (pct === 0) return { color: '#94a3b8' };
   if (pct > -3)  return { color: '#86efac' };
   if (pct > -5)  return { color: '#22c55e' };
   return { color: '#86efac', background: 'rgba(22,163,74,0.18)' };
@@ -789,15 +789,10 @@ export default function WatchlistPage() {
             <div className="hidden sm:block rounded-lg border overflow-hidden"
               style={{ borderColor: 'var(--color-border)' }}>
               <table className="w-full text-sm border-separate border-spacing-0">
-                // eslint-disable-next-line react-hooks/static-components
                 <thead>
-                  // eslint-disable-next-line react-hooks/static-components
                   <tr style={{ background: 'var(--color-bg-secondary)' }}>
-                    // eslint-disable-next-line react-hooks/static-components
                     {editMode && <th className="w-8 px-2 py-3" />} {/* checkbox column */}
-                    // eslint-disable-next-line react-hooks/static-components
                     <th className="w-8 px-2 py-3" /> {/* drag handle column */}
-                    // eslint-disable-next-line react-hooks/static-components
                     <Th field="code" label="代码" />
                     <Th field="name" label="名称" />
                     <Th field="price" label="最新价" align="right" />

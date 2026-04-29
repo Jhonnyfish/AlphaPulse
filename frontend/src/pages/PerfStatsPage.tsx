@@ -218,16 +218,11 @@ export default function PerfStatsPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  // eslint-disable-next-line react-hooks/static-components
                   <th style={{ padding: '8px 12px', borderBottom: '1px solid var(--color-border)', textAlign: 'left', fontSize: '12px', color: 'var(--color-text-secondary)' }}>接口</th>
-                  // eslint-disable-next-line react-hooks/static-components
                   <SortHeader label="调用次数" field="count" />
-                  // eslint-disable-next-line react-hooks/static-components
                   <SortHeader label="平均耗时" field="avg_duration_ms" />
                   <SortHeader label="P95" field="p95_duration_ms" />
-                  // eslint-disable-next-line react-hooks/static-components
                   <th style={{ padding: '8px 12px', borderBottom: '1px solid var(--color-border)', textAlign: 'left', fontSize: '12px', color: 'var(--color-text-secondary)' }}>P99</th>
-                  // eslint-disable-next-line react-hooks/static-components
                   <SortHeader label="最大耗时" field="max_duration_ms" />
                   <SortHeader label="慢查询" field="slow_count" />
                 </tr>

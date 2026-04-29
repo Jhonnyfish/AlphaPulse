@@ -76,13 +76,14 @@ func main() {
 	eastMoneyService := services.NewEastMoneyService(cfg.HTTPTimeout)
 	tencentService := services.NewTencentService(cfg.HTTPTimeout)
 	alpha300Service := services.NewAlpha300Service(cfg.HTTPTimeout)
+	alpha300Cache := services.NewAlpha300Cache(alpha300Service)
 	deepseekClient := services.NewDeepSeekClient(cfg.DeepSeekAPIKey, cfg.DeepSeekBaseURL, cfg.DeepSeekModel, logger.L())
 	authHandler := handlers.NewAuthHandler(db, cfg, logger.L())
 	watchlistHandler := handlers.NewWatchlistHandler(db, logger.L())
 	marketHandler := handlers.NewMarketHandler(eastMoneyService, tencentService, db)
 	dragonTigerHandler := handlers.NewDragonTigerHandler(eastMoneyService)
-	candidatesHandler := handlers.NewCandidatesHandler(alpha300Service, db)
-	screenerHandler := handlers.NewScreenerHandler(alpha300Service, db)
+	candidatesHandler := handlers.NewCandidatesHandler(alpha300Cache, db)
+	screenerHandler := handlers.NewScreenerHandler(alpha300Cache, db)
 	scoreHistoryHandler := handlers.NewScoreHistoryHandler(db)
 	patternScannerHandler := handlers.NewPatternScannerHandler(eastMoneyService, tencentService, db)
 	analyzeHandler := handlers.NewAnalyzeHandler(eastMoneyService, tencentService, logger.L())
@@ -99,13 +100,13 @@ func main() {
 	watchlistAnalysisHandler := handlers.NewWatchlistAnalysisHandler(db, tencentService, eastMoneyService, analyzeHandler, logger.L())
 	perfTracker := services.NewPerfTracker()
 	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats(), perfTracker)
-	signalHandler := handlers.NewSignalHandler(alpha300Service, tencentService, eastMoneyService, logger.L())
+	signalHandler := handlers.NewSignalHandler(alpha300Cache, tencentService, eastMoneyService, logger.L())
 	reportsHandler := handlers.NewReportsHandler(db, tencentService, eastMoneyService, analyzeHandler, watchlistHandler, logger.L(), deepseekClient)
 	alertsHandler := handlers.NewAlertsHandler(db, analyzeHandler, logger.L())
 	defer alertsHandler.Stop()
 	docsHandler := handlers.NewDocsHandler()
 	dashboardHandler := handlers.NewDashboardHandler(db, tencentService, eastMoneyService, watchlistHandler, logger.L())
-	watchlistHandler.SetAlpha300(alpha300Service)
+	watchlistHandler.SetAlpha300(alpha300Cache)
 
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -322,6 +323,14 @@ func main() {
 
 	// Built-in scheduler for daily tasks
 	scheduler := services.NewScheduler()
+	scheduler.AddDailyJob("alpha300-sync", 9, 0, func() {
+		log.Println("[scheduler] syncing Alpha300 top 10 to watchlist...")
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if _, err := watchlistHandler.SyncAlpha300TopN(ctx, 10); err != nil {
+			log.Printf("[scheduler] alpha300 sync failed: %v", err)
+		}
+	})
 	scheduler.AddDailyJob("daily-report", 15, 30, func() {
 		log.Println("[scheduler] generating daily report...")
 		reportsHandler.GenerateDailyReportAuto()

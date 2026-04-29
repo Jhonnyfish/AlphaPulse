@@ -47,13 +47,13 @@ type ScreenerResponse struct {
 
 // ScreenerHandler handles stock screener requests.
 type ScreenerHandler struct {
-	alpha300       *services.Alpha300Service
+	alpha300       *services.Alpha300Cache
 	db             *pgxpool.Pool
 	screenerCache  *cache.Cache[ScreenerResponse]
 }
 
 // NewScreenerHandler creates a new ScreenerHandler.
-func NewScreenerHandler(alpha300 *services.Alpha300Service, db *pgxpool.Pool) *ScreenerHandler {
+func NewScreenerHandler(alpha300 *services.Alpha300Cache, db *pgxpool.Pool) *ScreenerHandler {
 	return &ScreenerHandler{
 		alpha300:      alpha300,
 		db:            db,
@@ -141,7 +141,7 @@ func (h *ScreenerHandler) Screener(c *gin.Context) {
 	}
 
 	// Fetch candidates from Alpha300 (request more to have room for filtering)
-	candidates, err := h.alpha300.FetchCandidates(c.Request.Context(), 300)
+	candidates, err := h.alpha300.GetTopN(c.Request.Context(), 300)
 	if err != nil {
 		logger.Error("screener: failed to fetch candidates", zap.Error(err))
 		c.JSON(http.StatusOK, ScreenerResponse{

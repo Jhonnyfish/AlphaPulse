@@ -20,7 +20,7 @@ import (
 
 // SignalHandler handles signal-related API endpoints (Module 18).
 type SignalHandler struct {
-	alpha300 *services.Alpha300Service
+	alpha300 *services.Alpha300Cache
 	tencent  *services.TencentService
 	east     *services.EastMoneyService
 	log      *zap.Logger
@@ -31,7 +31,7 @@ type SignalHandler struct {
 
 // NewSignalHandler creates a new SignalHandler.
 func NewSignalHandler(
-	alpha300 *services.Alpha300Service,
+	alpha300 *services.Alpha300Cache,
 	tencent *services.TencentService,
 	east *services.EastMoneyService,
 	log *zap.Logger,
@@ -81,7 +81,7 @@ func (h *SignalHandler) Anomalies(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	candidates, err := h.alpha300.FetchCandidates(ctx, 100)
+	candidates, err := h.alpha300.GetTopN(ctx, 100)
 	if err != nil {
 		h.log.Warn("fetch alpha300 candidates for anomalies", zap.Error(err))
 		c.JSON(http.StatusOK, emptyAnomalies())
