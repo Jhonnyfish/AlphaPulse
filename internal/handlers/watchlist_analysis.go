@@ -426,24 +426,42 @@ func (h *WatchlistAnalysisHandler) analyzeForRanking(ctx context.Context, code s
 		DimensionScores: dimScores,
 		ChangePct:       analysis.Quote.ChangePercent,
 		Price:           analysis.Quote.Price,
-		Strengths:       analysis.Summary.Strengths,
-		Risks:           analysis.Summary.Risks,
+		Strengths:       safeStrings(analysis.Summary.Strengths),
+		Risks:           safeStrings(analysis.Summary.Risks),
 	}
 }
 
 // scoreDimension maps a verdict string to a 0-100 score.
 func scoreDimension(verdict string, isPositive bool) float64 {
 	switch {
+	// Strong positive
 	case strings.Contains(verdict, "强势") || strings.Contains(verdict, "优秀") || strings.Contains(verdict, "强烈"):
 		return 85
+	// Bullish signals
 	case strings.Contains(verdict, "偏多") || strings.Contains(verdict, "良好") || strings.Contains(verdict, "积极"):
 		return 70
 	case strings.Contains(verdict, "多头") || strings.Contains(verdict, "金叉"):
 		return 75
-	case strings.Contains(verdict, "中性") || strings.Contains(verdict, "均衡") || strings.Contains(verdict, "正常"):
+	case strings.Contains(verdict, "占优") || strings.Contains(verdict, "流入") || strings.Contains(verdict, "较强"):
+		return 65
+	case strings.Contains(verdict, "上方") || strings.Contains(verdict, "上升"):
+		return 60
+	// Mild positive
+	case strings.Contains(verdict, "略强") || strings.Contains(verdict, "偏强") || strings.Contains(verdict, "观察"):
+		return 55
+	// Neutral
+	case strings.Contains(verdict, "中性") || strings.Contains(verdict, "均衡") || strings.Contains(verdict, "正常") || strings.Contains(verdict, "可控") || strings.Contains(verdict, "持平"):
 		return 50
-	case strings.Contains(verdict, "偏空") || strings.Contains(verdict, "谨慎") || strings.Contains(verdict, "较低"):
+	case strings.Contains(verdict, "数据不足"):
+		return 50
+	// Mild negative
+	case strings.Contains(verdict, "不足") || strings.Contains(verdict, "偏弱") || strings.Contains(verdict, "谨慎"):
+		return 40
+	case strings.Contains(verdict, "偏空") || strings.Contains(verdict, "较低"):
 		return 35
+	case strings.Contains(verdict, "偏高") || strings.Contains(verdict, "不便宜"):
+		return 35
+	// Bearish signals
 	case strings.Contains(verdict, "弱势") || strings.Contains(verdict, "危险") || strings.Contains(verdict, "极低"):
 		return 20
 	case strings.Contains(verdict, "空头") || strings.Contains(verdict, "死叉"):
@@ -452,6 +470,10 @@ func scoreDimension(verdict string, isPositive bool) float64 {
 		return 30
 	case strings.Contains(verdict, "超卖"):
 		return 70
+	case strings.Contains(verdict, "流出") || strings.Contains(verdict, "承压"):
+		return 35
+	case strings.Contains(verdict, "下跌") || strings.Contains(verdict, "回调"):
+		return 35
 	default:
 		if isPositive {
 			return 60
@@ -588,6 +610,14 @@ func clampScoreRank(v float64) float64 {
 		return 0
 	}
 	return v
+}
+
+// safeStrings returns an empty slice instead of nil.
+func safeStrings(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }
 
 // ---- Groups CRUD ----
