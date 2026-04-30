@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"alphapulse/internal/cache"
+	"alphapulse/internal/models"
 	"alphapulse/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -408,12 +409,12 @@ func (h *WatchlistAnalysisHandler) analyzeForRanking(ctx context.Context, code s
 	}
 
 	dimScores := make(map[string]float64)
-	dimScores["order_flow"] = scoreDimension(analysis.OrderFlow.Verdict, analysis.OrderFlow.OuterRatio > 0.55)
-	dimScores["volume_price"] = scoreDimension(analysis.VolumePrice.Verdict, analysis.VolumePrice.VolumeRatio > 1.2)
-	dimScores["valuation"] = scoreDimension(analysis.Valuation.Verdict, false)
+	dimScores["order_flow"] = scoreDimension(analysis.OrderFlow.Verdict, analysis.OrderFlow.OuterRatio > 55)
+	dimScores["volume_price"] = scoreDimensionVP(analysis.VolumePrice)
+	dimScores["valuation"] = scoreDimensionValuation(analysis.Valuation)
 	dimScores["volatility"] = scoreDimension(analysis.Volatility.Verdict, false)
-	dimScores["money_flow"] = scoreDimension(analysis.MoneyFlow.Verdict, analysis.MoneyFlow.TodayMainNet > 0)
-	dimScores["technical"] = scoreDimension(analysis.Technical.Verdict, false)
+	dimScores["money_flow"] = scoreDimensionMF(analysis.MoneyFlow)
+	dimScores["technical"] = scoreDimensionTech(analysis.Technical)
 	dimScores["sector"] = scoreDimension(analysis.Sector.Verdict, analysis.Sector.IsSectorLeader)
 	dimScores["sentiment"] = scoreDimension(analysis.Sentiment.Verdict, analysis.Sentiment.SentimentScore > 0)
 
@@ -437,18 +438,156 @@ func scoreDimension(verdict string, isPositive bool) float64 {
 		return 85
 	case strings.Contains(verdict, "偏多") || strings.Contains(verdict, "良好") || strings.Contains(verdict, "积极"):
 		return 70
+	case strings.Contains(verdict, "多头") || strings.Contains(verdict, "金叉"):
+		return 75
 	case strings.Contains(verdict, "中性") || strings.Contains(verdict, "均衡") || strings.Contains(verdict, "正常"):
 		return 50
 	case strings.Contains(verdict, "偏空") || strings.Contains(verdict, "谨慎") || strings.Contains(verdict, "较低"):
 		return 35
 	case strings.Contains(verdict, "弱势") || strings.Contains(verdict, "危险") || strings.Contains(verdict, "极低"):
 		return 20
+	case strings.Contains(verdict, "空头") || strings.Contains(verdict, "死叉"):
+		return 25
+	case strings.Contains(verdict, "超买"):
+		return 30
+	case strings.Contains(verdict, "超卖"):
+		return 70
 	default:
 		if isPositive {
 			return 60
 		}
 		return 50
 	}
+}
+
+// scoreDimensionTech scores technical analysis with MACD/KDJ/RSI/MA details.
+func scoreDimensionTech(tech models.TechnicalAnalysis) float64 {
+	score := 50.0
+
+	// MA arrangement
+	switch tech.MAArrangement {
+	case "多头排列":
+		score += 15
+	case "短多排列":
+		score += 10
+	case "空头排列":
+		score -= 15
+	case "短空排列":
+		score -= 10
+	}
+
+	// MACD
+	switch tech.MACD_Signal {
+	case "金叉", "多头":
+		score += 8
+	case "死叉", "空头":
+		score -= 8
+	}
+
+	// KDJ
+	switch tech.KDJ_Signal {
+	case "超买":
+		score -= 5
+	case "超卖":
+		score += 5
+	case "金叉":
+		score += 5
+	case "死叉":
+		score -= 5
+	}
+
+	// RSI
+	if tech.RSI_14 > 70 {
+		score -= 5
+	} else if tech.RSI_14 < 30 && tech.RSI_14 > 0 {
+		score += 5
+	} else if tech.RSI_14 > 50 {
+		score += 3
+	}
+
+	// Boll position
+	switch tech.BollPosition {
+	case "上轨上方":
+		score -= 3 // overbought risk
+	case "下轨下方":
+		score += 3 // oversold bounce
+	}
+
+	return clampScoreRank(score)
+}
+
+// scoreDimensionVP scores volume-price analysis.
+func scoreDimensionVP(vp models.VolumePriceAnalysis) float64 {
+	score := 50.0
+	switch vp.PriceVolumeHarmony {
+	case "量价齐升":
+		score += 20
+	case "缩量上涨":
+		score += 5
+	case "放量下跌":
+		score -= 20
+	case "缩量下跌":
+		score -= 5
+	}
+	if vp.VolumeRatio > 1.5 {
+		score += 5
+	} else if vp.VolumeRatio < 0.5 {
+		score -= 5
+	}
+	return clampScoreRank(score)
+}
+
+// scoreDimensionMF scores money flow analysis.
+func scoreDimensionMF(mf models.MoneyFlowAnalysis) float64 {
+	score := 50.0
+	switch mf.TodayMainDirection {
+	case "流入":
+		score += 15
+	case "流出":
+		score -= 15
+	}
+	if mf.TodayMainNet > 0 {
+		score += 5
+	} else if mf.TodayMainNet < 0 {
+		score -= 5
+	}
+	return clampScoreRank(score)
+}
+
+// scoreDimensionValuation scores valuation analysis.
+func scoreDimensionValuation(vl models.ValuationAnalysis) float64 {
+	score := 50.0
+	switch vl.PELevel {
+	case "偏低":
+		score += 15
+	case "合理":
+		score += 5
+	case "偏高":
+		score -= 10
+	case "很高":
+		score -= 15
+	}
+	switch vl.PBLevel {
+	case "偏低":
+		score += 10
+	case "合理":
+		score += 3
+	case "偏高":
+		score -= 8
+	case "很高":
+		score -= 12
+	}
+	return clampScoreRank(score)
+}
+
+func clampScoreRank(v float64) float64 {
+	if v > 100 {
+		return 100
+	}
+	if v < 0 {
+		return 0
+	}
+	return v
 }
 
 // ---- Groups CRUD ----
