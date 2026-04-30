@@ -664,7 +664,7 @@ export interface AnalyzeResult {
   code: string;
   name: string;
   score: number;
-  dimensions: { name: string; score: number; detail: string }[];
+  dimensions: { name: string; score: number; detail: string; rawData?: Record<string, unknown> }[];
   recommendation: string;
   summary: string;
   fetched_at?: string;

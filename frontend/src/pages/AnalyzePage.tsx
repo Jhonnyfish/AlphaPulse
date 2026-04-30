@@ -41,15 +41,15 @@ function transformResponse(raw: RawAnalyzeResponse): AnalyzeResult {
   const s = raw.summary;
   const strengths = s.strengths ?? [];
   const risks = s.risks ?? [];
-  const dims: { name: string; score: number; detail: string }[] = [
-    { name: 'order_flow',   score: levelToScore(raw.order_flow.net_direction as string),   detail: raw.order_flow.verdict },
-    { name: 'volume_price', score: levelToScore(raw.volume_price.turnover_level),          detail: raw.volume_price.verdict },
-    { name: 'valuation',    score: levelToScore(raw.valuation.pe_level),                   detail: raw.valuation.verdict },
-    { name: 'volatility',   score: levelToScore(raw.volatility.amplitude_level),           detail: raw.volatility.verdict },
-    { name: 'money_flow',   score: levelToScore(raw.money_flow.today_main_direction as string), detail: raw.money_flow.verdict },
-    { name: 'technical',    score: levelToScore(raw.technical.rsi_level as string),        detail: raw.technical.verdict },
-    { name: 'sector',       score: raw.sector.is_sector_leader ? 7 : 5,                   detail: raw.sector.verdict },
-    { name: 'sentiment',    score: Math.max(1, Math.min(10, ((strengths.length - risks.length) * 1.5) + 5)), detail: raw.sentiment.verdict },
+  const dims: { name: string; score: number; detail: string; rawData?: Record<string, unknown> }[] = [
+    { name: 'order_flow',   score: levelToScore(raw.order_flow.net_direction as string),   detail: raw.order_flow.verdict, rawData: raw.order_flow as Record<string, unknown> },
+    { name: 'volume_price', score: levelToScore(raw.volume_price.turnover_level),          detail: raw.volume_price.verdict, rawData: raw.volume_price as Record<string, unknown> },
+    { name: 'valuation',    score: levelToScore(raw.valuation.pe_level),                   detail: raw.valuation.verdict, rawData: raw.valuation as Record<string, unknown> },
+    { name: 'volatility',   score: levelToScore(raw.volatility.amplitude_level),           detail: raw.volatility.verdict, rawData: raw.volatility as Record<string, unknown> },
+    { name: 'money_flow',   score: levelToScore(raw.money_flow.today_main_direction as string), detail: raw.money_flow.verdict, rawData: raw.money_flow as Record<string, unknown> },
+    { name: 'technical',    score: levelToScore(raw.technical.rsi_level as string),        detail: raw.technical.verdict, rawData: raw.technical as Record<string, unknown> },
+    { name: 'sector',       score: raw.sector.is_sector_leader ? 7 : 5,                   detail: raw.sector.verdict, rawData: raw.sector as Record<string, unknown> },
+    { name: 'sentiment',    score: Math.max(1, Math.min(10, ((strengths.length - risks.length) * 1.5) + 5)), detail: raw.sentiment.verdict, rawData: raw.sentiment as Record<string, unknown> },
   ];
 
   const parts: string[] = [s.suggestion];
@@ -307,7 +307,7 @@ export default function AnalyzePage() {
             {/* Dimension breakdown */}
             <div className="lg:col-span-2 space-y-3">
               {data.dimensions.map((dim) => (
-                <DimensionCard key={dim.name} {...dim} />
+                <DimensionCard key={dim.name} {...dim} rawData={dim.rawData} />
               ))}
             </div>
           </div>
@@ -399,9 +399,33 @@ function RadarChart({ dimensions }: { dimensions: AnalyzeResult['dimensions'] })
   return <EChart option={option} height={380} />;
 }
 
-function DimensionCard({ name, score, detail }: { name: string; score: number; detail: string }) {
+function DimensionCard({ name, score, detail, rawData }: { name: string; score: number; detail: string; rawData?: Record<string, unknown> }) {
   const Icon = DIMENSION_ICONS[name] ?? BarChart3;
   const label = DIMENSION_LABELS[name] ?? name;
+
+  // Extract key metrics from raw data
+  const metrics: { label: string; value: string; color?: string }[] = [];
+  if (rawData) {
+    if (name === 'technical') {
+      if (rawData.macd_signal) metrics.push({ label: 'MACD', value: String(rawData.macd_signal) });
+      if (rawData.kdj_signal) metrics.push({ label: 'KDJ', value: String(rawData.kdj_signal) });
+      if (rawData.rsi_14 && Number(rawData.rsi_14) > 0) {
+        const rsi = Number(rawData.rsi_14);
+        metrics.push({ label: 'RSI', value: rsi.toFixed(1), color: rsi > 70 ? '#ef4444' : rsi < 30 ? '#22c55e' : undefined });
+      }
+      if (rawData.ma_arrangement) metrics.push({ label: '均线', value: String(rawData.ma_arrangement) });
+    } else if (name === 'money_flow') {
+      if (rawData.today_main_direction) metrics.push({ label: '主力', value: String(rawData.today_main_direction), color: rawData.today_main_direction === '流入' ? '#ef4444' : '#22c55e' });
+      if (rawData.main_consecutive_days && Number(rawData.main_consecutive_days) > 0) metrics.push({ label: '连续', value: `${rawData.main_consecutive_days}日` });
+    } else if (name === 'valuation') {
+      if (rawData.pe && Number(rawData.pe) > 0) metrics.push({ label: 'PE', value: String(rawData.pe) });
+      if (rawData.pb && Number(rawData.pb) > 0) metrics.push({ label: 'PB', value: String(rawData.pb) });
+      if (rawData.mv_level) metrics.push({ label: '市值', value: String(rawData.mv_level) });
+    } else if (name === 'volume_price') {
+      if (rawData.volume_ratio && Number(rawData.volume_ratio) > 0) metrics.push({ label: '量比', value: Number(rawData.volume_ratio).toFixed(2) });
+      if (rawData.price_volume_harmony) metrics.push({ label: '量价', value: String(rawData.price_volume_harmony) });
+    }
+  }
 
   return (
     <div className="glass-panel p-4">
@@ -425,6 +449,16 @@ function DimensionCard({ name, score, detail }: { name: string; score: number; d
           }}
         />
       </div>
+      {/* Key metrics */}
+      {metrics.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2">
+          {metrics.map((m, i) => (
+            <span key={i} className="text-xs px-1.5 py-0.5 rounded font-mono" style={{ background: 'var(--color-bg-hover)', color: m.color || 'var(--color-text-secondary)' }}>
+              {m.label}: {m.value}
+            </span>
+          ))}
+        </div>
+      )}
       <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
         {detail}
       </p>
