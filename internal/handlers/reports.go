@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"alphapulse/internal/cache"
+	"alphapulse/internal/models"
 	"alphapulse/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -440,75 +441,47 @@ func (h *ReportsHandler) DailyReportGenerate(c *gin.Context) {
 		return
 	}
 
-	// Parallel analysis
+	// Use analyzeSingle for each stock (parallel, max 4 concurrent)
 	type analysisResult struct {
-		code  string
-		name  string
-		price float64
-		chg   float64
-		score float64
-		sig   string
+		analysis models.StockAnalysis
+		err      error
 	}
-	results := make([]analysisResult, 0, len(codes))
-	var mu sync.Mutex
+	results := make([]analysisResult, len(codes))
 	var wg sync.WaitGroup
 	errCount := 0
+	sem := make(chan struct{}, 4)
 
-	sem := make(chan struct{}, 8)
-	for _, code := range codes {
+	for i, code := range codes {
 		wg.Add(1)
-		go func(code string) {
+		go func(idx int, stockCode string) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			quote, qErr := h.tencent.FetchQuote(ctx, code)
-			if qErr != nil {
-				h.log.Warn("daily report: quote failed", zap.String("code", code), zap.Error(qErr))
-				mu.Lock()
-				errCount++
-				mu.Unlock()
-				return
-			}
-
-			// Simple scoring
-			score := 50.0
-			if quote.ChangePercent > 0 {
-				score += quote.ChangePercent * 2
-			} else {
-				score += quote.ChangePercent * 1.5
-			}
-			if score > 100 {
-				score = 100
-			}
-			if score < 0 {
-				score = 0
-			}
-
-			signal := "neutral"
-			if score >= 70 {
-				signal = "bullish"
-			} else if score <= 40 {
-				signal = "bearish"
-			}
-
-			mu.Lock()
-			results = append(results, analysisResult{
-				code:  code,
-				name:  quote.Name,
-				price: quote.Price,
-				chg:   quote.ChangePercent,
-				score: score,
-				sig:   signal,
-			})
-			mu.Unlock()
-		}(code)
+			analysis := h.analyze.analyzeSingle(ctx, stockCode)
+			results[idx] = analysisResult{analysis: analysis}
+		}(i, code)
 	}
 	wg.Wait()
 
-	// Sort by score desc
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].score > results[j].score
+	// Filter successful results
+	validResults := make([]models.StockAnalysis, 0, len(results))
+	for _, r := range results {
+		if r.err == nil && r.analysis.Summary.OverallScore > 0 {
+			validResults = append(validResults, r.analysis)
+		} else {
+			errCount++
+		}
+	}
+
+	if len(validResults) == 0 {
+		c.JSON(http.StatusOK, gin.H{"ok": false, "error": "no valid analysis results"})
+		return
+	}
+
+	// Sort by overall score descending
+	sort.Slice(validResults, func(i, j int) bool {
+		return validResults[i].Summary.OverallScore > validResults[j].Summary.OverallScore
 	})
 
 	// Generate markdown
@@ -519,67 +492,205 @@ func (h *ReportsHandler) DailyReportGenerate(c *gin.Context) {
 	lines = append(lines, fmt.Sprintf("# 📊 AlphaPulse 每日研报 — %s", dateDisplay))
 	lines = append(lines, "")
 	lines = append(lines, fmt.Sprintf("> 生成时间: %s  ", now.Format("2006-01-02 15:04:05")))
-	lines = append(lines, fmt.Sprintf("> 分析股票数: %d", len(results)))
+	lines = append(lines, fmt.Sprintf("> 分析股票数: %d", len(validResults)))
 	lines = append(lines, "")
 
-	// Ranking table
+	// Market overview
+	overview, ovErr := h.eastMoney.FetchOverview(ctx)
+	if ovErr == nil && len(overview.Indices) > 0 {
+		lines = append(lines, "## 🏛️ 大盘概况")
+		lines = append(lines, "")
+		lines = append(lines, "| 指数 | 最新价 | 涨跌幅 |")
+		lines = append(lines, "|------|--------|--------|")
+		for _, idx := range overview.Indices {
+			arrow := "⚪"
+			if idx.ChangePercent > 0 {
+				arrow = "🔴"
+			} else if idx.ChangePercent < 0 {
+				arrow = "🟢"
+			}
+			lines = append(lines, fmt.Sprintf("| %s | %.2f | %s %.2f%% |", idx.Name, idx.Price, arrow, idx.ChangePercent))
+		}
+		lines = append(lines, "")
+	}
+
+	// Sector top movers
+	sectors, secErr := h.eastMoney.FetchSectors(ctx)
+	if secErr == nil && len(sectors) > 0 {
+		sort.Slice(sectors, func(i, j int) bool { return sectors[i].ChangePercent > sectors[j].ChangePercent })
+		topN := 5
+		if len(sectors) < topN {
+			topN = len(sectors)
+		}
+		lines = append(lines, "## 🔥 板块轮动")
+		lines = append(lines, "")
+		lines = append(lines, "**领涨板块:**")
+		for i := 0; i < topN; i++ {
+			s := sectors[i]
+			lines = append(lines, fmt.Sprintf("- %s (%.2f%%)", s.Name, s.ChangePercent))
+		}
+		if len(sectors) > 5 {
+			lines = append(lines, "")
+			lines = append(lines, "**领跌板块:**")
+			bottomN := len(sectors) - 5
+			if bottomN > 5 {
+				bottomN = 5
+			}
+			for i := 0; i < bottomN; i++ {
+				s := sectors[len(sectors)-1-i]
+				lines = append(lines, fmt.Sprintf("- %s (%.2f%%)", s.Name, s.ChangePercent))
+			}
+		}
+		lines = append(lines, "")
+	}
+
+	// Enhanced score ranking table with 8-dimension scores
 	lines = append(lines, "## 📈 综合评分排名")
 	lines = append(lines, "")
-	lines = append(lines, "| 排名 | 股票 | 代码 | 现价 | 涨跌幅 | 评分 | 信号 |")
-	lines = append(lines, "|------|------|------|------|--------|------|------|")
+	lines = append(lines, "| 排名 | 股票 | 代码 | 现价 | 涨跌幅 | 综合评分 | 信号 | 技术面 | 资金面 | 量价 | 估值 |")
+	lines = append(lines, "|------|------|------|------|--------|----------|------|--------|--------|------|------|")
 
-	for i, r := range results {
+	for i, a := range validResults {
 		arrow := "⚪"
-		if r.chg > 0 {
+		if a.Quote.ChangePercent > 0 {
 			arrow = "🔴"
-		} else if r.chg < 0 {
+		} else if a.Quote.ChangePercent < 0 {
 			arrow = "🟢"
 		}
 		sigLabel := "中性"
-		if r.sig == "bullish" {
+		if a.Summary.OverallSignal == "bullish" {
 			sigLabel = "偏多"
-		} else if r.sig == "bearish" {
+		} else if a.Summary.OverallSignal == "bearish" {
 			sigLabel = "偏空"
 		}
-		lines = append(lines, fmt.Sprintf("| %d | %s | %s | %.2f | %s %.2f%% | %.1f | %s |",
-			i+1, r.name, r.code, r.price, arrow, r.chg, r.score, sigLabel))
+
+		// Get dimension scores
+		techScore := a.Technical.MACD_Signal
+		if techScore == "" {
+			techScore = "-"
+		}
+		fundScore := a.MoneyFlow.TodayMainDirection
+		if fundScore == "" {
+			fundScore = "-"
+		}
+		vpScore := a.VolumePrice.PriceVolumeHarmony
+		if vpScore == "" {
+			vpScore = "-"
+		}
+		valScore := a.Valuation.PELevel
+		if valScore == "" {
+			valScore = "-"
+		}
+
+		lines = append(lines, fmt.Sprintf("| %d | %s | %s | %.2f | %s %.2f%% | %d | %s | %s | %s | %s | %s |",
+			i+1, a.Name, a.Code, a.Quote.Price, arrow, a.Quote.ChangePercent,
+			a.Summary.OverallScore, sigLabel, techScore, fundScore, vpScore, valScore))
 	}
 	lines = append(lines, "")
 
-	// Summary
-	if len(results) > 0 {
-		top := results[0]
-		bottom := results[len(results)-1]
+	// Summary section
+	if len(validResults) > 0 {
+		top := validResults[0]
+		bottom := validResults[len(validResults)-1]
 		bullCount := 0
 		bearCount := 0
-		for _, r := range results {
-			if r.sig == "bullish" {
+		for _, a := range validResults {
+			if a.Summary.OverallSignal == "bullish" {
 				bullCount++
-			} else if r.sig == "bearish" {
+			} else if a.Summary.OverallSignal == "bearish" {
 				bearCount++
 			}
 		}
 		lines = append(lines, "## 💡 总结")
 		lines = append(lines, "")
 		topSig := "中性"
-		if top.sig == "bullish" {
+		if top.Summary.OverallSignal == "bullish" {
 			topSig = "偏多"
 		}
 		botSig := "中性"
-		if bottom.sig == "bearish" {
+		if bottom.Summary.OverallSignal == "bearish" {
 			botSig = "偏空"
 		}
-		lines = append(lines, fmt.Sprintf("- **最看好**: %s (%s) — 评分 %.1f，信号: %s", top.name, top.code, top.score, topSig))
-		lines = append(lines, fmt.Sprintf("- **需关注**: %s (%s) — 评分 %.1f，信号: %s", bottom.name, bottom.code, bottom.score, botSig))
+		lines = append(lines, fmt.Sprintf("- **最看好**: %s (%s) — 评分 %d，信号: %s", top.Name, top.Code, top.Summary.OverallScore, topSig))
+		lines = append(lines, fmt.Sprintf("- **需关注**: %s (%s) — 评分 %d，信号: %s", bottom.Name, bottom.Code, bottom.Summary.OverallScore, botSig))
 		if bearCount > 0 {
 			var bearNames []string
-			for _, r := range results {
-				if r.sig == "bearish" {
-					bearNames = append(bearNames, r.name)
+			for _, a := range validResults {
+				if a.Summary.OverallSignal == "bearish" {
+					bearNames = append(bearNames, a.Name)
 				}
 			}
 			lines = append(lines, fmt.Sprintf("- **弱势股 (%d只)**: %s", bearCount, strings.Join(bearNames, ", ")))
 		}
+	}
+
+	// Individual stock details (top 3)
+	lines = append(lines, "")
+	lines = append(lines, "## 📋 重点个股分析")
+	lines = append(lines, "")
+
+	topN := 3
+	if len(validResults) < topN {
+		topN = len(validResults)
+	}
+	for i := 0; i < topN; i++ {
+		a := validResults[i]
+		lines = append(lines, fmt.Sprintf("### %d. %s (%s)", i+1, a.Name, a.Code))
+		lines = append(lines, "")
+		lines = append(lines, fmt.Sprintf("- **现价**: %.2f | **涨跌幅**: %.2f%%", a.Quote.Price, a.Quote.ChangePercent))
+		lines = append(lines, fmt.Sprintf("- **综合评分**: %d | **信号**: %s", a.Summary.OverallScore, a.Summary.OverallSignal))
+		lines = append(lines, "")
+
+		// Technical indicators
+		lines = append(lines, "**技术指标:**")
+		if a.Technical.MACD_Signal != "" {
+			lines = append(lines, fmt.Sprintf("- MACD: %s (DIF: %.2f, DEA: %.2f)", a.Technical.MACD_Signal, a.Technical.MACD_DIF, a.Technical.MACD_DEA))
+		}
+		if a.Technical.KDJ_Signal != "" {
+			lines = append(lines, fmt.Sprintf("- KDJ: %s (K: %.2f, D: %.2f, J: %.2f)", a.Technical.KDJ_Signal, a.Technical.KDJ_K, a.Technical.KDJ_D, a.Technical.KDJ_J))
+		}
+		if a.Technical.RSI_Level != "" {
+			lines = append(lines, fmt.Sprintf("- RSI: %s (%.2f)", a.Technical.RSI_Level, a.Technical.RSI_14))
+		}
+		if a.Technical.MAArrangement != "" {
+			lines = append(lines, fmt.Sprintf("- 均线: %s", a.Technical.MAArrangement))
+		}
+		lines = append(lines, "")
+
+		// Money flow
+		if a.MoneyFlow.TodayMainDirection != "" && a.MoneyFlow.TodayMainDirection != "数据不足" {
+			lines = append(lines, "**资金流向:**")
+			lines = append(lines, fmt.Sprintf("- 主力方向: %s (净额: %.2f万)", a.MoneyFlow.TodayMainDirection, a.MoneyFlow.TodayMainNet))
+			if a.MoneyFlow.MainConsecutiveDays > 0 {
+				lines = append(lines, fmt.Sprintf("- 连续%s: %d天", a.MoneyFlow.MainConsecutiveDirection, a.MoneyFlow.MainConsecutiveDays))
+			}
+			lines = append(lines, "")
+		}
+
+		// Volume analysis
+		if a.VolumePrice.PriceVolumeHarmony != "" {
+			lines = append(lines, "**量价分析:**")
+			lines = append(lines, fmt.Sprintf("- 量价关系: %s", a.VolumePrice.PriceVolumeHarmony))
+			if a.VolumePrice.VolumeRatio > 0 {
+				lines = append(lines, fmt.Sprintf("- 量比: %.2f", a.VolumePrice.VolumeRatio))
+			}
+			lines = append(lines, "")
+		}
+
+		// Strengths and risks
+		if len(a.Summary.Strengths) > 0 {
+			lines = append(lines, "**优势:**")
+			for _, s := range a.Summary.Strengths {
+				lines = append(lines, fmt.Sprintf("- %s", s))
+			}
+		}
+		if len(a.Summary.Risks) > 0 {
+			lines = append(lines, "**风险:**")
+			for _, r := range a.Summary.Risks {
+				lines = append(lines, fmt.Sprintf("- %s", r))
+			}
+		}
+		lines = append(lines, "")
 	}
 
 	lines = append(lines, "")
@@ -588,9 +699,28 @@ func (h *ReportsHandler) DailyReportGenerate(c *gin.Context) {
 
 	// AI analysis via DeepSeek (if configured)
 	if h.deepseek != nil && h.deepseek.Enabled() {
-		aiPrompt := fmt.Sprintf("以下是今日自选股行情数据，请用中文写一段简短的市场分析（200字以内），包括整体趋势、重点关注的个股和风险提示：\n\n%s", strings.Join(lines, "\n"))
-		aiCtx, aiCancel := context.WithTimeout(ctx, 60*time.Second)
-		aiAnalysis, aiErr := h.deepseek.Chat(aiCtx, "你是专业的A股分析师，用简洁专业的语言分析股票数据。回复纯文本，不要markdown格式。", aiPrompt)
+		// Build a comprehensive prompt with all analysis data
+		var analysisData []string
+		for _, a := range validResults {
+			analysisData = append(analysisData, fmt.Sprintf("%s(%s): 评分%d, 信号%s, 技术面%s, 资金%s, 量价%s, 估值%s",
+				a.Name, a.Code, a.Summary.OverallScore, a.Summary.OverallSignal,
+				a.Technical.MACD_Signal, a.MoneyFlow.TodayMainDirection,
+				a.VolumePrice.PriceVolumeHarmony, a.Valuation.PELevel))
+		}
+
+		aiPrompt := fmt.Sprintf(`以下是今日A股市场数据和自选股八维分析结果，请用中文写一段专业的市场分析（400字以内），包括：
+1) 大盘走势判断
+2) 板块轮动特征
+3) 自选股重点关注（结合技术形态、资金动向、量价配合）
+4) 风险提示
+
+自选股分析数据:
+%s
+
+请用专业、客观的语言分析，避免泛泛而谈。`, strings.Join(analysisData, "\n"))
+
+		aiCtx, aiCancel := context.WithTimeout(ctx, 90*time.Second)
+		aiAnalysis, aiErr := h.deepseek.Chat(aiCtx, "你是一位资深A股分析师，具备10年以上投研经验。分析要专业、客观、有深度，关注量价配合、资金流向、技术形态等核心指标。", aiPrompt)
 		aiCancel()
 		if aiErr == nil && aiAnalysis != "" {
 			lines = append(lines, "")
@@ -641,7 +771,7 @@ func (h *ReportsHandler) GenerateDailyReportAuto() {
 	}
 	h.genMu.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	codes, err := h.loadWatchlistCodes(ctx)
@@ -654,64 +784,55 @@ func (h *ReportsHandler) GenerateDailyReportAuto() {
 		return
 	}
 
+	// Use analyzeSingle for each stock (parallel, max 4 concurrent)
 	type analysisResult struct {
-		code  string
-		name  string
-		price float64
-		chg   float64
-		score float64
-		sig   string
+		analysis models.StockAnalysis
+		err      error
 	}
-	results := make([]analysisResult, 0, len(codes))
-	var mu sync.Mutex
+	results := make([]analysisResult, len(codes))
 	var wg sync.WaitGroup
+	sem := make(chan struct{}, 4)
 
-	sem := make(chan struct{}, 8)
-	for _, code := range codes {
+	for i, code := range codes {
 		wg.Add(1)
-		go func(code string) {
+		go func(idx int, stockCode string) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			quote, qErr := h.tencent.FetchQuote(ctx, code)
-			if qErr != nil {
-				h.log.Warn("daily report auto: quote failed", zap.String("code", code), zap.Error(qErr))
-				return
-			}
-			score := 50.0
-			if quote.ChangePercent > 0 {
-				score += quote.ChangePercent * 2
-			} else {
-				score += quote.ChangePercent * 1.5
-			}
-			if score > 100 {
-				score = 100
-			}
-			if score < 0 {
-				score = 0
-			}
-			signal := "neutral"
-			if score >= 70 {
-				signal = "bullish"
-			} else if score <= 40 {
-				signal = "bearish"
-			}
-			mu.Lock()
-			results = append(results, analysisResult{code: code, name: quote.Name, price: quote.Price, chg: quote.ChangePercent, score: score, sig: signal})
-			mu.Unlock()
-		}(code)
+			analysis := h.analyze.analyzeSingle(ctx, stockCode)
+			results[idx] = analysisResult{analysis: analysis}
+		}(i, code)
 	}
 	wg.Wait()
 
-	sort.Slice(results, func(i, j int) bool { return results[i].score > results[j].score })
+	// Filter successful results
+	validResults := make([]models.StockAnalysis, 0, len(results))
+	for _, r := range results {
+		if r.err == nil && r.analysis.Summary.OverallScore > 0 {
+			validResults = append(validResults, r.analysis)
+		}
+	}
 
+	if len(validResults) == 0 {
+		h.log.Warn("daily report auto: no valid analysis results")
+		return
+	}
+
+	// Sort by overall score descending
+	sort.Slice(validResults, func(i, j int) bool {
+		return validResults[i].Summary.OverallScore > validResults[j].Summary.OverallScore
+	})
+
+	// Generate markdown report
 	now := time.Now()
+	dateDisplay := now.Format("2006年01月02日")
 	var lines []string
-	lines = append(lines, fmt.Sprintf("# 📊 AlphaPulse 每日研报 — %s", now.Format("2006年01月02日")))
+
+	lines = append(lines, fmt.Sprintf("# 📊 AlphaPulse 每日研报 — %s", dateDisplay))
 	lines = append(lines, "")
 	lines = append(lines, fmt.Sprintf("> 生成时间: %s  ", now.Format("2006-01-02 15:04:05")))
-	lines = append(lines, fmt.Sprintf("> 分析股票数: %d", len(results)))
+	lines = append(lines, fmt.Sprintf("> 分析股票数: %d", len(validResults)))
 	lines = append(lines, "")
 
 	// Market overview
@@ -736,7 +857,6 @@ func (h *ReportsHandler) GenerateDailyReportAuto() {
 	// Sector top movers
 	sectors, secErr := h.eastMoney.FetchSectors(ctx)
 	if secErr == nil && len(sectors) > 0 {
-		// Sort by change percent
 		sort.Slice(sectors, func(i, j int) bool { return sectors[i].ChangePercent > sectors[j].ChangePercent })
 		topN := 5
 		if len(sectors) < topN {
@@ -764,70 +884,182 @@ func (h *ReportsHandler) GenerateDailyReportAuto() {
 		lines = append(lines, "")
 	}
 
-	// Score ranking table
+	// Enhanced score ranking table with 8-dimension scores
 	lines = append(lines, "## 📈 综合评分排名")
 	lines = append(lines, "")
-	lines = append(lines, "| 排名 | 股票 | 代码 | 现价 | 涨跌幅 | 评分 | 信号 |")
-	lines = append(lines, "|------|------|------|------|--------|------|------|")
-	for i, r := range results {
+	lines = append(lines, "| 排名 | 股票 | 代码 | 现价 | 涨跌幅 | 综合评分 | 信号 | 技术面 | 资金面 | 量价 | 估值 |")
+	lines = append(lines, "|------|------|------|------|--------|----------|------|--------|--------|------|------|")
+
+	for i, a := range validResults {
 		arrow := "⚪"
-		if r.chg > 0 {
+		if a.Quote.ChangePercent > 0 {
 			arrow = "🔴"
-		} else if r.chg < 0 {
+		} else if a.Quote.ChangePercent < 0 {
 			arrow = "🟢"
 		}
 		sigLabel := "中性"
-		if r.sig == "bullish" {
+		if a.Summary.OverallSignal == "bullish" {
 			sigLabel = "偏多"
-		} else if r.sig == "bearish" {
+		} else if a.Summary.OverallSignal == "bearish" {
 			sigLabel = "偏空"
 		}
-		lines = append(lines, fmt.Sprintf("| %d | %s | %s | %.2f | %s %.2f%% | %.1f | %s |", i+1, r.name, r.code, r.price, arrow, r.chg, r.score, sigLabel))
+
+		// Get dimension scores
+		techScore := a.Technical.MACD_Signal
+		if techScore == "" {
+			techScore = "-"
+		}
+		fundScore := a.MoneyFlow.TodayMainDirection
+		if fundScore == "" {
+			fundScore = "-"
+		}
+		vpScore := a.VolumePrice.PriceVolumeHarmony
+		if vpScore == "" {
+			vpScore = "-"
+		}
+		valScore := a.Valuation.PELevel
+		if valScore == "" {
+			valScore = "-"
+		}
+
+		lines = append(lines, fmt.Sprintf("| %d | %s | %s | %.2f | %s %.2f%% | %d | %s | %s | %s | %s | %s |",
+			i+1, a.Name, a.Code, a.Quote.Price, arrow, a.Quote.ChangePercent,
+			a.Summary.OverallScore, sigLabel, techScore, fundScore, vpScore, valScore))
 	}
 	lines = append(lines, "")
-	if len(results) > 0 {
-		top := results[0]
-		bottom := results[len(results)-1]
+
+	// Summary section
+	if len(validResults) > 0 {
+		top := validResults[0]
+		bottom := validResults[len(validResults)-1]
 		bullCount := 0
 		bearCount := 0
-		for _, r := range results {
-			if r.sig == "bullish" {
+		for _, a := range validResults {
+			if a.Summary.OverallSignal == "bullish" {
 				bullCount++
-			} else if r.sig == "bearish" {
+			} else if a.Summary.OverallSignal == "bearish" {
 				bearCount++
 			}
 		}
 		lines = append(lines, "## 💡 总结")
 		lines = append(lines, "")
 		topSig := "中性"
-		if top.sig == "bullish" {
+		if top.Summary.OverallSignal == "bullish" {
 			topSig = "偏多"
 		}
 		botSig := "中性"
-		if bottom.sig == "bearish" {
+		if bottom.Summary.OverallSignal == "bearish" {
 			botSig = "偏空"
 		}
-		lines = append(lines, fmt.Sprintf("- **最看好**: %s (%s) — 评分 %.1f，信号: %s", top.name, top.code, top.score, topSig))
-		lines = append(lines, fmt.Sprintf("- **需关注**: %s (%s) — 评分 %.1f，信号: %s", bottom.name, bottom.code, bottom.score, botSig))
+		lines = append(lines, fmt.Sprintf("- **最看好**: %s (%s) — 评分 %d，信号: %s", top.Name, top.Code, top.Summary.OverallScore, topSig))
+		lines = append(lines, fmt.Sprintf("- **需关注**: %s (%s) — 评分 %d，信号: %s", bottom.Name, bottom.Code, bottom.Summary.OverallScore, botSig))
 		if bearCount > 0 {
 			var bearNames []string
-			for _, r := range results {
-				if r.sig == "bearish" {
-					bearNames = append(bearNames, r.name)
+			for _, a := range validResults {
+				if a.Summary.OverallSignal == "bearish" {
+					bearNames = append(bearNames, a.Name)
 				}
 			}
 			lines = append(lines, fmt.Sprintf("- **弱势股 (%d只)**: %s", bearCount, strings.Join(bearNames, ", ")))
 		}
 	}
 
+	// Individual stock details (top 3 + bottom 1)
+	lines = append(lines, "")
+	lines = append(lines, "## 📋 重点个股分析")
+	lines = append(lines, "")
+
+	// Show top 3 stocks with detailed analysis
+	topN := 3
+	if len(validResults) < topN {
+		topN = len(validResults)
+	}
+	for i := 0; i < topN; i++ {
+		a := validResults[i]
+		lines = append(lines, fmt.Sprintf("### %d. %s (%s)", i+1, a.Name, a.Code))
+		lines = append(lines, "")
+		lines = append(lines, fmt.Sprintf("- **现价**: %.2f | **涨跌幅**: %.2f%%", a.Quote.Price, a.Quote.ChangePercent))
+		lines = append(lines, fmt.Sprintf("- **综合评分**: %d | **信号**: %s", a.Summary.OverallScore, a.Summary.OverallSignal))
+		lines = append(lines, "")
+
+		// Technical indicators
+		lines = append(lines, "**技术指标:**")
+		if a.Technical.MACD_Signal != "" {
+			lines = append(lines, fmt.Sprintf("- MACD: %s (DIF: %.2f, DEA: %.2f)", a.Technical.MACD_Signal, a.Technical.MACD_DIF, a.Technical.MACD_DEA))
+		}
+		if a.Technical.KDJ_Signal != "" {
+			lines = append(lines, fmt.Sprintf("- KDJ: %s (K: %.2f, D: %.2f, J: %.2f)", a.Technical.KDJ_Signal, a.Technical.KDJ_K, a.Technical.KDJ_D, a.Technical.KDJ_J))
+		}
+		if a.Technical.RSI_Level != "" {
+			lines = append(lines, fmt.Sprintf("- RSI: %s (%.2f)", a.Technical.RSI_Level, a.Technical.RSI_14))
+		}
+		if a.Technical.MAArrangement != "" {
+			lines = append(lines, fmt.Sprintf("- 均线: %s", a.Technical.MAArrangement))
+		}
+		lines = append(lines, "")
+
+		// Money flow
+		if a.MoneyFlow.TodayMainDirection != "" && a.MoneyFlow.TodayMainDirection != "数据不足" {
+			lines = append(lines, "**资金流向:**")
+			lines = append(lines, fmt.Sprintf("- 主力方向: %s (净额: %.2f万)", a.MoneyFlow.TodayMainDirection, a.MoneyFlow.TodayMainNet))
+			if a.MoneyFlow.MainConsecutiveDays > 0 {
+				lines = append(lines, fmt.Sprintf("- 连续%s: %d天", a.MoneyFlow.MainConsecutiveDirection, a.MoneyFlow.MainConsecutiveDays))
+			}
+			lines = append(lines, "")
+		}
+
+		// Volume analysis
+		if a.VolumePrice.PriceVolumeHarmony != "" {
+			lines = append(lines, "**量价分析:**")
+			lines = append(lines, fmt.Sprintf("- 量价关系: %s", a.VolumePrice.PriceVolumeHarmony))
+			if a.VolumePrice.VolumeRatio > 0 {
+				lines = append(lines, fmt.Sprintf("- 量比: %.2f", a.VolumePrice.VolumeRatio))
+			}
+			lines = append(lines, "")
+		}
+
+		// Strengths and risks
+		if len(a.Summary.Strengths) > 0 {
+			lines = append(lines, "**优势:**")
+			for _, s := range a.Summary.Strengths {
+				lines = append(lines, fmt.Sprintf("- %s", s))
+			}
+		}
+		if len(a.Summary.Risks) > 0 {
+			lines = append(lines, "**风险:**")
+			for _, r := range a.Summary.Risks {
+				lines = append(lines, fmt.Sprintf("- %s", r))
+			}
+		}
+		lines = append(lines, "")
+	}
+
 	// AI analysis
 	if h.deepseek != nil && h.deepseek.Enabled() {
-		aiPrompt := fmt.Sprintf("以下是今日A股市场数据和自选股分析结果，请用中文写一段专业的市场分析（300字以内），包括：1)大盘走势判断 2)板块轮动特征 3)自选股重点关注 4)风险提示。回复纯文本，不要markdown格式。\n\n%s", strings.Join(lines, "\n"))
-		aiCtx, aiCancel := context.WithTimeout(ctx, 60*time.Second)
-		aiAnalysis, aiErr := h.deepseek.Chat(aiCtx, "你是一位资深A股分析师，具备10年以上投研经验。分析要专业、客观、有深度，避免泛泛而谈。关注量价配合、资金流向、技术形态等核心指标。", aiPrompt)
+		// Build a comprehensive prompt with all analysis data
+		var analysisData []string
+		for _, a := range validResults {
+			analysisData = append(analysisData, fmt.Sprintf("%s(%s): 评分%d, 信号%s, 技术面%s, 资金%s, 量价%s, 估值%s",
+				a.Name, a.Code, a.Summary.OverallScore, a.Summary.OverallSignal,
+				a.Technical.MACD_Signal, a.MoneyFlow.TodayMainDirection,
+				a.VolumePrice.PriceVolumeHarmony, a.Valuation.PELevel))
+		}
+
+		aiPrompt := fmt.Sprintf(`以下是今日A股市场数据和自选股八维分析结果，请用中文写一段专业的市场分析（400字以内），包括：
+1) 大盘走势判断
+2) 板块轮动特征
+3) 自选股重点关注（结合技术形态、资金动向、量价配合）
+4) 风险提示
+
+自选股分析数据:
+%s
+
+请用专业、客观的语言分析，避免泛泛而谈。`, strings.Join(analysisData, "\n"))
+
+		aiCtx, aiCancel := context.WithTimeout(ctx, 90*time.Second)
+		aiAnalysis, aiErr := h.deepseek.Chat(aiCtx, "你是一位资深A股分析师，具备10年以上投研经验。分析要专业、客观、有深度，关注量价配合、资金流向、技术形态等核心指标。", aiPrompt)
 		aiCancel()
 		if aiErr == nil && aiAnalysis != "" {
-			lines = append(lines, "")
 			lines = append(lines, "## 🤖 AI 分析")
 			lines = append(lines, "")
 			lines = append(lines, aiAnalysis)
@@ -850,7 +1082,7 @@ func (h *ReportsHandler) GenerateDailyReportAuto() {
 	h.lastGenTime = time.Now()
 	h.genMu.Unlock()
 
-	h.log.Info("daily report auto: generated", zap.String("filename", filename), zap.Int("stocks", len(results)))
+	h.log.Info("daily report auto: generated", zap.String("filename", filename), zap.Int("stocks", len(validResults)))
 }
 
 // DailyBrief returns an aggregate daily market brief.
