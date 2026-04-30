@@ -536,26 +536,102 @@ func AnalyzeTechnical(klines []models.KlinePoint) models.TechnicalAnalysis {
 		} else if ma5 < ma10 && ma10 < ma20 && ma20 < ma60 {
 			arrangement = "空头排列"
 		}
+	} else if ma5 > 0 && ma10 > 0 && ma20 > 0 {
+		if ma5 > ma10 && ma10 > ma20 {
+			arrangement = "短多排列"
+		} else if ma5 < ma10 && ma10 < ma20 {
+			arrangement = "短空排列"
+		}
 	}
 
+	// Use new indicators engine for enhanced calculations
+	ind := ComputeIndicators(klines)
+
+	// MACD — prefer new engine, fallback to old
 	macd := CalculateMACD(closes)
+	if ind.MACD.Signal != "" {
+		switch ind.MACD.Signal {
+		case "golden_cross":
+			macd.Signal = "金叉"
+		case "death_cross":
+			macd.Signal = "死叉"
+		default:
+			if ind.MACD.Histogram > 0 {
+				macd.Signal = "多头"
+			} else if ind.MACD.Histogram < 0 {
+				macd.Signal = "空头"
+			}
+		}
+		macd.DIF = ind.MACD.DIF
+		macd.DEA = ind.MACD.DEA
+		macd.Hist = ind.MACD.Histogram
+	}
+
+	// KDJ — use new engine
 	kdj := CalculateKDJ(closes, highs, lows, 9)
-	obv := CalculateOBV(closes, volumes)
+	if ind.KDJ.Signal != "" {
+		switch ind.KDJ.Signal {
+		case "overbought":
+			kdj.Signal = "超买"
+		case "oversold":
+			kdj.Signal = "超卖"
+		}
+		kdj.K = ind.KDJ.K
+		kdj.D = ind.KDJ.D
+		kdj.J = ind.KDJ.J
+	}
+
+	// RSI — use new engine (multi-period)
 	rsi := CalculateRSI(closes, 14)
 	rsiLevel := "数据不足"
-	if rsi >= 80 {
-		rsiLevel = "超买"
-	} else if rsi >= 60 {
-		rsiLevel = "中性偏强"
-	} else if rsi >= 40 {
-		rsiLevel = "中性"
+	if ind.RSI.RSI12 > 0 {
+		rsi = ind.RSI.RSI12
+		if rsi >= 80 {
+			rsiLevel = "超买"
+		} else if rsi >= 60 {
+			rsiLevel = "中性偏强"
+		} else if rsi >= 40 {
+			rsiLevel = "中性"
+		} else if rsi >= 20 {
+			rsiLevel = "中性偏弱"
+		} else {
+			rsiLevel = "超卖"
+		}
 	} else if rsi > 0 {
-		rsiLevel = "中性偏弱"
+		if rsi >= 80 {
+			rsiLevel = "超买"
+		} else if rsi >= 60 {
+			rsiLevel = "中性偏强"
+		} else if rsi >= 40 {
+			rsiLevel = "中性"
+		} else {
+			rsiLevel = "中性偏弱"
+		}
 	}
 
+	// Boll — use new engine
 	boll := CalculateBollinger(closes, 20)
+	// OBV
+	obv := CalculateOBV(closes, volumes)
 	bollPosition := "数据不足"
-	if latest > 0 {
+	if ind.Boll.Upper > 0 {
+		boll.Upper = ind.Boll.Upper
+		boll.Mid = ind.Boll.Middle
+		boll.Lower = ind.Boll.Lower
+		boll.Bandwidth = ind.Boll.Width
+		switch ind.Boll.Signal {
+		case "above_upper":
+			bollPosition = "上轨上方"
+		case "below_lower":
+			bollPosition = "下轨下方"
+		default:
+			if latest >= ind.Boll.Middle {
+				bollPosition = "中轨上方"
+			} else {
+				bollPosition = "中轨下方"
+			}
+		}
+	} else if latest > 0 {
 		if boll.Upper > 0 && latest > boll.Upper {
 			bollPosition = "上轨上方"
 		} else if boll.Mid > 0 && latest >= boll.Mid {
@@ -567,25 +643,30 @@ func AnalyzeTechnical(klines []models.KlinePoint) models.TechnicalAnalysis {
 		}
 	}
 
+	// Build verdict
 	var parts []string
-	if arrangement == "多头排列" {
-		parts = append(parts, "均线多头排列")
-	} else if arrangement == "空头排列" {
-		parts = append(parts, "均线空头排列")
+	if arrangement == "多头排列" || arrangement == "短多排列" {
+		parts = append(parts, "均线"+arrangement)
+	} else if arrangement == "空头排列" || arrangement == "短空排列" {
+		parts = append(parts, "均线"+arrangement)
 	}
 	if macd.Signal == "金叉" || macd.Signal == "多头" {
 		parts = append(parts, "MACD"+macd.Signal)
 	} else if macd.Signal == "死叉" || macd.Signal == "空头" {
 		parts = append(parts, "MACD"+macd.Signal)
 	}
-	if kdj.Signal == "金叉" || kdj.Signal == "死叉" {
+	if kdj.Signal == "超买" {
+		parts = append(parts, "KDJ超买")
+	} else if kdj.Signal == "超卖" {
+		parts = append(parts, "KDJ超卖")
+	} else if kdj.Signal == "金叉" || kdj.Signal == "死叉" {
 		parts = append(parts, "KDJ"+kdj.Signal)
-	}
-	if obv.Trend == "上升" || obv.Trend == "下降" {
-		parts = append(parts, "OBV"+obv.Trend)
 	}
 	if rsiLevel != "数据不足" {
 		parts = append(parts, "RSI"+rsiLevel)
+	}
+	if bollPosition != "数据不足" {
+		parts = append(parts, "布林"+bollPosition)
 	}
 
 	verdict := "技术指标数据不足"
@@ -593,6 +674,8 @@ func AnalyzeTechnical(klines []models.KlinePoint) models.TechnicalAnalysis {
 		verdict = strings.Join(parts, "，")
 		if arrangement == "多头排列" {
 			verdict += "，技术面偏多"
+		} else if arrangement == "空头排列" {
+			verdict += "，技术面偏空"
 		}
 	}
 
