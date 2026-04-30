@@ -23,6 +23,16 @@ type Config struct {
 	DeepSeekAPIKey  string
 	DeepSeekBaseURL string
 	DeepSeekModel   string
+
+	// Alpha300 Database (read-only)
+	Alpha300DBEnabled  bool
+	Alpha300DBHost     string
+	Alpha300DBPort     string
+	Alpha300DBName     string
+	Alpha300DBUser     string
+	Alpha300DBPassword string
+	Alpha300DBSSLMode  string
+	Alpha300DBMaxConns int
 }
 
 func Load() (*Config, error) {
@@ -57,6 +67,16 @@ func Load() (*Config, error) {
 		DeepSeekAPIKey:  os.Getenv("DEEPSEEK_API_KEY"),
 		DeepSeekBaseURL: envOrDefault("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
 		DeepSeekModel:   envOrDefault("DEEPSEEK_MODEL", "deepseek-chat"),
+
+		// Alpha300 Database (read-only)
+		Alpha300DBEnabled:  envOrDefault("ALPHA300_DB_ENABLED", "false") == "true",
+		Alpha300DBHost:     envOrDefault("ALPHA300_DB_HOST", "198.23.251.110"),
+		Alpha300DBPort:     envOrDefault("ALPHA300_DB_PORT", "25432"),
+		Alpha300DBName:     envOrDefault("ALPHA300_DB_NAME", "alpha300"),
+		Alpha300DBUser:     envOrDefault("ALPHA300_DB_USER", "alpha300_app"),
+		Alpha300DBPassword: os.Getenv("ALPHA300_DB_PASSWORD"),
+		Alpha300DBSSLMode:  envOrDefault("ALPHA300_DB_SSL_MODE", "disable"),
+		Alpha300DBMaxConns: 5,
 	}
 
 	if cfg.DatabaseURL == "" {
