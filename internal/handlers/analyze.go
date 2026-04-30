@@ -19,6 +19,7 @@ import (
 type AnalyzeHandler struct {
 	eastMoney          *services.EastMoneyService
 	tencent            *services.TencentService
+	alpha300DB         *services.Alpha300DBService  // Optional, may be nil
 	logger             *zap.Logger
 	quoteCache         *cache.Cache[models.Quote]
 	klineCache       *cache.Cache[[]models.KlinePoint]
@@ -40,6 +41,11 @@ func NewAnalyzeHandler(eastMoney *services.EastMoneyService, tencent *services.T
 		newsCache:          cache.New[[]models.NewsItem](),
 		announcementsCache: cache.New[[]models.Announcement](),
 	}
+}
+
+// SetAlpha300DB sets the Alpha300 database service for enhanced data access.
+func (h *AnalyzeHandler) SetAlpha300DB(db *services.Alpha300DBService) {
+	h.alpha300DB = db
 }
 
 // @Summary      8维度综合分析
@@ -193,6 +199,18 @@ func (h *AnalyzeHandler) fetchKlines(ctx context.Context, code string) ([]models
 	if cached, ok := h.klineCache.Get(code); ok {
 		return cached, nil
 	}
+
+	// Try Alpha300 first (if available)
+	if h.alpha300DB != nil {
+		klines, err := h.alpha300DB.FetchKline(ctx, code, 60)
+		if err == nil && len(klines) > 0 {
+			h.klineCache.Set(code, klines, 60*time.Second)
+			return klines, nil
+		}
+		h.logger.Warn("alpha300 kline failed, falling back to eastmoney", zap.String("code", code), zap.Error(err))
+	}
+
+	// Fallback to EastMoney
 	klines, err := h.eastMoney.FetchKline(ctx, code, 60)
 	if err != nil {
 		return nil, err
@@ -205,11 +223,23 @@ func (h *AnalyzeHandler) fetchFlow(ctx context.Context, code string) ([]models.M
 	if cached, ok := h.flowCache.Get(code); ok {
 		return cached, nil
 	}
-	flows, err := h.eastMoney.FetchMoneyFlow(ctx, code, 5)
+
+	// Try Alpha300 first (if available)
+	if h.alpha300DB != nil {
+		flows, err := h.alpha300DB.FetchMoneyFlow(ctx, code, 10)
+		if err == nil && len(flows) > 0 {
+			h.flowCache.Set(code, flows, 60*time.Second)
+			return flows, nil
+		}
+		h.logger.Warn("alpha300 moneyflow failed, falling back to eastmoney", zap.String("code", code), zap.Error(err))
+	}
+
+	// Fallback to EastMoney
+	flows, err := h.eastMoney.FetchMoneyFlow(ctx, code, 10)
 	if err != nil {
 		return nil, err
 	}
-	h.flowCache.Set(code, flows, 300*time.Second)
+	h.flowCache.Set(code, flows, 60*time.Second)
 	return flows, nil
 }
 

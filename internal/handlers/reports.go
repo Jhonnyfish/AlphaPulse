@@ -26,6 +26,7 @@ type ReportsHandler struct {
 	db         *pgxpool.Pool
 	tencent    *services.TencentService
 	eastMoney  *services.EastMoneyService
+	alpha300DB *services.Alpha300DBService  // Optional, may be nil
 	analyze    *AnalyzeHandler
 	watchlist  *WatchlistHandler
 	log        *zap.Logger
@@ -62,6 +63,11 @@ func NewReportsHandler(
 		deepseek:        deepseek,
 		dailyBriefCache: cache.New[dailyBriefPayload](),
 	}
+}
+
+// SetAlpha300DB sets the Alpha300 database service for enhanced data access.
+func (h *ReportsHandler) SetAlpha300DB(db *services.Alpha300DBService) {
+	h.alpha300DB = db
 }
 
 // ==================== Data Types ====================
