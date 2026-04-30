@@ -714,6 +714,56 @@ func (h *ReportsHandler) GenerateDailyReportAuto() {
 	lines = append(lines, fmt.Sprintf("> 分析股票数: %d", len(results)))
 	lines = append(lines, "")
 
+	// Market overview
+	overview, ovErr := h.eastMoney.FetchOverview(ctx)
+	if ovErr == nil && len(overview.Indices) > 0 {
+		lines = append(lines, "## 🏛️ 大盘概况")
+		lines = append(lines, "")
+		lines = append(lines, "| 指数 | 最新价 | 涨跌幅 |")
+		lines = append(lines, "|------|--------|--------|")
+		for _, idx := range overview.Indices {
+			arrow := "⚪"
+			if idx.ChangePercent > 0 {
+				arrow = "🔴"
+			} else if idx.ChangePercent < 0 {
+				arrow = "🟢"
+			}
+			lines = append(lines, fmt.Sprintf("| %s | %.2f | %s %.2f%% |", idx.Name, idx.Price, arrow, idx.ChangePercent))
+		}
+		lines = append(lines, "")
+	}
+
+	// Sector top movers
+	sectors, secErr := h.eastMoney.FetchSectors(ctx)
+	if secErr == nil && len(sectors) > 0 {
+		// Sort by change percent
+		sort.Slice(sectors, func(i, j int) bool { return sectors[i].ChangePercent > sectors[j].ChangePercent })
+		topN := 5
+		if len(sectors) < topN {
+			topN = len(sectors)
+		}
+		lines = append(lines, "## 🔥 板块轮动")
+		lines = append(lines, "")
+		lines = append(lines, "**领涨板块:**")
+		for i := 0; i < topN; i++ {
+			s := sectors[i]
+			lines = append(lines, fmt.Sprintf("- %s (%.2f%%)", s.Name, s.ChangePercent))
+		}
+		if len(sectors) > 5 {
+			lines = append(lines, "")
+			lines = append(lines, "**领跌板块:**")
+			bottomN := len(sectors) - 5
+			if bottomN > 5 {
+				bottomN = 5
+			}
+			for i := 0; i < bottomN; i++ {
+				s := sectors[len(sectors)-1-i]
+				lines = append(lines, fmt.Sprintf("- %s (%.2f%%)", s.Name, s.ChangePercent))
+			}
+		}
+		lines = append(lines, "")
+	}
+
 	// Score ranking table
 	lines = append(lines, "## 📈 综合评分排名")
 	lines = append(lines, "")
@@ -772,9 +822,9 @@ func (h *ReportsHandler) GenerateDailyReportAuto() {
 
 	// AI analysis
 	if h.deepseek != nil && h.deepseek.Enabled() {
-		aiPrompt := fmt.Sprintf("以下是今日自选股行情数据，请用中文写一段简短的市场分析（200字以内），包括整体趋势、重点关注的个股和风险提示：\n\n%s", strings.Join(lines, "\n"))
+		aiPrompt := fmt.Sprintf("以下是今日A股市场数据和自选股分析结果，请用中文写一段专业的市场分析（300字以内），包括：1)大盘走势判断 2)板块轮动特征 3)自选股重点关注 4)风险提示。回复纯文本，不要markdown格式。\n\n%s", strings.Join(lines, "\n"))
 		aiCtx, aiCancel := context.WithTimeout(ctx, 60*time.Second)
-		aiAnalysis, aiErr := h.deepseek.Chat(aiCtx, "你是专业的A股分析师，用简洁专业的语言分析股票数据。回复纯文本，不要markdown格式。", aiPrompt)
+		aiAnalysis, aiErr := h.deepseek.Chat(aiCtx, "你是一位资深A股分析师，具备10年以上投研经验。分析要专业、客观、有深度，避免泛泛而谈。关注量价配合、资金流向、技术形态等核心指标。", aiPrompt)
 		aiCancel()
 		if aiErr == nil && aiAnalysis != "" {
 			lines = append(lines, "")
