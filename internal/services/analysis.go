@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"math"
 	"strings"
 
@@ -364,35 +365,15 @@ func levelPB(pb float64) string {
 }
 
 func AnalyzeValuation(quote models.Quote) models.ValuationAnalysis {
-	pe := quote.PE
-	pb := quote.PB
-	totalMV := quote.TotalMV
-	peLevel := levelPE(pe)
-	pbLevel := levelPB(pb)
-	mvLevel := "小盘股"
-	if totalMV >= 1000 {
-		mvLevel = "大盘股"
-	} else if totalMV >= 300 {
-		mvLevel = "中大盘股"
-	} else if totalMV >= 50 {
-		mvLevel = "中小盘股"
-	}
-
-	verdict := "估值指标分化，需要结合行业比较"
-	if (peLevel == "偏高" || peLevel == "很高") && (pbLevel == "偏高" || pbLevel == "很高") {
-		verdict = "PE/PB均偏高，估值不便宜"
-	} else if (peLevel == "偏低" || peLevel == "合理") && (pbLevel == "偏低" || pbLevel == "合理") {
-		verdict = "PE/PB处于相对合理区间"
-	}
-
+	enhanced := AnalyzeValuationEnhanced(quote)
 	return models.ValuationAnalysis{
-		PE:      round2(pe),
-		PELevel: peLevel,
-		PB:      round2(pb),
-		PBLevel: pbLevel,
-		TotalMV: round2(totalMV),
-		MVLevel: mvLevel,
-		Verdict: verdict,
+		PE:      enhanced.PE,
+		PELevel: enhanced.PELevel,
+		PB:      enhanced.PB,
+		PBLevel: enhanced.PBLevel,
+		TotalMV: enhanced.TotalMV,
+		MVLevel: enhanced.MVLevel,
+		Verdict: enhanced.Verdict,
 	}
 }
 
@@ -459,6 +440,21 @@ func AnalyzeMoneyFlow(flows []models.MoneyFlowDay) models.MoneyFlowAnalysis {
 		direction = "流出"
 	}
 
+	// 5-day trend analysis
+	trend5d := "平稳"
+	netSum5d := 0.0
+	if len(flows) >= 5 {
+		recent5 := flows[len(flows)-5:]
+		for _, f := range recent5 {
+			netSum5d += f.MainNet
+		}
+		if netSum5d > 0 {
+			trend5d = "净流入"
+		} else if netSum5d < 0 {
+			trend5d = "净流出"
+		}
+	}
+
 	sign := 0
 	if main > 0 {
 		sign = 1
@@ -488,13 +484,35 @@ func AnalyzeMoneyFlow(flows []models.MoneyFlowDay) models.MoneyFlowAnalysis {
 		retail = "散户流入"
 	}
 
+	// Enhanced verdict
 	verdict := "今日主力资金持平，方向不明"
 	if main > 0 && huge > 0 {
 		verdict = "今日主力净流入，超大单同步流入，机构进场迹象较强"
+		if consecutive >= 3 {
+			verdict += fmt.Sprintf("，连续%d日流入", consecutive)
+		}
 	} else if main > 0 {
 		verdict = "今日主力净流入，资金面偏积极"
+		if consecutive >= 3 {
+			verdict += fmt.Sprintf("，连续%d日流入", consecutive)
+		}
+	} else if main < 0 && huge < 0 {
+		verdict = "今日主力净流出，超大单同步流出，机构减仓迹象明显"
+		if consecutive >= 3 {
+			verdict += fmt.Sprintf("，连续%d日流出", consecutive)
+		}
 	} else if main < 0 {
 		verdict = "今日主力净流出，资金面承压"
+		if consecutive >= 3 {
+			verdict += fmt.Sprintf("，连续%d日流出", consecutive)
+		}
+	}
+
+	// Add 5-day trend context
+	if trend5d == "净流入" && direction == "流出" {
+		verdict += "；5日资金仍为净流入趋势，短期回调"
+	} else if trend5d == "净流出" && direction == "流入" {
+		verdict += "；5日资金仍为净流出趋势，短期反弹"
 	}
 
 	return models.MoneyFlowAnalysis{
