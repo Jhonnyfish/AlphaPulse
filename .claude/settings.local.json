@@ -17,7 +17,14 @@
       "Bash(npm install:*)",
       "Bash(git -C D:/code/alphapulse show HEAD:cmd/server/main.go)",
       "Bash(go get:*)",
-      "Bash(python3 -c ':*)"
+      "Bash(python3 -c ':*)",
+      "Bash(where go:*)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Users/Finn/AppData/Local/Programs/**)",
+      "Read(//c//**)",
+      "Bash(ls D:/code/alphapulse/frontend/.venv/Scripts/python*)",
+      "Bash(pip list:*)",
+      "Bash(python:*)"
     ]
   }
 }
