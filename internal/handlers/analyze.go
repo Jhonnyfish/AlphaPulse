@@ -19,7 +19,6 @@ import (
 type AnalyzeHandler struct {
 	eastMoney          *services.EastMoneyService
 	tencent            *services.TencentService
-	alpha300DB         *services.Alpha300DBService  // Optional, may be nil
 	tushareDB          *services.TushareDB          // Primary data source, may be nil
 	logger             *zap.Logger
 	quoteCache         *cache.Cache[models.Quote]
@@ -42,11 +41,6 @@ func NewAnalyzeHandler(eastMoney *services.EastMoneyService, tencent *services.T
 		newsCache:          cache.New[[]models.NewsItem](),
 		announcementsCache: cache.New[[]models.Announcement](),
 	}
-}
-
-// SetAlpha300DB sets the Alpha300 database service for enhanced data access.
-func (h *AnalyzeHandler) SetAlpha300DB(db *services.Alpha300DBService) {
-	h.alpha300DB = db
 }
 
 // SetTushareDB sets the Tushare local database service as primary data source.
@@ -213,17 +207,7 @@ func (h *AnalyzeHandler) fetchKlines(ctx context.Context, code string) ([]models
 			h.klineCache.Set(code, klines, 60*time.Second)
 			return klines, nil
 		}
-		h.logger.Warn("tushare kline failed, trying alpha300 fallback", zap.String("code", code), zap.Error(err))
-	}
-
-	// Try Alpha300 DB second (if available)
-	if h.alpha300DB != nil {
-		klines, err := h.alpha300DB.FetchKline(ctx, code, 60)
-		if err == nil && len(klines) > 0 {
-			h.klineCache.Set(code, klines, 60*time.Second)
-			return klines, nil
-		}
-		h.logger.Warn("alpha300 kline failed, falling back to eastmoney", zap.String("code", code), zap.Error(err))
+		h.logger.Warn("tushare kline failed, falling back to eastmoney", zap.String("code", code), zap.Error(err))
 	}
 
 	// Fallback to EastMoney
@@ -247,17 +231,7 @@ func (h *AnalyzeHandler) fetchFlow(ctx context.Context, code string) ([]models.M
 			h.flowCache.Set(code, flows, 60*time.Second)
 			return flows, nil
 		}
-		h.logger.Warn("tushare moneyflow failed, trying alpha300 fallback", zap.String("code", code), zap.Error(err))
-	}
-
-	// Try Alpha300 DB second (if available)
-	if h.alpha300DB != nil {
-		flows, err := h.alpha300DB.FetchMoneyFlow(ctx, code, 10)
-		if err == nil && len(flows) > 0 {
-			h.flowCache.Set(code, flows, 60*time.Second)
-			return flows, nil
-		}
-		h.logger.Warn("alpha300 moneyflow failed, falling back to eastmoney", zap.String("code", code), zap.Error(err))
+		h.logger.Warn("tushare moneyflow failed, falling back to eastmoney", zap.String("code", code), zap.Error(err))
 	}
 
 	// Fallback to EastMoney
