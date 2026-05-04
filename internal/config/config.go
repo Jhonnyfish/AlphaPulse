@@ -24,6 +24,10 @@ type Config struct {
 	DeepSeekBaseURL string
 	DeepSeekModel   string
 
+	// Tushare Pro API
+	TushareToken   string
+	TushareEnabled bool
+
 	// Alpha300 Database (read-only)
 	Alpha300DBEnabled  bool
 	Alpha300DBHost     string
@@ -69,7 +73,11 @@ func Load() (*Config, error) {
 		DeepSeekModel:   envOrDefault("DEEPSEEK_MODEL", "deepseek-chat"),
 
 		// Alpha300 Database (read-only)
-		Alpha300DBEnabled:  envOrDefault("ALPHA300_DB_ENABLED", "false") == "true",
+		// Tushare Pro API
+			TushareToken:   os.Getenv("TUSHARE_TOKEN"),
+			TushareEnabled: envOrDefault("TUSHARE_ENABLED", "true") == "true",
+
+			Alpha300DBEnabled:  envOrDefault("ALPHA300_DB_ENABLED", "false") == "true",
 		Alpha300DBHost:     envOrDefault("ALPHA300_DB_HOST", "198.23.251.110"),
 		Alpha300DBPort:     envOrDefault("ALPHA300_DB_PORT", "25432"),
 		Alpha300DBName:     envOrDefault("ALPHA300_DB_NAME", "alpha300"),

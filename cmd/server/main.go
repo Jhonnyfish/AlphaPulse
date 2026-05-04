@@ -128,6 +128,33 @@ func main() {
 		}
 	}
 
+	// Initialize Tushare data source (primary) if enabled
+	var tushareDB *services.TushareDB
+	if cfg.TushareEnabled && cfg.TushareToken != "" {
+		tushareSvc := services.NewTushareService(cfg.TushareToken, cfg.HTTPTimeout)
+		tushareDB = services.NewTushareDB(db, logger.L())
+		tushareSync := services.NewTushareSync(tushareSvc, db, logger.L())
+
+		analyzeHandler.SetTushareDB(tushareDB)
+		reportsHandler.SetTushareDB(tushareDB)
+
+		// Initial sync if tables are empty
+		if !tushareDB.HasData(context.Background()) {
+			go func() {
+				syncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				defer cancel()
+				log.Println("[tushare] initial stock_basic sync starting...")
+				if err := tushareSync.SyncStockBasic(syncCtx); err != nil {
+					log.Printf("[tushare] initial sync failed: %v", err)
+				}
+			}()
+		}
+
+		logger.L().Info("Tushare data source enabled")
+	} else if cfg.TushareEnabled {
+		logger.L().Warn("Tushare enabled but no token provided")
+	}
+
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(middleware.RequestLogger())
@@ -355,6 +382,17 @@ func main() {
 		log.Println("[scheduler] generating daily report...")
 		reportsHandler.GenerateDailyReportAuto()
 	})
+		// Tushare daily sync at 16:00 after market close
+		if tushareDB != nil {
+			scheduler.AddDailyJob("tushare-daily-sync", 16, 0, func() {
+				log.Println("[scheduler] tushare daily sync...")
+				syncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				defer cancel()
+				tushareSvc := services.NewTushareService(cfg.TushareToken, cfg.HTTPTimeout)
+				ts := services.NewTushareSync(tushareSvc, db, logger.L())
+				ts.RunDaily(syncCtx)
+			})
+		}
 	defer scheduler.StopAll()
 
 	// Scheduler status API

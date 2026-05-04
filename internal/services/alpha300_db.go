@@ -104,7 +104,18 @@ func NewAlpha300DBService(db *pgxpool.Pool, log *zap.Logger) *Alpha300DBService 
 	}
 }
 
-// normalizeCode is defined in alpha300.go
+// toTsCode converts a 6-digit code to ts_code format (e.g., 600519 → 600519.SH, 000001 → 000001.SZ)
+func toTsCode(code string) string {
+	code = strings.TrimSuffix(code, ".SH")
+	code = strings.TrimSuffix(code, ".SZ")
+	if len(code) == 6 {
+		if code[0] == '6' {
+			return code + ".SH"
+		}
+		return code + ".SZ"
+	}
+	return code
+}
 
 // toDisplayCode converts ts_code to 6-digit code (e.g., 600519.SH → 600519)
 func toDisplayCode(tsCode string) string {
@@ -123,7 +134,7 @@ func formatDate(date string) string {
 
 // FetchKline fetches daily K-line data from Alpha300.
 func (s *Alpha300DBService) FetchKline(ctx context.Context, code string, days int) ([]models.KlinePoint, error) {
-	tsCode := normalizeCode(code)
+	tsCode := toTsCode(code)
 	cacheKey := fmt.Sprintf("kline:%s:%d", tsCode, days)
 
 	if cached, ok := s.klineCache.Get(cacheKey); ok {
@@ -169,7 +180,7 @@ func (s *Alpha300DBService) FetchKline(ctx context.Context, code string, days in
 
 // FetchDailyBasic fetches latest valuation data from Alpha300.
 func (s *Alpha300DBService) FetchDailyBasic(ctx context.Context, code string) (dailyBasicData, error) {
-	tsCode := normalizeCode(code)
+	tsCode := toTsCode(code)
 	cacheKey := fmt.Sprintf("basic:%s", tsCode)
 
 	if cached, ok := s.basicCache.Get(cacheKey); ok {
@@ -198,7 +209,7 @@ func (s *Alpha300DBService) FetchDailyBasic(ctx context.Context, code string) (d
 
 // FetchMoneyFlow fetches money flow data from Alpha300.
 func (s *Alpha300DBService) FetchMoneyFlow(ctx context.Context, code string, days int) ([]models.MoneyFlowDay, error) {
-	tsCode := normalizeCode(code)
+	tsCode := toTsCode(code)
 	cacheKey := fmt.Sprintf("flow:%s:%d", tsCode, days)
 
 	if cached, ok := s.flowCache.Get(cacheKey); ok {
@@ -252,7 +263,7 @@ func (s *Alpha300DBService) FetchMoneyFlow(ctx context.Context, code string, day
 
 // FetchIndustry fetches industry classification from Alpha300.
 func (s *Alpha300DBService) FetchIndustry(ctx context.Context, code string) (string, error) {
-	tsCode := normalizeCode(code)
+	tsCode := toTsCode(code)
 	cacheKey := fmt.Sprintf("industry:%s", tsCode)
 
 	if cached, ok := s.industryCache.Get(cacheKey); ok {
@@ -274,7 +285,7 @@ func (s *Alpha300DBService) FetchIndustry(ctx context.Context, code string) (str
 
 // FetchLhb fetches 龙虎榜 data from Alpha300.
 func (s *Alpha300DBService) FetchLhb(ctx context.Context, code string, days int) ([]LhbItem, error) {
-	tsCode := normalizeCode(code)
+	tsCode := toTsCode(code)
 	cacheKey := fmt.Sprintf("lhb:%s:%d", tsCode, days)
 
 	if cached, ok := s.lhbCache.Get(cacheKey); ok {
@@ -317,7 +328,7 @@ func (s *Alpha300DBService) FetchLhb(ctx context.Context, code string, days int)
 
 // FetchMargin fetches 融资融券 data from Alpha300.
 func (s *Alpha300DBService) FetchMargin(ctx context.Context, code string, days int) ([]MarginDay, error) {
-	tsCode := normalizeCode(code)
+	tsCode := toTsCode(code)
 	cacheKey := fmt.Sprintf("margin:%s:%d", tsCode, days)
 
 	if cached, ok := s.marginCache.Get(cacheKey); ok {
@@ -405,7 +416,7 @@ func (s *Alpha300DBService) FetchLatestRankSnapshot(ctx context.Context) ([]Rank
 
 // FetchRankFactors fetches rank factors for a stock.
 func (s *Alpha300DBService) FetchRankFactors(ctx context.Context, code string) (RankFactors, error) {
-	tsCode := normalizeCode(code)
+	tsCode := toTsCode(code)
 	cacheKey := fmt.Sprintf("factor:%s", tsCode)
 
 	if cached, ok := s.factorCache.Get(cacheKey); ok {
@@ -440,7 +451,7 @@ func (s *Alpha300DBService) FetchRankFactors(ctx context.Context, code string) (
 
 // FetchStockName fetches stock name from Alpha300.
 func (s *Alpha300DBService) FetchStockName(ctx context.Context, code string) (string, error) {
-	tsCode := normalizeCode(code)
+	tsCode := toTsCode(code)
 	query := `SELECT name FROM stock_basic WHERE ts_code = $1 LIMIT 1`
 	var name string
 	err := s.db.QueryRow(ctx, query, tsCode).Scan(&name)

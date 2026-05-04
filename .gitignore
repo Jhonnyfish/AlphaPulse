@@ -26,3 +26,4 @@ node_modules/
 
 # OpenSpec
 openspec/changes/
+/frontend/.venv

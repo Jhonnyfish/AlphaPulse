@@ -23,6 +23,7 @@ import (
 type MarketHandler struct {
 	eastMoney           *services.EastMoneyService
 	tencent             *services.TencentService
+	tushareDB           *services.TushareDB          // Primary data source, may be nil
 	db                  *pgxpool.Pool
 	quoteCache          *cache.Cache[models.Quote]
 	klineCache          *cache.Cache[[]models.KlinePoint]
@@ -60,6 +61,11 @@ func NewMarketHandler(eastMoney *services.EastMoneyService, tencent *services.Te
 		breadthCache:        cache.New[models.MarketBreadthDetail](),
 		sentimentCache:      cache.New[models.MarketSentimentResponse](),
 	}
+}
+
+// SetTushareDB sets the Tushare local database service for MarketHandler.
+func (h *MarketHandler) SetTushareDB(db *services.TushareDB) {
+	h.tushareDB = db
 }
 
 type conceptStockItem struct {
@@ -144,7 +150,19 @@ func (h *MarketHandler) Kline(c *gin.Context) {
 		return
 	}
 
-	points, err := h.eastMoney.FetchKline(c.Request.Context(), code, days)
+	// Try TushareDB first, fallback to EastMoney
+	var points []models.KlinePoint
+	var err error
+	if h.tushareDB != nil {
+		points, err = h.tushareDB.FetchKline(c.Request.Context(), code, days)
+		if err != nil {
+			logger.L().Debug("tushare kline failed, falling back to eastmoney",
+				zap.String("code", code), zap.Error(err))
+		}
+	}
+	if len(points) == 0 {
+		points, err = h.eastMoney.FetchKline(c.Request.Context(), code, days)
+	}
 	if err != nil {
 		logger.L().Warn("failed to fetch kline, returning degraded response",
 			zap.String("code", code),

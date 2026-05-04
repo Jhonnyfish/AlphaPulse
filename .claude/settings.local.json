@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -X POST https://api.tushare.pro -H 'Content-Type: application/json' -d '{:*)",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s -X POST https://api.tushare.pro -H \"Content-Type: application/json\" -d '{ \"api_name\": \"trade_cal\", \"token\": \"2876ea85cb005fb5fa17c809a98174f2d5aae8b1f830110a5ead6211\", \"params\": { \"exchange\": \"SSE\", \"start_date\": \"20260501\", \"end_date\": \"20260504\" }, \"fields\": \"\" }')",
+      "Bash(curl:*)",
+      "Bash(npx openspec:*)",
+      "Bash(ls D:/code/alphapulse/node_modules/.bin/openspec)",
+      "Bash(which openspec:*)",
+      "Bash(ls D:/code/alphapulse/.claude/skills/openspec-*/)",
+      "Bash(pip show:*)",
+      "Bash(pip3 show:*)",
+      "Bash(pipx list:*)",
+      "Bash(pip install:*)",
+      "Bash(ls D:/code/alphapulse/.claude/openspec*)",
+      "Bash(npm install:*)",
+      "Bash(git -C D:/code/alphapulse show HEAD:cmd/server/main.go)",
+      "Bash(go get:*)",
+      "Bash(python3 -c ':*)"
+    ]
+  }
+}

@@ -20,6 +20,7 @@ type AnalyzeHandler struct {
 	eastMoney          *services.EastMoneyService
 	tencent            *services.TencentService
 	alpha300DB         *services.Alpha300DBService  // Optional, may be nil
+	tushareDB          *services.TushareDB          // Primary data source, may be nil
 	logger             *zap.Logger
 	quoteCache         *cache.Cache[models.Quote]
 	klineCache       *cache.Cache[[]models.KlinePoint]
@@ -46,6 +47,11 @@ func NewAnalyzeHandler(eastMoney *services.EastMoneyService, tencent *services.T
 // SetAlpha300DB sets the Alpha300 database service for enhanced data access.
 func (h *AnalyzeHandler) SetAlpha300DB(db *services.Alpha300DBService) {
 	h.alpha300DB = db
+}
+
+// SetTushareDB sets the Tushare local database service as primary data source.
+func (h *AnalyzeHandler) SetTushareDB(db *services.TushareDB) {
+	h.tushareDB = db
 }
 
 // @Summary      8维度综合分析
@@ -200,7 +206,17 @@ func (h *AnalyzeHandler) fetchKlines(ctx context.Context, code string) ([]models
 		return cached, nil
 	}
 
-	// Try Alpha300 first (if available)
+	// Try TushareDB first (primary local data source)
+	if h.tushareDB != nil {
+		klines, err := h.tushareDB.FetchKline(ctx, code, 60)
+		if err == nil && len(klines) > 0 {
+			h.klineCache.Set(code, klines, 60*time.Second)
+			return klines, nil
+		}
+		h.logger.Warn("tushare kline failed, trying alpha300 fallback", zap.String("code", code), zap.Error(err))
+	}
+
+	// Try Alpha300 DB second (if available)
 	if h.alpha300DB != nil {
 		klines, err := h.alpha300DB.FetchKline(ctx, code, 60)
 		if err == nil && len(klines) > 0 {
@@ -224,7 +240,17 @@ func (h *AnalyzeHandler) fetchFlow(ctx context.Context, code string) ([]models.M
 		return cached, nil
 	}
 
-	// Try Alpha300 first (if available)
+	// Try TushareDB first (primary local data source)
+	if h.tushareDB != nil {
+		flows, err := h.tushareDB.FetchMoneyFlow(ctx, code, 10)
+		if err == nil && len(flows) > 0 {
+			h.flowCache.Set(code, flows, 60*time.Second)
+			return flows, nil
+		}
+		h.logger.Warn("tushare moneyflow failed, trying alpha300 fallback", zap.String("code", code), zap.Error(err))
+	}
+
+	// Try Alpha300 DB second (if available)
 	if h.alpha300DB != nil {
 		flows, err := h.alpha300DB.FetchMoneyFlow(ctx, code, 10)
 		if err == nil && len(flows) > 0 {

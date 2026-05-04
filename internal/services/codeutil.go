@@ -89,6 +89,33 @@ func StockCode6(code string) string {
 	return NormalizeCode(code)
 }
 
+// ToTsCode converts a 6-digit code to ts_code format (e.g., 600519 -> 600519.SH, 000001 -> 000001.SZ).
+func ToTsCode(code string) string {
+	code = strings.TrimSuffix(code, ".SH")
+	code = strings.TrimSuffix(code, ".SZ")
+	if len(code) == 6 {
+		if strings.HasPrefix(code, "6") {
+			return code + ".SH"
+		}
+		return code + ".SZ"
+	}
+	return code
+}
+
+// ToDisplayCode converts ts_code to 6-digit display code (e.g., 600519.SH -> 600519).
+func ToDisplayCode(tsCode string) string {
+	parts := strings.Split(tsCode, ".")
+	return parts[0]
+}
+
+// FormatDate converts YYYYMMDD to YYYY-MM-DD.
+func FormatDate(date string) string {
+	if len(date) == 8 {
+		return date[:4] + "-" + date[4:6] + "-" + date[6:8]
+	}
+	return date
+}
+
 // TencentSymbol converts a stock code to Tencent's symbol format.
 // Shanghai: "shCODE", Shenzhen: "szCODE"
 func TencentSymbol(code string) string {

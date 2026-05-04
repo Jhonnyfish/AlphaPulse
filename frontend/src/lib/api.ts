@@ -202,7 +202,15 @@ export interface TopMover {
 export const marketApi = {
   quote: (code: string) => api.get<Quote>('/market/quote', { params: { code } }),
   kline: (code: string, days?: number) =>
-    api.get<KlinePoint[]>('/market/kline', { params: { code, days } }),
+    api.get<KlinePoint[] | { klines: KlinePoint[]; degraded?: boolean }>('/market/kline', { params: { code, days } })
+      .then((res) => {
+        // Handle both response formats: direct array or wrapped in { klines: [...] }
+        const data = res.data;
+        if (Array.isArray(data)) {
+          return { ...res, data };
+        }
+        return { ...res, data: data.klines ?? [] };
+      }),
   sectors: () => api.get<Sector[]>('/market/sectors'),
   overview: () => api.get<MarketOverview>('/market/overview'),
   news: () => api.get<NewsItem[]>('/market/news'),

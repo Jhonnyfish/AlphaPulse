@@ -27,6 +27,7 @@ type ReportsHandler struct {
 	tencent    *services.TencentService
 	eastMoney  *services.EastMoneyService
 	alpha300DB *services.Alpha300DBService  // Optional, may be nil
+	tushareDB  *services.TushareDB          // Primary data source, may be nil
 	analyze    *AnalyzeHandler
 	watchlist  *WatchlistHandler
 	log        *zap.Logger
@@ -68,6 +69,11 @@ func NewReportsHandler(
 // SetAlpha300DB sets the Alpha300 database service for enhanced data access.
 func (h *ReportsHandler) SetAlpha300DB(db *services.Alpha300DBService) {
 	h.alpha300DB = db
+}
+
+// SetTushareDB sets the Tushare local database service as primary data source.
+func (h *ReportsHandler) SetTushareDB(db *services.TushareDB) {
+	h.tushareDB = db
 }
 
 // ==================== Data Types ====================
