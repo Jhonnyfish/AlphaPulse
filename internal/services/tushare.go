@@ -626,6 +626,163 @@ func (s *TushareService) FetchTradeCal(ctx context.Context, exchange, startDate,
 	return result, nil
 }
 
+// ========== Financial Statement APIs ==========
+
+// IncomeRow represents key fields from the income statement API.
+type IncomeRow struct {
+	TsCode        string
+	AnnDate       string
+	EndDate       string
+	ReportType    string
+	TotalRevenue  float64
+	TotalCogs     float64
+	OperateProfit float64
+	TotalProfit   float64
+	NetProfit     float64
+	NPParent      float64
+	EPS           float64
+}
+
+// FetchIncome fetches income statement data from Tushare.
+func (s *TushareService) FetchIncome(ctx context.Context, tsCode, startDate, endDate string) ([]IncomeRow, error) {
+	params := map[string]string{}
+	if tsCode != "" {
+		params["ts_code"] = tsCode
+	}
+	if startDate != "" {
+		params["start_date"] = startDate
+	}
+	if endDate != "" {
+		params["end_date"] = endDate
+	}
+
+	resp, err := s.Query(ctx, "income", params, "ts_code,ann_date,end_date,report_type,total_revenue,total_cogs,operate_profit,total_profit,n_income,n_income_attr_p,diluted_eps")
+	if err != nil {
+		return nil, err
+	}
+
+	rows := parseRows(resp)
+	result := make([]IncomeRow, 0, len(rows))
+	for _, r := range rows {
+		result = append(result, IncomeRow{
+			TsCode:        strVal(r, "ts_code"),
+			AnnDate:       strVal(r, "ann_date"),
+			EndDate:       strVal(r, "end_date"),
+			ReportType:    strVal(r, "report_type"),
+			TotalRevenue:  floatVal(r, "total_revenue"),
+			TotalCogs:     floatVal(r, "total_cogs"),
+			OperateProfit: floatVal(r, "operate_profit"),
+			TotalProfit:   floatVal(r, "total_profit"),
+			NetProfit:     floatVal(r, "n_income"),
+			NPParent:      floatVal(r, "n_income_attr_p"),
+			EPS:           floatVal(r, "diluted_eps"),
+		})
+	}
+	return result, nil
+}
+
+// BalancesheetRow represents key fields from the balance sheet API.
+type BalancesheetRow struct {
+	TsCode          string
+	AnnDate         string
+	EndDate         string
+	ReportType      string
+	TotalAssets     float64
+	TotalLiab       float64
+	TotalEquity     float64
+	TotalHldrEquity float64
+	Goodwill        float64
+	MonetaryCapital float64
+	AccountRecv     float64
+	Inventory       float64
+}
+
+// FetchBalancesheet fetches balance sheet data from Tushare.
+func (s *TushareService) FetchBalancesheet(ctx context.Context, tsCode, startDate, endDate string) ([]BalancesheetRow, error) {
+	params := map[string]string{}
+	if tsCode != "" {
+		params["ts_code"] = tsCode
+	}
+	if startDate != "" {
+		params["start_date"] = startDate
+	}
+	if endDate != "" {
+		params["end_date"] = endDate
+	}
+
+	resp, err := s.Query(ctx, "balancesheet", params, "ts_code,ann_date,end_date,report_type,total_assets,total_liab,total_hldr_eqy_exc_min_int,total_hldr_eqy_inc_min_int,goodwill,monetary_cap,accounts_receiv,inventory")
+	if err != nil {
+		return nil, err
+	}
+
+	rows := parseRows(resp)
+	result := make([]BalancesheetRow, 0, len(rows))
+	for _, r := range rows {
+		result = append(result, BalancesheetRow{
+			TsCode:          strVal(r, "ts_code"),
+			AnnDate:         strVal(r, "ann_date"),
+			EndDate:         strVal(r, "end_date"),
+			ReportType:      strVal(r, "report_type"),
+			TotalAssets:     floatVal(r, "total_assets"),
+			TotalLiab:       floatVal(r, "total_liab"),
+			TotalEquity:     floatVal(r, "total_hldr_eqy_exc_min_int"),
+			TotalHldrEquity: floatVal(r, "total_hldr_eqy_inc_min_int"),
+			Goodwill:        floatVal(r, "goodwill"),
+			MonetaryCapital: floatVal(r, "monetary_cap"),
+			AccountRecv:     floatVal(r, "accounts_receiv"),
+			Inventory:       floatVal(r, "inventory"),
+		})
+	}
+	return result, nil
+}
+
+// CashflowRow represents key fields from the cash flow statement API.
+type CashflowRow struct {
+	TsCode             string
+	AnnDate            string
+	EndDate            string
+	ReportType         string
+	NetOperateCashflow float64
+	NetInvestCashflow  float64
+	NetFinanceCashflow float64
+	CashflowEquivalent float64
+}
+
+// FetchCashflow fetches cash flow statement data from Tushare.
+func (s *TushareService) FetchCashflow(ctx context.Context, tsCode, startDate, endDate string) ([]CashflowRow, error) {
+	params := map[string]string{}
+	if tsCode != "" {
+		params["ts_code"] = tsCode
+	}
+	if startDate != "" {
+		params["start_date"] = startDate
+	}
+	if endDate != "" {
+		params["end_date"] = endDate
+	}
+
+	resp, err := s.Query(ctx, "cashflow", params, "ts_code,ann_date,end_date,report_type,n_cashflow_act,n_cashflow_inv_act,n_cashflow_fnc_act,c_cashflow_equ_end_period")
+	if err != nil {
+		return nil, err
+	}
+
+	rows := parseRows(resp)
+	result := make([]CashflowRow, 0, len(rows))
+	for _, r := range rows {
+		result = append(result, CashflowRow{
+			TsCode:             strVal(r, "ts_code"),
+			AnnDate:            strVal(r, "ann_date"),
+			EndDate:            strVal(r, "end_date"),
+			ReportType:         strVal(r, "report_type"),
+			NetOperateCashflow: floatVal(r, "n_cashflow_act"),
+			NetInvestCashflow:  floatVal(r, "n_cashflow_inv_act"),
+			NetFinanceCashflow: floatVal(r, "n_cashflow_fnc_act"),
+			CashflowEquivalent: floatVal(r, "c_cashflow_equ_end_period"),
+		})
+	}
+	return result, nil
+}
+
 // ========== Helper functions ==========
 
 func int64Val(r Row, key string) int64 {

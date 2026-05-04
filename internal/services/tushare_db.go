@@ -417,3 +417,66 @@ func (s *TushareDB) LatestTradeDate(ctx context.Context) (string, error) {
 	}
 	return date, nil
 }
+
+// ==================== Adjusted K-line ====================
+
+// FetchAdjKline fetches forward-adjusted K-line data by joining daily with adj_factor.
+// Forward adjustment formula: price * adj_factor / latest_adj_factor
+func (s *TushareDB) FetchAdjKline(ctx context.Context, code string, days int) ([]models.KlinePoint, error) {
+	tsCode := ToTsCode(code)
+	cacheKey := fmt.Sprintf("adj_kline:%s:%d", tsCode, days)
+
+	if cached, ok := s.klineCache.Get(cacheKey); ok {
+		return cached, nil
+	}
+
+	query := `
+		SELECT d.trade_date,
+		       d.open  * a.adj_factor / l.latest_adj,
+		       d.high  * a.adj_factor / l.latest_adj,
+		       d.low   * a.adj_factor / l.latest_adj,
+		       d.close * a.adj_factor / l.latest_adj,
+		       d.vol,
+		       d.amount
+		FROM tushare_daily d
+		JOIN tushare_adj_factor a ON d.ts_code = a.ts_code AND d.trade_date = a.trade_date
+		CROSS JOIN LATERAL (
+			SELECT adj_factor AS latest_adj
+			FROM tushare_adj_factor
+			WHERE ts_code = d.ts_code
+			ORDER BY trade_date DESC LIMIT 1
+		) l
+		WHERE d.ts_code = $1
+		ORDER BY d.trade_date DESC
+		LIMIT $2
+	`
+
+	rows, err := s.db.Query(ctx, query, tsCode, days)
+	if err != nil {
+		return nil, fmt.Errorf("query adj kline: %w", err)
+	}
+	defer rows.Close()
+
+	var klines []models.KlinePoint
+	for rows.Next() {
+		var k models.KlinePoint
+		var tradeDate string
+		if err := rows.Scan(&tradeDate, &k.Open, &k.High, &k.Low, &k.Close, &k.Volume, &k.Amount); err != nil {
+			s.logger.Warn("scan adj kline", zap.Error(err))
+			continue
+		}
+		k.Date = FormatDate(tradeDate)
+		klines = append(klines, k)
+	}
+
+	if len(klines) == 0 {
+		return nil, fmt.Errorf("no adj kline data for %s", code)
+	}
+
+	for i, j := 0, len(klines)-1; i < j; i, j = i+1, j-1 {
+		klines[i], klines[j] = klines[j], klines[i]
+	}
+
+	s.klineCache.Set(cacheKey, klines, 5*time.Minute)
+	return klines, nil
+}
