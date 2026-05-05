@@ -27,3 +27,6 @@ node_modules/
 # OpenSpec
 openspec/changes/
 /frontend/.venv
+/.codex
+/.claude
+/frontend/android

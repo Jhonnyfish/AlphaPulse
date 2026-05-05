@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -20,9 +19,7 @@ import (
 	"alphapulse/internal/services"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	"go.uber.org/zap"
 	swaggerFiles "github.com/swaggo/files"
 
 	_ "alphapulse/docs" // swagger generated docs
@@ -111,33 +108,32 @@ func main() {
 	dashboardHandler := handlers.NewDashboardHandler(db, tencentService, eastMoneyService, watchlistHandler, logger.L())
 	watchlistHandler.SetAlpha300(alpha300Cache)
 
-	// Initialize Alpha300 Database (read-only) if enabled
-	if cfg.Alpha300DBEnabled {
-		alpha300DBURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&connect_timeout=30",
-			cfg.Alpha300DBUser, cfg.Alpha300DBPassword,
-			cfg.Alpha300DBHost, cfg.Alpha300DBPort,
-			cfg.Alpha300DBName, cfg.Alpha300DBSSLMode)
-		
-		poolConfig, err := pgxpool.ParseConfig(alpha300DBURL)
-		if err != nil {
-			logger.L().Warn("failed to parse Alpha300 database config, using EastMoney only", zap.Error(err))
-		} else {
-			poolConfig.MaxConns = 10
-			poolConfig.MinConns = 2
-			poolConfig.MaxConnLifetime = 30 * time.Minute
-			poolConfig.MaxConnIdleTime = 5 * time.Minute
-			poolConfig.HealthCheckPeriod = 1 * time.Minute
-			
-			alpha300DB, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
-			if err != nil {
-				logger.L().Warn("failed to connect to Alpha300 database, using EastMoney only", zap.Error(err))
-			} else {
-				alpha300DBService := services.NewAlpha300DBService(alpha300DB, logger.L())
-				analyzeHandler.SetAlpha300DB(alpha300DBService)
-				reportsHandler.SetAlpha300DB(alpha300DBService)
-				logger.L().Info("Alpha300 database connected", zap.String("host", cfg.Alpha300DBHost))
-			}
+	// Initialize Tushare data source (primary) if enabled
+	var tushareDB *services.TushareDB
+	if cfg.TushareEnabled && cfg.TushareToken != "" {
+		tushareSvc := services.NewTushareService(cfg.TushareToken, cfg.HTTPTimeout)
+		tushareDB = services.NewTushareDB(db, logger.L())
+		tushareSync := services.NewTushareSync(tushareSvc, db, logger.L())
+
+		analyzeHandler.SetTushareDB(tushareDB)
+		reportsHandler.SetTushareDB(tushareDB)
+	marketHandler.SetTushareDB(tushareDB)
+
+		// Initial sync if tables are empty
+		if !tushareDB.HasData(context.Background()) {
+			go func() {
+				syncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				defer cancel()
+				log.Println("[tushare] initial stock_basic sync starting...")
+				if err := tushareSync.SyncStockBasic(syncCtx); err != nil {
+					log.Printf("[tushare] initial sync failed: %v", err)
+				}
+			}()
 		}
+
+		logger.L().Info("Tushare data source enabled")
+	} else if cfg.TushareEnabled {
+		logger.L().Warn("Tushare enabled but no token provided")
 	}
 
 	router := gin.New()
@@ -367,6 +363,17 @@ func main() {
 		log.Println("[scheduler] generating daily report...")
 		reportsHandler.GenerateDailyReportAuto()
 	})
+		// Tushare daily sync at 16:00 after market close
+		if tushareDB != nil {
+			scheduler.AddDailyJob("tushare-daily-sync", 16, 0, func() {
+				log.Println("[scheduler] tushare daily sync...")
+				syncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				defer cancel()
+				tushareSvc := services.NewTushareService(cfg.TushareToken, cfg.HTTPTimeout)
+				ts := services.NewTushareSync(tushareSvc, db, logger.L())
+				ts.RunDaily(syncCtx)
+			})
+		}
 	defer scheduler.StopAll()
 
 	// Scheduler status API
