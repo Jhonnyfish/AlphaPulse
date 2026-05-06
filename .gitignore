@@ -29,4 +29,10 @@ openspec/changes/
 /frontend/.venv
 /.codex
 /.claude
+/.hermes
 /frontend/android
+
+# Test artifacts
+test_debug*.py
+test_frontend.py
+test_screenshots/
