@@ -37,3 +37,10 @@ test_debug*.py
 test_frontend.py
 test_screenshots/
 *.backup
+
+# Debug/Test files
+test_screenshots/
+frontend/playwright-report/
+frontend/daily_report_debug.png
+frontend/public/daily_report_debug.png
+*.backup
