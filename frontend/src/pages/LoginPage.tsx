@@ -11,12 +11,12 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [showForgotHint, setShowForgotHint] = useState(false);
+  const [focusField, setFocusField] = useState<'user' | 'pass' | null>(null);
 
-  // 加载保存的用户名
   useEffect(() => {
-    const savedUsername = localStorage.getItem('alphapulse_remembered_user');
-    if (savedUsername) {
-      setUsername(savedUsername);
+    const saved = localStorage.getItem('alphapulse_remembered_user');
+    if (saved) {
+      setUsername(saved);
       setRememberMe(true);
     }
   }, []);
@@ -25,11 +25,8 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    
     try {
       await login(username, password);
-      
-      // 保存/清除用户名
       if (rememberMe) {
         localStorage.setItem('alphapulse_remembered_user', username);
       } else {
@@ -45,36 +42,39 @@ export default function LoginPage() {
     }
   };
 
+  const iconColor = (field: 'user' | 'pass') =>
+    focusField === field ? 'var(--color-accent)' : 'var(--color-text-muted)';
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4"
-      style={{ 
-        background: 'var(--color-bg-primary)',
-      }}>
-      
-      {/* 背景装饰 */}
+      style={{ background: 'var(--color-bg-primary)' }}>
+
+      {/* Background decoration */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        {/* 渐变光晕 */}
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-20"
-          style={{ background: 'radial-gradient(circle, rgba(59, 130, 246, 0.4), transparent 70%)' }} />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-15"
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-25"
+          style={{ background: 'radial-gradient(circle, rgba(59, 130, 246, 0.5), transparent 70%)' }} />
+        <div className="absolute bottom-1/3 right-1/4 w-80 h-80 rounded-full opacity-20"
           style={{ background: 'radial-gradient(circle, rgba(34, 211, 238, 0.4), transparent 70%)' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-10"
+          style={{ background: 'radial-gradient(circle, rgba(99, 102, 241, 0.3), transparent 60%)' }} />
       </div>
 
-      {/* 登录卡片 */}
+      {/* Login card */}
       <div className="relative w-full max-w-md">
-        {/* 发光边框效果 */}
-        <div className="absolute -inset-1 rounded-2xl opacity-30 blur-sm"
+        {/* Glow border */}
+        <div className="absolute -inset-px rounded-2xl opacity-40 blur-sm"
           style={{ background: 'linear-gradient(135deg, var(--color-accent), var(--color-cyan))' }} />
-        
-        <div className="relative p-8 rounded-2xl glass-panel animate-scale-in"
-          style={{ 
-            background: 'rgba(15, 23, 42, 0.85)',
-            backdropFilter: 'blur(20px)',
+
+        <div className="relative p-10 rounded-2xl glass-panel animate-scale-in"
+          style={{
+            background: 'rgba(15, 23, 42, 0.88)',
+            backdropFilter: 'blur(24px)',
+            border: '1px solid rgba(148, 163, 184, 0.12)',
           }}>
-          
-          {/* Logo 和品牌 */}
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-3 mb-4">
+
+          {/* Logo */}
+          <div className="text-center mb-10">
+            <div className="flex items-center justify-center gap-3 mb-3">
               <div className="relative">
                 <div className="absolute inset-0 rounded-full opacity-50 pulse-ring"
                   style={{ background: 'var(--color-accent)' }} />
@@ -85,99 +85,80 @@ export default function LoginPage() {
             <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
               智能量化分析系统
             </p>
-            <span className="inline-block mt-2 px-3 py-1 rounded-full text-xs"
-              style={{ 
-                background: 'rgba(59, 130, 246, 0.15)',
-                color: 'var(--color-accent)',
-                border: '1px solid rgba(59, 130, 246, 0.3)',
-              }}>
-              v2.0
-            </span>
           </div>
 
-          {/* 登录表单 */}
+          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* 用户名输入框 */}
+
+            {/* Username */}
             <div>
-              <label className="block text-sm font-medium mb-2"
-                style={{ color: 'var(--color-text-secondary)' }}>
+              <label className="block text-xs font-medium mb-2 tracking-wide uppercase"
+                style={{ color: 'var(--color-text-muted)' }}>
                 用户名
               </label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-                  style={{ color: 'var(--color-text-muted)' }} />
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors duration-200"
+                  style={{ color: iconColor('user') }} />
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl text-sm outline-none transition-all duration-200"
+                  onFocus={() => setFocusField('user')}
+                  onBlur={() => setFocusField(null)}
+                  placeholder="输入用户名"
+                  autoFocus
+                  className="login-input w-full pl-11 pr-4 py-3.5 rounded-xl text-sm outline-none transition-all duration-200"
                   style={{
-                    background: 'rgba(15, 23, 42, 0.6)',
+                    background: 'rgba(15, 23, 42, 0.5)',
                     border: '1px solid var(--color-border)',
                     color: 'var(--color-text-primary)',
                   }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = 'var(--color-accent)';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.2)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = 'var(--color-border)';
-                    e.target.style.boxShadow = 'none';
-                  }}
-                  placeholder="输入用户名"
-                  autoFocus
                 />
               </div>
             </div>
 
-            {/* 密码输入框 */}
+            {/* Password */}
             <div>
-              <label className="block text-sm font-medium mb-2"
-                style={{ color: 'var(--color-text-secondary)' }}>
+              <label className="block text-xs font-medium mb-2 tracking-wide uppercase"
+                style={{ color: 'var(--color-text-muted)' }}>
                 密码
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-                  style={{ color: 'var(--color-text-muted)' }} />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors duration-200"
+                  style={{ color: iconColor('pass') }} />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-12 py-3 rounded-xl text-sm outline-none transition-all duration-200"
+                  onFocus={() => setFocusField('pass')}
+                  onBlur={() => setFocusField(null)}
+                  placeholder="输入密码"
+                  className="login-input w-full pl-11 pr-12 py-3.5 rounded-xl text-sm outline-none transition-all duration-200"
                   style={{
-                    background: 'rgba(15, 23, 42, 0.6)',
+                    background: 'rgba(15, 23, 42, 0.5)',
                     border: '1px solid var(--color-border)',
                     color: 'var(--color-text-primary)',
                   }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = 'var(--color-accent)';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.2)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = 'var(--color-border)';
-                    e.target.style.boxShadow = 'none';
-                  }}
-                  placeholder="输入密码"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-white/10 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg hover:bg-white/10 transition-colors"
                   style={{ color: 'var(--color-text-muted)' }}>
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            {/* 记住我 & 忘记密码 */}
+            {/* Remember me & Forgot password */}
             <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer group">
+              <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="w-4 h-4 rounded border-2 accent-[var(--color-accent)] cursor-pointer"
-                  style={{ 
+                  style={{
                     background: 'var(--color-bg-card)',
                     borderColor: 'var(--color-border)',
                   }}
@@ -186,7 +167,7 @@ export default function LoginPage() {
                   记住我
                 </span>
               </label>
-              
+
               <button
                 type="button"
                 onClick={() => setShowForgotHint(!showForgotHint)}
@@ -196,10 +177,10 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {/* 忘记密码提示 */}
+            {/* Forgot password hint */}
             {showForgotHint && (
               <div className="text-sm px-4 py-3 rounded-xl animate-fade-in"
-                style={{ 
+                style={{
                   background: 'rgba(59, 130, 246, 0.1)',
                   border: '1px solid rgba(59, 130, 246, 0.2)',
                   color: 'var(--color-text-secondary)',
@@ -208,10 +189,10 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* 错误提示 */}
+            {/* Error message */}
             {error && (
-              <div className="text-sm px-4 py-3 rounded-xl flex items-center gap-2 animate-shake"
-                style={{ 
+              <div className="text-sm px-4 py-3 rounded-xl flex items-center gap-2 animate-fade-in"
+                style={{
                   background: 'rgba(239, 68, 68, 0.1)',
                   border: '1px solid rgba(239, 68, 68, 0.2)',
                   color: 'var(--color-danger)',
@@ -221,16 +202,16 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* 登录按钮 */}
+            {/* Submit button */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl text-sm font-medium text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg active:scale-[0.98]"
-              style={{ 
-                background: loading 
-                  ? 'var(--color-accent)' 
+              className="w-full py-3.5 rounded-xl text-sm font-medium text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg active:scale-[0.98] cursor-pointer"
+              style={{
+                background: loading
+                  ? 'var(--color-accent)'
                   : 'linear-gradient(135deg, var(--color-accent), #2563eb)',
-                boxShadow: loading ? 'none' : '0 4px 15px rgba(59, 130, 246, 0.4)',
+                boxShadow: loading ? 'none' : '0 4px 20px rgba(59, 130, 246, 0.35)',
               }}>
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -244,9 +225,9 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* 底部信息 */}
-          <div className="mt-8 text-center">
-            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+          {/* Footer */}
+          <div className="mt-10 text-center">
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)', opacity: 0.6 }}>
               © 2026 AlphaPulse. All rights reserved.
             </p>
           </div>
