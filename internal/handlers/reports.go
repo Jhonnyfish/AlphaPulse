@@ -26,6 +26,7 @@ type ReportsHandler struct {
 	db         *pgxpool.Pool
 	tencent    *services.TencentService
 	eastMoney  *services.EastMoneyService
+	tushareSector *services.TushareSectorService
 	tushareDB  *services.TushareDB          // Primary data source, may be nil
 	analyze    *AnalyzeHandler
 	watchlist  *WatchlistHandler
@@ -44,6 +45,7 @@ func NewReportsHandler(
 	db *pgxpool.Pool,
 	tencent *services.TencentService,
 	eastMoney *services.EastMoneyService,
+	tushareSector *services.TushareSectorService,
 	analyze *AnalyzeHandler,
 	watchlist *WatchlistHandler,
 	log *zap.Logger,
@@ -56,6 +58,7 @@ func NewReportsHandler(
 		db:              db,
 		tencent:         tencent,
 		eastMoney:       eastMoney,
+		tushareSector:   tushareSector,
 		analyze:         analyze,
 		watchlist:       watchlist,
 		log:             log,
@@ -502,7 +505,7 @@ func (h *ReportsHandler) DailyReportGenerate(c *gin.Context) {
 	lines = append(lines, "")
 
 	// Market overview
-	overview, ovErr := h.eastMoney.FetchOverview(ctx)
+	overview, ovErr := h.tushareSector.GetOverview(ctx)
 	if ovErr == nil && len(overview.Indices) > 0 {
 		lines = append(lines, "## 🏛️ 大盘概况")
 		lines = append(lines, "")
@@ -521,7 +524,7 @@ func (h *ReportsHandler) DailyReportGenerate(c *gin.Context) {
 	}
 
 	// Sector top movers
-	sectors, secErr := h.eastMoney.FetchSectors(ctx)
+	sectors, secErr := h.tushareSector.GetSectors(ctx)
 	if secErr == nil && len(sectors) > 0 {
 		sort.Slice(sectors, func(i, j int) bool { return sectors[i].ChangePercent > sectors[j].ChangePercent })
 		topN := 5
@@ -842,7 +845,7 @@ func (h *ReportsHandler) GenerateDailyReportAuto() {
 	lines = append(lines, "")
 
 	// Market overview
-	overview, ovErr := h.eastMoney.FetchOverview(ctx)
+	overview, ovErr := h.tushareSector.GetOverview(ctx)
 	if ovErr == nil && len(overview.Indices) > 0 {
 		lines = append(lines, "## 🏛️ 大盘概况")
 		lines = append(lines, "")
@@ -861,7 +864,7 @@ func (h *ReportsHandler) GenerateDailyReportAuto() {
 	}
 
 	// Sector top movers
-	sectors, secErr := h.eastMoney.FetchSectors(ctx)
+	sectors, secErr := h.tushareSector.GetSectors(ctx)
 	if secErr == nil && len(sectors) > 0 {
 		sort.Slice(sectors, func(i, j int) bool { return sectors[i].ChangePercent > sectors[j].ChangePercent })
 		topN := 5
@@ -1134,7 +1137,7 @@ func (h *ReportsHandler) DailyBrief(c *gin.Context) {
 
 	// Fetch indices via overview (5s timeout)
 	runWithTimeout(5*time.Second, func(tCtx context.Context) {
-		overview, err := h.eastMoney.FetchOverview(tCtx)
+		overview, err := h.tushareSector.GetOverview(tCtx)
 		if err != nil {
 			h.log.Warn("daily-brief: indices fetch failed", zap.Error(err))
 			return
@@ -1164,7 +1167,7 @@ func (h *ReportsHandler) DailyBrief(c *gin.Context) {
 
 	// Fetch sectors (5s timeout)
 	runWithTimeout(5*time.Second, func(tCtx context.Context) {
-		s, err := h.eastMoney.FetchSectors(tCtx)
+		s, err := h.tushareSector.GetSectors(tCtx)
 		if err != nil {
 			h.log.Warn("daily-brief: sectors fetch failed", zap.Error(err))
 			return

@@ -25,16 +25,18 @@ type DashboardHandler struct {
 	db            *pgxpool.Pool
 	tencentSvc    *services.TencentService
 	eastMoneySvc  *services.EastMoneyService
+	tushareSector *services.TushareSectorService
 	watchlistH    *WatchlistHandler
 	log           *zap.Logger
 }
 
 // NewDashboardHandler creates a new DashboardHandler.
-func NewDashboardHandler(db *pgxpool.Pool, tencentSvc *services.TencentService, eastMoneySvc *services.EastMoneyService, watchlistH *WatchlistHandler, log *zap.Logger) *DashboardHandler {
+func NewDashboardHandler(db *pgxpool.Pool, tencentSvc *services.TencentService, eastMoneySvc *services.EastMoneyService, tushareSector *services.TushareSectorService, watchlistH *WatchlistHandler, log *zap.Logger) *DashboardHandler {
 	return &DashboardHandler{
 		db:           db,
 		tencentSvc:   tencentSvc,
 		eastMoneySvc: eastMoneySvc,
+		tushareSector: tushareSector,
 		watchlistH:   watchlistH,
 		log:          log,
 	}
@@ -425,7 +427,7 @@ func (h *DashboardHandler) fetchMarketOverview(ctx context.Context) gin.H {
 		idxCh <- indexResult{quotes: quotes, err: err}
 	}()
 	go func() {
-		breadth, err := h.eastMoneySvc.FetchMarketBreadth(ctx)
+		breadth, err := h.tushareSector.GetMarketBreadth(ctx)
 		brCh <- breadthResult{breadth: breadth, err: err}
 	}()
 
@@ -459,7 +461,7 @@ func (h *DashboardHandler) fetchMarketOverview(ctx context.Context) gin.H {
 
 // fetchTopSectors returns the top 20 sectors by absolute change.
 func (h *DashboardHandler) fetchTopSectors(ctx context.Context) []models.Sector {
-	sectors, err := h.eastMoneySvc.FetchSectors(ctx)
+	sectors, err := h.tushareSector.GetSectors(ctx)
 	if err != nil {
 		h.log.Warn("dashboard: failed to fetch sectors", zap.Error(err))
 		return []models.Sector{}

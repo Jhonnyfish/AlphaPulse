@@ -22,6 +22,7 @@ import (
 
 type MarketHandler struct {
 	eastMoney           *services.EastMoneyService
+	tushareSector       *services.TushareSectorService
 	tencent             *services.TencentService
 	tushareDB           *services.TushareDB          // Primary data source, may be nil
 	db                  *pgxpool.Pool
@@ -41,9 +42,10 @@ type MarketHandler struct {
 	sentimentCache      *cache.Cache[models.MarketSentimentResponse]
 }
 
-func NewMarketHandler(eastMoney *services.EastMoneyService, tencent *services.TencentService, db *pgxpool.Pool) *MarketHandler {
+func NewMarketHandler(eastMoney *services.EastMoneyService, tushareSector *services.TushareSectorService, tencent *services.TencentService, db *pgxpool.Pool) *MarketHandler {
 	return &MarketHandler{
 		eastMoney:           eastMoney,
+		tushareSector:       tushareSector,
 		tencent:             tencent,
 		db:                  db,
 		quoteCache:          cache.New[models.Quote](),
@@ -196,7 +198,7 @@ func (h *MarketHandler) Sectors(c *gin.Context) {
 		return
 	}
 
-	sectors, err := h.eastMoney.FetchSectors(c.Request.Context())
+	sectors, err := h.tushareSector.GetSectors(c.Request.Context())
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "SECTORS_FETCH_FAILED", "failed to fetch sector data")
 		return
@@ -219,7 +221,7 @@ func (h *MarketHandler) Overview(c *gin.Context) {
 		return
 	}
 
-	overview, err := h.eastMoney.FetchOverview(c.Request.Context())
+	overview, err := h.tushareSector.GetOverview(c.Request.Context())
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "OVERVIEW_FETCH_FAILED", "failed to fetch market overview")
 		return
@@ -388,7 +390,7 @@ func (h *MarketHandler) TopMovers(c *gin.Context) {
 		return
 	}
 
-	movers, err := h.eastMoney.FetchTopMovers(c.Request.Context(), sortOrder, limit)
+	movers, err := h.tushareSector.GetTopMovers(c.Request.Context(), sortOrder, limit)
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "TOP_MOVERS_FETCH_FAILED", "failed to fetch top movers")
 		return
@@ -816,7 +818,7 @@ func (h *MarketHandler) MarketOverview(c *gin.Context) {
 		idxCh <- indexResult{quotes: quotes, err: err}
 	}()
 	go func() {
-		breadth, err := h.eastMoney.FetchMarketBreadth(c.Request.Context())
+		breadth, err := h.tushareSector.GetMarketBreadth(c.Request.Context())
 		brCh <- breadthResult{breadth: breadth, err: err}
 	}()
 

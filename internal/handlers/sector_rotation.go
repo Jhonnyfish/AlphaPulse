@@ -24,6 +24,7 @@ const sectorRotationHistoryPath = "/home/finn/alphapulse/data/sector_rotation_hi
 // SectorRotationHandler handles sector rotation endpoints.
 type SectorRotationHandler struct {
 	eastMoney    *services.EastMoneyService
+	tushareSector *services.TushareSectorService
 	db           *pgxpool.Pool
 	logger       *zap.Logger
 	rotationCache *alphacache.Cache[[]models.SectorRotationItem]
@@ -31,9 +32,10 @@ type SectorRotationHandler struct {
 }
 
 // NewSectorRotationHandler creates a new SectorRotationHandler.
-func NewSectorRotationHandler(eastMoney *services.EastMoneyService, db *pgxpool.Pool, logger *zap.Logger) *SectorRotationHandler {
+func NewSectorRotationHandler(eastMoney *services.EastMoneyService, tushareSector *services.TushareSectorService, db *pgxpool.Pool, logger *zap.Logger) *SectorRotationHandler {
 	return &SectorRotationHandler{
 		eastMoney:    eastMoney,
+		tushareSector: tushareSector,
 		db:           db,
 		logger:       logger,
 		rotationCache: alphacache.New[[]models.SectorRotationItem](),
@@ -60,7 +62,7 @@ func (h *SectorRotationHandler) Rotation(c *gin.Context) {
 		return
 	}
 
-	sectors, err := h.eastMoney.FetchSectorRotation(c.Request.Context())
+	sectors, err := h.tushareSector.GetSectorRotation(c.Request.Context())
 	if err != nil {
 		h.logger.Warn("failed to fetch sector rotation",
 			zap.Error(err),
