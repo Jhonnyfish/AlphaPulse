@@ -30,6 +30,12 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      // 把 /api/auth 也代理到后端（后端真实路径是 /login）
+      '/api/auth': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/auth/, ''),
+      },
     },
   },
   build: {

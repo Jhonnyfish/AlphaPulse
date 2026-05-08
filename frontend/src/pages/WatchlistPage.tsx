@@ -786,9 +786,8 @@ export default function WatchlistPage() {
             )}
 
             {/* Desktop table */}
-            <div className="hidden sm:block rounded-lg border overflow-hidden"
-              style={{ borderColor: 'var(--color-border)' }}>
-              <table className="w-full text-sm border-separate border-spacing-0">
+            <div className="hidden sm:block rounded-lg border" style={{ borderColor: 'var(--color-border)', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              <table className="w-full text-sm border-separate border-spacing-0" style={{ width: '100%', tableLayout: 'fixed' }}>
                 <thead>
                   <tr style={{ background: 'var(--color-bg-secondary)' }}>
                     {editMode && <th className="w-8 px-2 py-3" />} {/* checkbox column */}
@@ -992,8 +991,21 @@ export default function WatchlistPage() {
               setError('添加失败');
             }
           }}
-        />
-      </div>
-    </DndContext>
-  );
+          </div>
+        </div>
+      </DndContext>
+    );
+  }
 }
+
+<style>{`
+  /* 隐藏滚动条但保留滚动功能 */
+  .hidden-scrollbar {
+    overflow-x: auto;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+  }
+  .hidden-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+  }
+`}</style>

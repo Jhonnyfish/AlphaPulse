@@ -270,20 +270,6 @@ body::before {
   animation: session-pulse 2s ease-in-out infinite;
 }
 
-/* ── Ticker scroll ─────────────────────────────────────── */
-@keyframes ticker {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-
-.ticker-scroll {
-  animation: ticker 30s linear infinite;
-}
-
-.ticker-scroll:hover {
-  animation-play-state: paused;
-}
-
 /* ── Fade / slide entrance animations ──────────────────── */
 @keyframes fade-in {
   from { opacity: 0; }

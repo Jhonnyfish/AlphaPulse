@@ -36,3 +36,4 @@ openspec/changes/
 test_debug*.py
 test_frontend.py
 test_screenshots/
+*.backup

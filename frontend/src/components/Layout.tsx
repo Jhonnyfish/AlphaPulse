@@ -13,7 +13,6 @@ import {
   Scan, ShieldAlert, Bolt,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
-import TickerTape from '@/components/TickerTape';
 import KeyboardHelpPanel from '@/components/KeyboardHelpPanel';
 
 interface NavItem {
@@ -373,9 +372,6 @@ export default function Layout({ children }: LayoutProps) {
             </button>
           </div>
         </header>
-
-        {/* Ticker Tape */}
-        <TickerTape />
 
         {/* Content */}
         <main id="main-content" role="main" className="flex-1 overflow-auto p-4 sm:p-6">
