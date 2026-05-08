@@ -21,13 +21,13 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:8899',
+        target: 'http://localhost:8080',
         changeOrigin: true,
         timeout: 60000,
         proxyTimeout: 60000,
       },
       '/health': {
-        target: 'http://localhost:8899',
+        target: 'http://localhost:8080',
         changeOrigin: true,
       },
     },
