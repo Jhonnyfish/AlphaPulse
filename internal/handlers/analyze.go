@@ -19,6 +19,7 @@ import (
 type AnalyzeHandler struct {
 	eastMoney          *services.EastMoneyService
 	tencent            *services.TencentService
+	newsSvc            *services.NewsService
 	tushareDB          *services.TushareDB          // Primary data source, may be nil
 	logger             *zap.Logger
 	quoteCache         *cache.Cache[models.Quote]
@@ -29,10 +30,11 @@ type AnalyzeHandler struct {
 	announcementsCache *cache.Cache[[]models.Announcement]
 }
 
-func NewAnalyzeHandler(eastMoney *services.EastMoneyService, tencent *services.TencentService, logger *zap.Logger) *AnalyzeHandler {
+func NewAnalyzeHandler(eastMoney *services.EastMoneyService, tencent *services.TencentService, newsSvc *services.NewsService, logger *zap.Logger) *AnalyzeHandler {
 	return &AnalyzeHandler{
 		eastMoney:          eastMoney,
 		tencent:            tencent,
+		newsSvc:            newsSvc,
 		logger:             logger,
 		quoteCache:         cache.New[models.Quote](),
 		klineCache:         cache.New[[]models.KlinePoint](),
@@ -259,7 +261,7 @@ func (h *AnalyzeHandler) fetchNews(ctx context.Context, code string) ([]models.N
 	if cached, ok := h.newsCache.Get(code); ok {
 		return cached, nil
 	}
-	news, err := h.eastMoney.FetchStockNews(ctx, code, 10)
+	news, err := h.newsSvc.GetStockNews(ctx, code, 10)
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +273,7 @@ func (h *AnalyzeHandler) fetchAnnouncements(ctx context.Context, code string) ([
 	if cached, ok := h.announcementsCache.Get(code); ok {
 		return cached, nil
 	}
-	anns, err := h.eastMoney.FetchStockAnnouncements(ctx, code, 10)
+	anns, err := h.newsSvc.GetStockAnnouncements(ctx, code, 10)
 	if err != nil {
 		return nil, err
 	}

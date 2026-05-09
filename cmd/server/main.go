@@ -76,6 +76,7 @@ func main() {
 	eastMoneyService := services.NewEastMoneyService(cfg.HTTPTimeout)
 	tencentService := services.NewTencentService(cfg.HTTPTimeout)
 	tushareSectorService := services.NewTushareSectorService(db)
+	newsService := services.NewNewsService(db, eastMoneyService, logger.L())
 	alpha300Service := services.NewAlpha300Service(cfg.HTTPTimeout)
 	alpha300Cache := services.NewAlpha300Cache(alpha300Service)
 	deepseekClient := services.NewDeepSeekClient(cfg.DeepSeekAPIKey, cfg.DeepSeekBaseURL, cfg.DeepSeekModel, logger.L())
@@ -87,7 +88,7 @@ func main() {
 	screenerHandler := handlers.NewScreenerHandler(alpha300Cache, db)
 	scoreHistoryHandler := handlers.NewScoreHistoryHandler(db)
 	patternScannerHandler := handlers.NewPatternScannerHandler(eastMoneyService, tencentService, db)
-	analyzeHandler := handlers.NewAnalyzeHandler(eastMoneyService, tencentService, logger.L())
+	analyzeHandler := handlers.NewAnalyzeHandler(eastMoneyService, tencentService, newsService, logger.L())
 	trendHandler := handlers.NewTrendHandler(eastMoneyService, tencentService, db, logger.L())
 	compareHandler := handlers.NewCompareHandler(eastMoneyService, tencentService)
 	portfolioHandler := handlers.NewPortfolioHandler(tencentService, eastMoneyService, db, logger.L())
@@ -372,9 +373,17 @@ func main() {
 				defer cancel()
 				tushareSvc := services.NewTushareService(cfg.TushareToken, cfg.HTTPTimeout)
 				ts := services.NewTushareSync(tushareSvc, db, logger.L())
-				ts.RunDaily(syncCtx)
-			})
+			ts.RunDaily(syncCtx)
+		})
+	}
+	scheduler.AddDailyJob("news-cleanup", 3, 0, func() {
+		log.Println("[scheduler] cleaning up old news data...")
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		if _, err := newsService.CleanupOldData(cleanupCtx); err != nil {
+			log.Printf("[scheduler] news cleanup failed: %v", err)
 		}
+	})
 	defer scheduler.StopAll()
 
 	// Scheduler status API

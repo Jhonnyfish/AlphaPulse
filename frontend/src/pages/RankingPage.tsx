@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useView } from '@/lib/ViewContext';
 import api from '@/lib/api';
-import type { RankingItem, RankingSummary, RankingResponse } from '@/lib/api';
+import type { RankingItem, RankingSummary, RankingResponse, NewsItem } from '@/lib/api';
 import ReactECharts from '@/components/charts/ReactECharts';
 import {
   Trophy, RefreshCw, TrendingUp, TrendingDown,
   ChevronUp, ChevronDown, Award, AlertTriangle,
-  Star, Shield, ChevronRight,
+  Star, Shield, ChevronRight, Newspaper,
 } from 'lucide-react';
 
 /* ---- dimension labels ---- */
@@ -112,6 +112,7 @@ export default function RankingPage() {
   const [sortKey, setSortKey] = useState<SortKey>('rank');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [stockNews, setStockNews] = useState<Record<string, NewsItem[]>>({});
 
   const fetchData = useCallback((silent = false) => {
     if (!silent && data.length === 0) setLoading(true);
@@ -151,6 +152,19 @@ export default function RankingPage() {
       fetchData();
     }
   }, [fetchData]);
+
+  /* ---- fetch news when a row is expanded ---- */
+  useEffect(() => {
+    if (!expandedRow || stockNews[expandedRow]) return;
+    api
+      .get<NewsItem[]>('/market/news', { params: { code: expandedRow, limit: 5 } })
+      .then((res) => {
+        setStockNews((prev) => ({ ...prev, [expandedRow]: res.data }));
+      })
+      .catch(() => {
+        setStockNews((prev) => ({ ...prev, [expandedRow]: [] }));
+      });
+  }, [expandedRow, stockNews]);
 
   /* ---- sorting ---- */
   const sorted = [...data].sort((a, b) => {
@@ -759,7 +773,7 @@ export default function RankingPage() {
                         className="px-6 py-4"
                         style={{ background: 'rgba(148,163,184,0.03)' }}
                       >
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           {/* Strengths */}
                           <div>
                             <div
@@ -826,6 +840,35 @@ export default function RankingPage() {
                                 style={{ color: 'var(--color-text-muted)' }}
                               >
                                 暂无
+                              </div>
+                            )}
+                          </div>
+
+                          {/* News */}
+                          <div>
+                            <div className="text-xs font-medium mb-2 flex items-center gap-1.5"
+                              style={{ color: 'var(--color-accent)' }}>
+                              <Newspaper className="w-3.5 h-3.5" />
+                              资讯
+                            </div>
+                            {stockNews[item.code] && stockNews[item.code].length > 0 ? (
+                              <ul className="space-y-1">
+                                {stockNews[item.code].map((n, i) => (
+                                  <li key={i} className="text-xs">
+                                    <a href={n.url} target="_blank" rel="noopener noreferrer"
+                                      className="hover:underline"
+                                      style={{ color: 'var(--color-text-secondary)' }}>
+                                      {n.title}
+                                    </a>
+                                    <span className="ml-1" style={{ color: 'var(--color-text-muted)', fontSize: '10px' }}>
+                                      {n.source} · {new Date(n.published_at).toLocaleDateString('zh-CN')}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                                暂无资讯
                               </div>
                             )}
                           </div>
