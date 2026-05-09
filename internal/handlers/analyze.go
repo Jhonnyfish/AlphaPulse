@@ -111,49 +111,89 @@ func (h *AnalyzeHandler) Analyze(c *gin.Context) {
 }
 
 func (h *AnalyzeHandler) analyzeSingle(ctx context.Context, code string) models.StockAnalysis {
+	return h.analyzeSingleWithMode(ctx, code, false)
+}
+
+// analyzeSingleWithMode runs 8-dimension analysis. If fast=true, news/announcements skip external API fallback.
+func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string, fast bool) models.StockAnalysis {
 	code = services.NormalizeCode(code)
 	errs := make(map[string]string)
 
 	h.logger.Info("analyzing single stock", zap.String("code", code))
 
-	// Fetch quote
-	quote, quoteErr := h.fetchQuote(ctx, code)
+	// Fetch all data sources concurrently
+	var (
+		quote    models.Quote
+		klines   []models.KlinePoint
+		flows    []models.MoneyFlowDay
+		sectors  []models.StockSector
+		news     []models.NewsItem
+		anns     []models.Announcement
+		quoteErr, klineErr, flowErr, sectorErr, newsErr, annErr error
+	)
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		quote, quoteErr = h.fetchQuote(ctx, code)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		klines, klineErr = h.fetchKlines(ctx, code)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		flows, flowErr = h.fetchFlow(ctx, code)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		sectors, sectorErr = h.fetchSectors(ctx, code)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		news, newsErr = h.fetchNewsWithMode(ctx, code, fast)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		anns, annErr = h.fetchAnnouncementsWithMode(ctx, code, fast)
+	}()
+
+	wg.Wait()
+
 	if quoteErr != nil {
 		errs["quote"] = quoteErr.Error()
 	}
-
-	// Fetch klines
-	klines, klineErr := h.fetchKlines(ctx, code)
 	if klineErr != nil {
 		errs["klines"] = klineErr.Error()
 	}
-
-	// Fetch money flow
-	flows, flowErr := h.fetchFlow(ctx, code)
 	if flowErr != nil {
 		errs["money_flow"] = flowErr.Error()
 	}
-
-	// Fetch sectors
-	sectors, sectorErr := h.fetchSectors(ctx, code)
 	if sectorErr != nil {
 		errs["sectors"] = sectorErr.Error()
 	}
-	sectorNames := make([]string, 0, len(sectors))
-	for _, s := range sectors {
-		sectorNames = append(sectorNames, s.Name)
-	}
-
-	// Fetch news
-	news, newsErr := h.fetchNews(ctx, code)
 	if newsErr != nil {
 		errs["news"] = newsErr.Error()
 	}
-
-	// Fetch announcements
-	anns, annErr := h.fetchAnnouncements(ctx, code)
 	if annErr != nil {
 		errs["announcements"] = annErr.Error()
+	}
+
+	sectorNames := make([]string, 0, len(sectors))
+	for _, s := range sectors {
+		sectorNames = append(sectorNames, s.Name)
 	}
 
 	// Run 8 analysis dimensions
@@ -283,8 +323,21 @@ func (h *AnalyzeHandler) fetchSectors(ctx context.Context, code string) ([]model
 }
 
 func (h *AnalyzeHandler) fetchNews(ctx context.Context, code string) ([]models.NewsItem, error) {
+	return h.fetchNewsWithMode(ctx, code, false)
+}
+
+func (h *AnalyzeHandler) fetchAnnouncements(ctx context.Context, code string) ([]models.Announcement, error) {
+	return h.fetchAnnouncementsWithMode(ctx, code, false)
+}
+
+// fetchNewsWithMode fetches news. If fast=true, skips external API fallback (DB only).
+func (h *AnalyzeHandler) fetchNewsWithMode(ctx context.Context, code string, fast bool) ([]models.NewsItem, error) {
 	if cached, ok := h.newsCache.Get(code); ok {
 		return cached, nil
+	}
+	if fast {
+		// DB-only mode: skip EastMoney fallback to avoid slow HTTP
+		return h.newsSvc.GetStockNewsDBOnly(ctx, code, 10)
 	}
 	news, err := h.newsSvc.GetStockNews(ctx, code, 10)
 	if err != nil {
@@ -294,9 +347,14 @@ func (h *AnalyzeHandler) fetchNews(ctx context.Context, code string) ([]models.N
 	return news, nil
 }
 
-func (h *AnalyzeHandler) fetchAnnouncements(ctx context.Context, code string) ([]models.Announcement, error) {
+// fetchAnnouncementsWithMode fetches announcements. If fast=true, skips external API fallback (DB only).
+func (h *AnalyzeHandler) fetchAnnouncementsWithMode(ctx context.Context, code string, fast bool) ([]models.Announcement, error) {
 	if cached, ok := h.announcementsCache.Get(code); ok {
 		return cached, nil
+	}
+	if fast {
+		// DB-only mode: skip EastMoney fallback to avoid slow HTTP
+		return h.newsSvc.GetStockAnnouncementsDBOnly(ctx, code, 10)
 	}
 	anns, err := h.newsSvc.GetStockAnnouncements(ctx, code, 10)
 	if err != nil {

@@ -664,7 +664,7 @@ func (h *WatchlistAnalysisHandler) RankingStream(c *gin.Context) {
 }
 
 func (h *WatchlistAnalysisHandler) analyzeForRanking(ctx context.Context, code string) RankingItem {
-	analysis := h.analyze.analyzeSingle(ctx, code)
+	analysis := h.analyze.analyzeSingleWithMode(ctx, code, true)
 	if len(analysis.Errors) > 0 {
 		// Check if critical data failed
 		if _, ok := analysis.Errors["quote"]; ok {

@@ -70,6 +70,32 @@ func (s *NewsService) GetStockNews(ctx context.Context, code string, limit int) 
 	return items, nil
 }
 
+// GetStockNewsDBOnly reads news from DB only, no external API fallback.
+// Returns empty slice (not error) if no data in DB.
+func (s *NewsService) GetStockNewsDBOnly(ctx context.Context, code string, limit int) ([]models.NewsItem, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT code, title, summary, source, url, published_at
+		FROM stock_news WHERE code = $1
+		ORDER BY published_at DESC LIMIT $2
+	`, code, limit)
+	if err != nil {
+		return nil, nil
+	}
+	defer rows.Close()
+	var items []models.NewsItem
+	for rows.Next() {
+		var item models.NewsItem
+		if err := rows.Scan(&item.Code, &item.Title, &item.Summary, &item.Source, &item.URL, &item.PublishedAt); err != nil {
+			continue
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
 // GetStockAnnouncements returns announcements for a stock.
 func (s *NewsService) GetStockAnnouncements(ctx context.Context, code string, limit int) ([]models.Announcement, error) {
 	if limit <= 0 {
@@ -111,6 +137,31 @@ func (s *NewsService) GetStockAnnouncements(ctx context.Context, code string, li
 	// Store in background
 	go s.storeAnnouncements(items)
 
+	return items, nil
+}
+
+// GetStockAnnouncementsDBOnly reads announcements from DB only, no external API fallback.
+func (s *NewsService) GetStockAnnouncementsDBOnly(ctx context.Context, code string, limit int) ([]models.Announcement, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT title, url, published_at
+		FROM stock_announcements WHERE code = $1
+		ORDER BY published_at DESC LIMIT $2
+	`, code, limit)
+	if err != nil {
+		return nil, nil
+	}
+	defer rows.Close()
+	var items []models.Announcement
+	for rows.Next() {
+		var item models.Announcement
+		if err := rows.Scan(&item.Title, &item.URL, &item.PublishedAt); err != nil {
+			continue
+		}
+		items = append(items, item)
+	}
 	return items, nil
 }
 
