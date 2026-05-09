@@ -21,11 +21,23 @@ type WatchlistHandler struct {
 	db           *pgxpool.Pool
 	logger       *zap.Logger
 	alpha300Svc  *services.Alpha300Cache // optional, set via SetAlpha300
+	onChange     func()                  // optional, called after watchlist changes
 }
 
 // SetAlpha300 injects the Alpha300 cache for watchlist sync.
 func (h *WatchlistHandler) SetAlpha300(svc *services.Alpha300Cache) {
 	h.alpha300Svc = svc
+}
+
+// SetOnChange sets a callback invoked after watchlist modifications.
+func (h *WatchlistHandler) SetOnChange(fn func()) {
+	h.onChange = fn
+}
+
+func (h *WatchlistHandler) notifyChange() {
+	if h.onChange != nil {
+		h.onChange()
+	}
 }
 
 type addWatchlistRequest struct {
@@ -71,7 +83,8 @@ func (h *WatchlistHandler) SyncAlpha300TopN(ctx context.Context, n int) (int, er
 		added += int(tag.RowsAffected())
 	}
 	h.logger.Info("alpha300 auto-sync completed", zap.Int("added", added), zap.Int("candidates", len(candidates)))
-	return added, nil
+		h.notifyChange()
+		return added, nil
 }
 
 func (h *WatchlistHandler) List(c *gin.Context) {
@@ -133,6 +146,7 @@ func (h *WatchlistHandler) Add(c *gin.Context) {
 	}
 
 	h.logger.Info("watchlist item added", zap.String("code", item.Code))
+	h.notifyChange()
 	c.JSON(http.StatusOK, gin.H{"stock": item})
 }
 
@@ -156,6 +170,7 @@ func (h *WatchlistHandler) Delete(c *gin.Context) {
 	}
 
 	h.logger.Info("watchlist item deleted", zap.String("code", code))
+	h.notifyChange()
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
@@ -214,6 +229,7 @@ func (h *WatchlistHandler) BatchAdd(c *gin.Context) {
 	}
 
 	h.logger.Info("batch add completed", zap.Int("added", added))
+		h.notifyChange()
 	c.JSON(http.StatusOK, gin.H{"added": added})
 }
 
@@ -286,6 +302,7 @@ func (h *WatchlistHandler) Sync(c *gin.Context) {
 	}
 
 	h.logger.Info("Alpha300 sync completed", zap.Int("added", added), zap.Int("candidates", len(candidates)))
+		h.notifyChange()
 	c.JSON(http.StatusOK, gin.H{
 		"ok":      true,
 		"message": fmt.Sprintf("Synced %d Alpha300 stock(s).", added),

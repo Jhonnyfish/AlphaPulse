@@ -109,6 +109,7 @@ func main() {
 	docsHandler := handlers.NewDocsHandler()
 	dashboardHandler := handlers.NewDashboardHandler(db, tencentService, eastMoneyService, tushareSectorService, watchlistHandler, logger.L())
 	watchlistHandler.SetAlpha300(alpha300Cache)
+		watchlistHandler.SetOnChange(watchlistAnalysisHandler.InvalidateRankingCache)
 
 	// Initialize Tushare data source (primary) if enabled
 	var tushareDB *services.TushareDB
@@ -312,11 +313,13 @@ func main() {
 	wlAnalysisGroup.GET("/heatmap", watchlistAnalysisHandler.Heatmap)
 	wlAnalysisGroup.GET("/sectors", watchlistAnalysisHandler.Sectors)
 	wlAnalysisGroup.GET("/ranking", watchlistAnalysisHandler.Ranking)
+	wlAnalysisGroup.GET("/ranking/stream", watchlistAnalysisHandler.RankingStream)
 
 	// Compat routes matching Python paths
 	api.GET("/watchlist-heatmap", authMiddleware, watchlistAnalysisHandler.Heatmap)
 	api.GET("/watchlist-sectors", authMiddleware, watchlistAnalysisHandler.Sectors)
 	api.GET("/watchlist-ranking", authMiddleware, watchlistAnalysisHandler.Ranking)
+	api.GET("/watchlist-ranking/stream", authMiddleware, watchlistAnalysisHandler.RankingStream)
 
 	// Watchlist groups CRUD
 	wlGroupsGroup := api.Group("/watchlist-groups")
@@ -373,9 +376,39 @@ func main() {
 				defer cancel()
 				tushareSvc := services.NewTushareService(cfg.TushareToken, cfg.HTTPTimeout)
 				ts := services.NewTushareSync(tushareSvc, db, logger.L())
-			ts.RunDaily(syncCtx)
+				ts.RunDaily(syncCtx)
+			})
+		}
+		// Pre-fetch watchlist news at 16:10 so ranking reads from DB
+		scheduler.AddDailyJob("watchlist-news-sync", 16, 10, func() {
+			log.Println("[scheduler] syncing watchlist news to DB...")
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+			defer cancel()
+			rows, err := db.Query(ctx, `SELECT code FROM watchlist`)
+			if err != nil {
+				log.Printf("[scheduler] watchlist query failed: %v", err)
+				return
+			}
+			defer rows.Close()
+			var codes []string
+			for rows.Next() {
+				var code string
+				if rows.Scan(&code) == nil {
+					codes = append(codes, code)
+				}
+			}
+			for _, code := range codes {
+				codeCtx, codeCancel := context.WithTimeout(ctx, 15*time.Second)
+				if _, err := newsService.GetStockNews(codeCtx, code, 10); err != nil {
+					log.Printf("[scheduler] news sync failed for %s: %v", code, err)
+				}
+				if _, err := newsService.GetStockAnnouncements(codeCtx, code, 10); err != nil {
+					log.Printf("[scheduler] announcements sync failed for %s: %v", code, err)
+				}
+				codeCancel()
+			}
+			log.Printf("[scheduler] watchlist news sync done for %d stocks", len(codes))
 		})
-	}
 	scheduler.AddDailyJob("news-cleanup", 3, 0, func() {
 		log.Println("[scheduler] cleaning up old news data...")
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)

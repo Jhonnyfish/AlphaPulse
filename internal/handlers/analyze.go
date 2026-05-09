@@ -171,11 +171,11 @@ func (h *AnalyzeHandler) analyzeSingle(ctx context.Context, code string) models.
 		Sector:      services.AnalyzeSector(quote, sectorNames),
 		Sentiment:   services.AnalyzeSentiment(news, anns),
 		DataSources: map[string]string{
-			"quote":         "tencent",
-			"klines":        "eastmoney",
-			"money_flow":    "eastmoney",
-			"sector":        "eastmoney",
-			"sentiment":     "eastmoney",
+			"quote":         "tushare",
+			"klines":        "tushare",
+			"money_flow":    "tushare",
+			"sector":        "tushare",
+			"sentiment":     "db/eastmoney",
 		},
 		Errors:    errs,
 		FetchedAt: time.Now(),
@@ -189,6 +189,18 @@ func (h *AnalyzeHandler) fetchQuote(ctx context.Context, code string) (models.Qu
 	if cached, ok := h.quoteCache.Get(code); ok {
 		return cached, nil
 	}
+
+	// Try TushareDB first (primary local data source)
+	if h.tushareDB != nil {
+		quote, err := h.tushareDB.FetchQuoteFromDB(ctx, code)
+		if err == nil && quote.Price > 0 {
+			h.quoteCache.Set(code, quote, 5*time.Second)
+			return quote, nil
+		}
+		h.logger.Warn("tushare quote failed, falling back to tencent", zap.String("code", code), zap.Error(err))
+	}
+
+	// Fallback to Tencent
 	quote, err := h.tencent.FetchQuote(ctx, code)
 	if err != nil {
 		return models.Quote{}, err
@@ -249,6 +261,19 @@ func (h *AnalyzeHandler) fetchSectors(ctx context.Context, code string) ([]model
 	if cached, ok := h.sectorsCache.Get(code); ok {
 		return cached, nil
 	}
+
+	// Try TushareDB first (industry from stock_basic)
+	if h.tushareDB != nil {
+		industry, err := h.tushareDB.FetchIndustryFromDB(ctx, code)
+		if err == nil && industry != "" {
+			sectors := []models.StockSector{{Name: industry}}
+			h.sectorsCache.Set(code, sectors, 600*time.Second)
+			return sectors, nil
+		}
+		h.logger.Warn("tushare industry failed, falling back to eastmoney", zap.String("code", code), zap.Error(err))
+	}
+
+	// Fallback to EastMoney
 	sectors, err := h.eastMoney.FetchStockSectors(ctx, code)
 	if err != nil {
 		return nil, err

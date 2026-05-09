@@ -418,6 +418,64 @@ func (s *TushareDB) LatestTradeDate(ctx context.Context) (string, error) {
 	return date, nil
 }
 
+// ==================== Quote from DB ====================
+
+// FetchQuoteFromDB constructs a Quote from the latest tushare_daily + tushare_daily_basic rows.
+// Returns the latest quote data purely from the local database — no external API calls.
+func (s *TushareDB) FetchQuoteFromDB(ctx context.Context, code string) (models.Quote, error) {
+	tsCode := ToTsCode(code)
+	query := `
+		SELECT d.trade_date, d.open, d.high, d.low, d.close, d.pre_close,
+		       d.change, d.pct_chg, d.vol, d.amount,
+		       b.pe_ttm, b.pb, b.total_mv, b.circ_mv,
+		       COALESCE(s.name, ''), COALESCE(s.industry, '')
+		FROM tushare_daily d
+		LEFT JOIN tushare_daily_basic b ON d.ts_code = b.ts_code AND d.trade_date = b.trade_date
+		LEFT JOIN tushare_stock_basic s ON d.ts_code = s.ts_code
+		WHERE d.ts_code = $1
+		ORDER BY d.trade_date DESC
+		LIMIT 1
+	`
+
+	var q models.Quote
+	var tradeDate string
+	var peTTM, pb, totalMV, circMV *float64
+
+	err := s.db.QueryRow(ctx, query, tsCode).Scan(
+		&tradeDate, &q.Open, &q.High, &q.Low, &q.Price, &q.PrevClose,
+		&q.Change, &q.ChangePercent, &q.Volume, &q.Turnover,
+		&peTTM, &pb, &totalMV, &circMV,
+		&q.Name, // reuse Name field; industry stored separately
+	)
+	if err != nil {
+		return models.Quote{}, fmt.Errorf("query quote from db: %w", err)
+	}
+
+	if peTTM != nil {
+		q.PE = *peTTM
+	}
+	if pb != nil {
+		q.PB = *pb
+	}
+	if totalMV != nil {
+		q.TotalMV = *totalMV
+	}
+	q.Code = StockCode6(code)
+	q.UpdatedAt = tradeDate
+
+	// Calculate amplitude
+	if q.PrevClose > 0 {
+		q.Amplitude = (q.High - q.Low) / q.PrevClose * 100
+	}
+
+	return q, nil
+}
+
+// FetchIndustryFromDB fetches industry from tushare_stock_basic (alias for FetchIndustry).
+func (s *TushareDB) FetchIndustryFromDB(ctx context.Context, code string) (string, error) {
+	return s.FetchIndustry(ctx, code)
+}
+
 // ==================== Adjusted K-line ====================
 
 // FetchAdjKline fetches forward-adjusted K-line data by joining daily with adj_factor.

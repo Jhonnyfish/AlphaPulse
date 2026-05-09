@@ -68,7 +68,7 @@ function scoreBg(score: number): string {
 
 /* ---- localStorage cache ---- */
 const CACHE_KEY = 'ranking_cache';
-const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
 
 interface RankingCache {
   items: RankingItem[];
@@ -113,7 +113,10 @@ export default function RankingPage() {
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [stockNews, setStockNews] = useState<Record<string, NewsItem[]>>({});
+  const [streaming, setStreaming] = useState(false);
+  const [streamProgress, setStreamProgress] = useState({ completed: 0, total: 0 });
 
+  // ── fetchData (fallback: full response) ────────────────────────────
   const fetchData = useCallback((silent = false) => {
     if (!silent && data.length === 0) setLoading(true);
     if (silent) setRefreshing(true);
@@ -126,6 +129,7 @@ export default function RankingPage() {
           setSummary(res.data.summary);
           setFetchedAt(res.data.fetched_at);
           setFromCache(false);
+          setStreaming(false);
           saveCache(res.data.items, res.data.summary, res.data.fetched_at);
         } else {
           if (!silent) setError(res.data.error || '加载排名数据失败');
@@ -134,6 +138,107 @@ export default function RankingPage() {
       .catch(() => { if (!silent) setError('加载排名数据失败，请稍后重试'); })
       .finally(() => { setLoading(false); setRefreshing(false); });
   }, [data.length]);
+
+  // ── fetchStream (progressive NDJSON) ──────────────────────────────
+  // Loads ranking progressively: basic info instant, analysis results streamed one-by-one.
+  // Falls back to the regular endpoint if streaming is unsupported or fails.
+  const fetchStream = useCallback(async () => {
+    setStreaming(true);
+    setStreamProgress({ completed: 0, total: 0 });
+    setError('');
+    const token = localStorage.getItem('token');
+
+    try {
+      const response = await fetch('/api/watchlist-ranking/stream', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (!response.ok || !response.body) {
+        setStreaming(false);
+        throw new Error('streaming not supported');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finalSummary: RankingSummary | null = null;
+      let finalFetchedAt = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const msg = JSON.parse(line);
+            switch (msg.type) {
+              case 'basic': {
+                const basicStocks = msg.stocks as Array<{ code: string; name: string }>;
+                setStreamProgress({ completed: 0, total: basicStocks.length });
+                // Show placeholders immediately — user sees the stock list right away
+                const placeholders: RankingItem[] = basicStocks.map((s, i) => ({
+                  code: s.code,
+                  name: s.name || s.code,
+                  overall_score: 0,
+                  overall_signal: '',
+                  dimension_scores: {},
+                  change_pct: 0,
+                  price: 0,
+                  strengths: [],
+                  risks: [],
+                  rank: i + 1,
+                }));
+                setData(placeholders);
+                setLoading(false);
+                break;
+              }
+              case 'result': {
+                const item = msg.item as RankingItem;
+                const info = msg as { completed: number; total: number };
+                setStreamProgress({ completed: info.completed, total: info.total });
+                // update the matching item in-place
+                setData((prev) => prev.map((d) => (d.code === item.code ? item : d)));
+                break;
+              }
+              case 'summary': {
+                finalSummary = msg.summary;
+                finalFetchedAt = msg.fetched_at;
+                break;
+              }
+              case 'error': {
+                setError(msg.message || '流式加载失败');
+                break;
+              }
+            }
+          } catch {
+            // skip malformed JSON lines
+          }
+        }
+      }
+
+      // Streaming complete — persist final state
+      setSummary(finalSummary);
+      setFetchedAt(finalFetchedAt);
+      setFromCache(false);
+      setStreaming(false);
+      // Save to cache using current data from state callback
+      setData((prev) => {
+        saveCache(prev, finalSummary, finalFetchedAt);
+        return prev;
+      });
+    } catch {
+      setStreaming(false);
+      setLoading(false);
+      // Fall back to the regular (non-streaming) endpoint
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     // Load cached data first for instant display
@@ -144,14 +249,15 @@ export default function RankingPage() {
       setFetchedAt(cached.fetched_at);
       setFromCache(true);
       setLoading(false);
-      // Refresh in background if stale
+      // Refresh in background if stale — use streaming
       if (isCacheStale(cached)) {
-        fetchData(true);
+        fetchStream().catch(() => fetchData(true));
       }
     } else {
-      fetchData();
+      // No cache — try streaming first
+      fetchStream().catch(() => fetchData());
     }
-  }, [fetchData]);
+  }, [fetchStream, fetchData]);
 
   /* ---- fetch news when a row is expanded ---- */
   useEffect(() => {
@@ -401,15 +507,51 @@ export default function RankingPage() {
               缓存
             </span>
           )}
+          {streaming && (
+            <span
+              className="text-xs px-2 py-0.5 rounded-full animate-pulse"
+              style={{ background: 'rgba(59,130,246,0.12)', color: '#3b82f6' }}
+            >
+              分析中 {streamProgress.completed}/{streamProgress.total}
+            </span>
+          )}
         </div>
         <button
           onClick={() => { localStorage.removeItem(CACHE_KEY); fetchData(true); }}
-          disabled={refreshing}
+          disabled={refreshing || streaming}
           className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
         >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} style={{ color: refreshing ? '#3b82f6' : 'var(--color-text-muted)' }} />
+          <RefreshCw className={`w-4 h-4 ${refreshing || streaming ? 'animate-spin' : ''}`} style={{ color: refreshing || streaming ? '#3b82f6' : 'var(--color-text-muted)' }} />
         </button>
       </div>
+
+      {/* Streaming progress bar */}
+      {streaming && (
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              正在逐只分析自选股...
+            </span>
+            <span className="text-xs font-mono" style={{ color: 'var(--color-accent)' }}>
+              {streamProgress.completed}/{streamProgress.total}
+            </span>
+          </div>
+          <div
+            className="h-1 rounded-full overflow-hidden"
+            style={{ background: 'var(--color-bg-hover)' }}
+          >
+            <div
+              className="h-full rounded-full transition-all duration-300"
+              style={{
+                width: streamProgress.total > 0
+                  ? `${(streamProgress.completed / streamProgress.total) * 100}%`
+                  : '0%',
+                background: 'var(--color-accent)',
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Summary cards */}
       {summary && (

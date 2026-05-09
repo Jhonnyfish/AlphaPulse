@@ -75,6 +75,25 @@ func (s *TushareSync) RunDaily(ctx context.Context) {
 	log.Printf("[tushare-sync] daily sync completed in %v", time.Since(start))
 }
 
+// GetWatchlistCodes returns all stock codes in the watchlist table.
+func (s *TushareSync) GetWatchlistCodes(ctx context.Context) ([]string, error) {
+	rows, err := s.db.Query(ctx, `SELECT code FROM watchlist ORDER BY added_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var codes []string
+	for rows.Next() {
+		var code string
+		if err := rows.Scan(&code); err != nil {
+			continue
+		}
+		codes = append(codes, code)
+	}
+	return codes, rows.Err()
+}
+
 // SyncStockBasic syncs the stock master list from Tushare.
 func (s *TushareSync) SyncStockBasic(ctx context.Context) error {
 	start := time.Now()

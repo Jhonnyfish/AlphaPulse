@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -50,6 +51,13 @@ func NewWatchlistAnalysisHandler(
 		sectorsCache: cache.New[SectorsResponse](),
 		rankingCache: cache.New[RankingResponse](),
 	}
+}
+
+// InvalidateRankingCache clears the ranking cache so the next request re-analyzes.
+// Called when the watchlist changes (add/remove/sync).
+func (h *WatchlistAnalysisHandler) InvalidateRankingCache() {
+	h.rankingCache.Delete("all")
+	h.log.Info("ranking cache invalidated due to watchlist change")
 }
 
 // ---- Heatmap ----
@@ -393,6 +401,186 @@ func (h *WatchlistAnalysisHandler) Ranking(c *gin.Context) {
 
 	h.rankingCache.Set("all", resp, 180*time.Second)
 	c.JSON(http.StatusOK, resp)
+}
+
+// streamMessage types for NDJSON streaming.
+type streamBasic struct {
+	Type   string        `json:"type"`
+	Stocks []streamStock `json:"stocks"`
+}
+type streamStock struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
+}
+type streamResult struct {
+	Type      string      `json:"type"`
+	Item      RankingItem `json:"item"`
+	Completed int         `json:"completed"`
+	Total     int         `json:"total"`
+}
+type streamSummary struct {
+	Type      string         `json:"type"`
+	Summary   RankingSummary `json:"summary"`
+	FetchedAt string         `json:"fetched_at"`
+}
+type streamError struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
+// RankingStream streams analysis results progressively as NDJSON.
+// GET /api/watchlist-ranking/stream
+func (h *WatchlistAnalysisHandler) RankingStream(c *gin.Context) {
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "streaming not supported"})
+		return
+	}
+
+	c.Writer.Header().Set("Content-Type", "application/x-ndjson")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Content-Type-Options", "nosniff")
+	c.Writer.WriteHeader(http.StatusOK)
+
+	writeLine := func(v interface{}) {
+		data, _ := json.Marshal(v)
+		c.Writer.Write(append(data, '\n'))
+		flusher.Flush()
+	}
+
+	// 1. Send basic stock info immediately
+	codes, err := h.loadWatchlistCodes(c.Request.Context())
+	if err != nil {
+		writeLine(streamError{Type: "error", Message: err.Error()})
+		return
+	}
+
+	if len(codes) == 0 {
+		writeLine(streamSummary{
+			Type:      "summary",
+			Summary:   RankingSummary{AvgScore: 0, Count: 0},
+			FetchedAt: time.Now().Format(time.RFC3339),
+		})
+		return
+	}
+
+	// Load names for basic info
+	stocks := make([]streamStock, len(codes))
+	for i, code := range codes {
+		stocks[i] = streamStock{Code: code, Name: code}
+	}
+	// Quick name lookup from DB
+	nameRows, nameErr := h.db.Query(c.Request.Context(),
+		`SELECT code, COALESCE(name, '') FROM watchlist`)
+	if nameErr == nil {
+		defer nameRows.Close()
+		nameMap := make(map[string]string)
+		for nameRows.Next() {
+			var cd, nm string
+			if nameRows.Scan(&cd, &nm) == nil {
+				nameMap[cd] = nm
+			}
+		}
+		for i := range stocks {
+			if nm, ok := nameMap[stocks[i].Code]; ok && nm != "" {
+				stocks[i].Name = nm
+			}
+		}
+	}
+
+	writeLine(streamBasic{Type: "basic", Stocks: stocks})
+
+	// 2. Analyze and stream results
+	total := len(codes)
+	type indexedResult struct {
+		idx  int
+		item RankingItem
+	}
+	resultCh := make(chan indexedResult, total)
+	sem := make(chan struct{}, 8)
+	var wg sync.WaitGroup
+
+	for i, code := range codes {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(idx int, cd string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			item := h.analyzeForRanking(c.Request.Context(), cd)
+			resultCh <- indexedResult{idx: idx, item: item}
+		}(i, code)
+	}
+
+	// Close channel when all goroutines finish
+	go func() {
+		wg.Wait()
+		close(resultCh)
+	}()
+
+	// Collect results and stream as they arrive
+	completed := 0
+	allItems := make([]RankingItem, total)
+	for r := range resultCh {
+		allItems[r.idx] = r.item
+		completed++
+		writeLine(streamResult{
+			Type:      "result",
+			Item:      r.item,
+			Completed: completed,
+			Total:     total,
+		})
+	}
+
+	// 3. Build and send summary
+	valid := make([]RankingItem, 0, total)
+	for _, item := range allItems {
+		if item.Error == "" {
+			valid = append(valid, item)
+		}
+	}
+	sort.Slice(valid, func(i, j int) bool {
+		return valid[i].OverallScore > valid[j].OverallScore
+	})
+	for i := range valid {
+		valid[i].Rank = i + 1
+	}
+
+	var avgScore float64
+	var best, worst *RankingBest
+	if len(valid) > 0 {
+		totalScore := 0
+		for _, item := range valid {
+			totalScore += item.OverallScore
+		}
+		avgScore = float64(totalScore) / float64(len(valid))
+		best = &RankingBest{Code: valid[0].Code, Name: valid[0].Name, Score: valid[0].OverallScore}
+		worst = &RankingBest{Code: valid[len(valid)-1].Code, Name: valid[len(valid)-1].Name, Score: valid[len(valid)-1].OverallScore}
+	}
+
+	// Cache the full result so the regular endpoint uses it
+	h.rankingCache.Set("all", RankingResponse{
+		OK:    true,
+		Items: valid,
+		Summary: RankingSummary{
+			AvgScore: avgScore,
+			Best:     best,
+			Worst:    worst,
+			Count:    len(valid),
+		},
+		FetchedAt: time.Now().Format(time.RFC3339),
+	}, 180*time.Second)
+
+	writeLine(streamSummary{
+		Type: "summary",
+		Summary: RankingSummary{
+			AvgScore: avgScore,
+			Best:     best,
+			Worst:    worst,
+			Count:    len(valid),
+		},
+		FetchedAt: time.Now().Format(time.RFC3339),
+	})
 }
 
 func (h *WatchlistAnalysisHandler) analyzeForRanking(ctx context.Context, code string) RankingItem {

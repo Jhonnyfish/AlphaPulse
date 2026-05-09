@@ -457,8 +457,9 @@ export default function WatchlistPage() {
       await watchlistApi.add(suggestion.code);
       await fetchWatchlist();
     } catch (err: unknown) {
+      console.error('watchlist add failed', { code: suggestion.code, err });
       const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
         '添加失败';
       setError(msg);
     } finally {
@@ -470,8 +471,12 @@ export default function WatchlistPage() {
     try {
       await watchlistApi.remove(code);
       await fetchWatchlist();
-    } catch {
-      setError('删除失败');
+    } catch (err: unknown) {
+      console.error('watchlist delete failed', { code, err });
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+        '删除失败';
+      setError(msg);
     }
   };
   // ─── Batch operations ──────────────────────────────────────────────────
@@ -507,11 +512,13 @@ export default function WatchlistPage() {
   const handleBatchDelete = async () => {
     setShowDeleteModal(false);
     const codes = selectedItems.map((i) => i.code);
-    try {
-      await Promise.allSettled(codes.map((c) => watchlistApi.remove(c)));
+    const results = await Promise.allSettled(codes.map((c) => watchlistApi.remove(c)));
+    const failed = results.filter((r) => r.status === 'rejected');
+    if (failed.length > 0) {
+      console.error('batch delete failures', failed.map((f, i) => ({ code: codes[i], reason: (f as PromiseRejectedResult).reason })));
+      setError(`${failed.length}/${codes.length} 只股票删除失败`);
+    } else {
       await fetchWatchlist();
-    } catch {
-      setError('批量删除部分失败');
     }
     setSelectedIds(new Set());
     setEditMode(false);
