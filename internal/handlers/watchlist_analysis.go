@@ -60,6 +60,86 @@ func (h *WatchlistAnalysisHandler) InvalidateRankingCache() {
 	h.log.Info("ranking cache invalidated due to watchlist change")
 }
 
+// PreComputeRanking computes the ranking and stores it in cache.
+// Intended to be called by the scheduler after daily data sync, so the
+// ranking page serves cached results instantly without user-triggered computation.
+func (h *WatchlistAnalysisHandler) PreComputeRanking() {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+
+	start := time.Now()
+	h.log.Info("pre-compute ranking: starting...")
+
+	codes, err := h.loadWatchlistCodes(ctx)
+	if err != nil {
+		h.log.Warn("pre-compute ranking: load watchlist failed", zap.Error(err))
+		return
+	}
+	if len(codes) == 0 {
+		h.log.Info("pre-compute ranking: empty watchlist, skip")
+		return
+	}
+
+	// Analyze each stock concurrently (limit to 8 workers)
+	items := make([]RankingItem, len(codes))
+	sem := make(chan struct{}, 8)
+	var wg sync.WaitGroup
+	for i, code := range codes {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(idx int, cd string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			items[idx] = h.analyzeForRanking(ctx, cd)
+		}(i, code)
+	}
+	wg.Wait()
+
+	// Sort by overall_score descending, filter out errors
+	valid := make([]RankingItem, 0, len(items))
+	for _, item := range items {
+		if item.Error == "" {
+			valid = append(valid, item)
+		}
+	}
+	sort.Slice(valid, func(i, j int) bool {
+		return valid[i].OverallScore > valid[j].OverallScore
+	})
+	for i := range valid {
+		valid[i].Rank = i + 1
+	}
+
+	// Build summary
+	var avgScore float64
+	var best, worst *RankingBest
+	if len(valid) > 0 {
+		total := 0
+		for _, item := range valid {
+			total += item.OverallScore
+		}
+		avgScore = float64(total) / float64(len(valid))
+		best = &RankingBest{Code: valid[0].Code, Name: valid[0].Name, Score: valid[0].OverallScore}
+		worst = &RankingBest{Code: valid[len(valid)-1].Code, Name: valid[len(valid)-1].Name, Score: valid[len(valid)-1].OverallScore}
+	}
+
+	resp := RankingResponse{
+		OK:    true,
+		Items: valid,
+		Summary: RankingSummary{
+			AvgScore: avgScore,
+			Best:     best,
+			Worst:    worst,
+			Count:    len(valid),
+		},
+		FetchedAt: time.Now().Format(time.RFC3339),
+	}
+
+	h.rankingCache.Set("all", resp, 12*time.Hour)
+	h.log.Info("pre-compute ranking: done",
+		zap.Int("stocks", len(valid)),
+		zap.Duration("elapsed", time.Since(start)))
+}
+
 // ---- Heatmap ----
 
 // HeatmapItem is a single stock in the heatmap view.

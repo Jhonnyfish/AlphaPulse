@@ -409,6 +409,10 @@ func main() {
 			}
 			log.Printf("[scheduler] watchlist news sync done for %d stocks", len(codes))
 		})
+		// Pre-compute ranking at 16:15 so users see results instantly
+		scheduler.AddDailyJob("ranking-precompute", 16, 15, func() {
+			watchlistAnalysisHandler.PreComputeRanking()
+		})
 	scheduler.AddDailyJob("news-cleanup", 3, 0, func() {
 		log.Println("[scheduler] cleaning up old news data...")
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -442,6 +446,16 @@ func main() {
 			log.Fatalf("listen and serve: %v", err)
 		}
 	}()
+
+	// Pre-compute ranking on startup if Tushare data is available
+	if tushareDB != nil {
+		go func() {
+			if tushareDB.HasData(context.Background()) {
+				log.Println("[startup] pre-computing ranking from TushareDB...")
+				watchlistAnalysisHandler.PreComputeRanking()
+			}
+		}()
+	}
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
