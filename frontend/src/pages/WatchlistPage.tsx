@@ -991,21 +991,20 @@ export default function WatchlistPage() {
               setError('添加失败');
             }
           }}
-          </div>
-        </div>
-      </DndContext>
-    );
-  }
-}
+        />
 
-<style>{`
-  /* 隐藏滚动条但保留滚动功能 */
-  .hidden-scrollbar {
-    overflow-x: auto;
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE/Edge */
-  }
-  .hidden-scrollbar::-webkit-scrollbar {
-    display: none; /* Chrome/Safari */
-  }
-`}</style>
+        <style>{`
+          /* 隐藏滚动条但保留滚动功能 */
+          .hidden-scrollbar {
+            overflow-x: auto;
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE/Edge */
+          }
+          .hidden-scrollbar::-webkit-scrollbar {
+            display: none; /* Chrome/Safari */
+          }
+        `}</style>
+      </div>
+    </DndContext>
+  );
+}
