@@ -685,6 +685,10 @@ func (h *WatchlistAnalysisHandler) analyzeForRanking(ctx context.Context, code s
 	dimScores["technical"] = scoreDimensionTech(analysis.Technical)
 	dimScores["sector"] = scoreDimension(analysis.Sector.Verdict, analysis.Sector.IsSectorLeader)
 	dimScores["sentiment"] = scoreDimension(analysis.Sentiment.Verdict, analysis.Sentiment.SentimentScore > 0)
+	// P0 dimensions
+	dimScores["fundamentals"] = scoreDimensionFundamentals(analysis.Fundamentals)
+	dimScores["northbound"] = scoreDimensionNorthbound(analysis.Northbound)
+	dimScores["margin"] = scoreDimensionMargin(analysis.MarginDetail)
 
 	return RankingItem{
 		Code:            services.StockCode6(code),
@@ -878,6 +882,45 @@ func clampScoreRank(v float64) float64 {
 		return 0
 	}
 	return v
+}
+
+// P0 dimension scoring functions
+
+func scoreDimensionFundamentals(fund models.FundamentalsAnalysis) float64 {
+	if fund.Score == 0 && fund.Verdict == "暂无财务数据" {
+		return 50 // neutral when no data
+	}
+	return clampScoreRank(float64(fund.Score))
+}
+
+func scoreDimensionNorthbound(nb models.NorthboundAnalysis) float64 {
+	switch nb.Signal {
+	case "北向大幅买入":
+		return 85
+	case "北向小幅买入":
+		return 65
+	case "北向大幅卖出":
+		return 15
+	case "北向小幅卖出":
+		return 35
+	default:
+		return 50
+	}
+}
+
+func scoreDimensionMargin(mg models.MarginAnalysis) float64 {
+	switch mg.Signal {
+	case "融资看多":
+		return 75
+	case "融资偏多":
+		return 60
+	case "融资看空":
+		return 25
+	case "融资偏空":
+		return 40
+	default:
+		return 50
+	}
 }
 
 // safeStrings returns an empty slice instead of nil.

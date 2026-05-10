@@ -19,6 +19,9 @@ const DIM_LABELS: Record<string, string> = {
   technical: '技术面',
   sector: '板块',
   sentiment: '情绪',
+  fundamentals: '基本面',
+  northbound: '北向',
+  margin: '融资',
 };
 
 const DIMENSIONS = Object.keys(DIM_LABELS);
