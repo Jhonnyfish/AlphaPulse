@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"alphapulse/internal/models"
 )
@@ -697,6 +698,75 @@ func AnalyzeTechnical(klines []models.KlinePoint) models.TechnicalAnalysis {
 		}
 	}
 
+	// Weekly multi-period analysis
+	weeklyKlines := AggregateToWeekly(klines)
+	var weeklyMACD, weeklyMA, weeklyRSILevel, periodAlign string
+	var weeklyRSI float64
+	if len(weeklyKlines) >= 10 {
+		var wCloses []float64
+		for _, wk := range weeklyKlines {
+			if wk.Close > 0 {
+				wCloses = append(wCloses, wk.Close)
+			}
+		}
+		if len(wCloses) >= 10 {
+			wMACD := CalculateMACD(wCloses)
+			weeklyRSI = CalculateRSI(wCloses, 14)
+
+			// Weekly MACD signal
+			if wMACD.DIF > wMACD.DEA && wMACD.Hist > 0 {
+				weeklyMACD = "多头"
+			} else if wMACD.DIF < wMACD.DEA && wMACD.Hist < 0 {
+				weeklyMACD = "空头"
+			} else {
+				weeklyMACD = "中性"
+			}
+
+			// Weekly RSI level
+			switch {
+			case weeklyRSI > 70:
+				weeklyRSILevel = "超买"
+			case weeklyRSI > 55:
+				weeklyRSILevel = "中性偏强"
+			case weeklyRSI > 45:
+				weeklyRSILevel = "中性"
+			case weeklyRSI > 30:
+				weeklyRSILevel = "中性偏弱"
+			default:
+				weeklyRSILevel = "超卖"
+			}
+
+			// Weekly MA trend
+			wMA5 := MovingAverage(wCloses, 5)
+			wMA10 := MovingAverage(wCloses, 10)
+			if wMA5 > wMA10 {
+				weeklyMA = "周线多头"
+			} else if wMA5 < wMA10 {
+				weeklyMA = "周线空头"
+			} else {
+				weeklyMA = "周线震荡"
+			}
+
+			// Period alignment (日周共振判断)
+			dailyBullish := macd.Signal == "金叉" || macd.Signal == "多头"
+			weeklyBullish := weeklyMACD == "多头"
+			dailyBearish := macd.Signal == "死叉" || macd.Signal == "空头"
+			weeklyBearish := weeklyMACD == "空头"
+
+			if dailyBullish && weeklyBullish {
+				periodAlign = "日周共振看多"
+			} else if dailyBearish && weeklyBearish {
+				periodAlign = "日周共振看空"
+			} else if dailyBullish && weeklyBearish {
+				periodAlign = "日强周弱"
+			} else if dailyBearish && weeklyBullish {
+				periodAlign = "日弱周强"
+			} else {
+				periodAlign = "日周方向一致"
+			}
+		}
+	}
+
 	return models.TechnicalAnalysis{
 		MA5:            round2(ma5),
 		MA10:           round2(ma10),
@@ -722,8 +792,86 @@ func AnalyzeTechnical(klines []models.KlinePoint) models.TechnicalAnalysis {
 		BollLower:      boll.Lower,
 		BollBandwidth:  boll.Bandwidth,
 		BollPosition:   bollPosition,
+		// Weekly multi-period confirmation
+		WeeklyMACD:     weeklyMACD,
+		WeeklyRSI:      round2(weeklyRSI),
+		WeeklyRSILevel: weeklyRSILevel,
+		WeeklyMA:       weeklyMA,
+		PeriodAlign:    periodAlign,
 		Verdict:        verdict,
 	}
+}
+
+// AggregateToWeekly converts daily K-lines to weekly K-lines.
+func AggregateToWeekly(klines []models.KlinePoint) []models.KlinePoint {
+	if len(klines) == 0 {
+		return nil
+	}
+	var weekly []models.KlinePoint
+	var weekOpen, weekHigh, weekLow, weekVol float64
+	var weekClose float64
+	var weekDate string
+	weekStarted := false
+
+	for _, k := range klines {
+		if k.Date == "" || k.Close <= 0 {
+			continue
+		}
+		// Parse date to determine week (YYYY-MM-DD format)
+		yearWeek := k.Date[:4] // simplified: group by year prefix for now
+		if len(k.Date) >= 8 {
+			// Use year + week number approximation
+			t, err := time.Parse("2006-01-02", k.Date)
+			if err == nil {
+				year, week := t.ISOWeek()
+				yearWeek = fmt.Sprintf("%d-W%02d", year, week)
+			}
+		}
+
+		if !weekStarted || yearWeek != weekDate {
+			// Save previous week
+			if weekStarted {
+				weekly = append(weekly, models.KlinePoint{
+					Date:   weekDate,
+					Open:   weekOpen,
+					High:   weekHigh,
+					Low:    weekLow,
+					Close:  weekClose,
+					Volume: weekVol,
+				})
+			}
+			// Start new week
+			weekDate = yearWeek
+			weekOpen = k.Open
+			weekHigh = k.High
+			weekLow = k.Low
+			weekClose = k.Close
+			weekVol = k.Volume
+			weekStarted = true
+		} else {
+			// Accumulate within the week
+			if k.High > weekHigh {
+				weekHigh = k.High
+			}
+			if k.Low < weekLow {
+				weekLow = k.Low
+			}
+			weekClose = k.Close
+			weekVol += k.Volume
+		}
+	}
+	// Save last week
+	if weekStarted {
+		weekly = append(weekly, models.KlinePoint{
+			Date:   weekDate,
+			Open:   weekOpen,
+			High:   weekHigh,
+			Low:    weekLow,
+			Close:  weekClose,
+			Volume: weekVol,
+		})
+	}
+	return weekly
 }
 
 func AnalyzeSector(quote models.Quote, sectors []string) models.SectorAnalysis {
@@ -1205,6 +1353,19 @@ func BuildSummary(a *models.StockAnalysis) models.AnalysisSummary {
 	} else if tech.MACD_Signal == "死叉" {
 		score -= 5
 		risks = append(risks, "MACD死叉")
+	}
+	// Multi-period alignment
+	switch tech.PeriodAlign {
+	case "日周共振看多":
+		score += 8
+		strengths = append(strengths, "日周共振看多")
+	case "日周共振看空":
+		score -= 8
+		risks = append(risks, "日周共振看空")
+	case "日强周弱":
+		score += 2
+	case "日弱周强":
+		score -= 2
 	}
 
 	// Sector

@@ -159,6 +159,12 @@ type TechnicalAnalysis struct {
 	BollLower      float64   `json:"boll_lower"`
 	BollBandwidth  float64   `json:"boll_bandwidth"`
 	BollPosition   string    `json:"boll_position"`
+	// Multi-period confirmation (weekly)
+	WeeklyMACD     string    `json:"weekly_macd"`
+	WeeklyRSI      float64   `json:"weekly_rsi"`
+	WeeklyRSILevel string    `json:"weekly_rsi_level"`
+	WeeklyMA       string    `json:"weekly_ma"`
+	PeriodAlign    string    `json:"period_align"` // 日周共振/日强周弱/日弱周强/日周背离
 	Verdict        string    `json:"verdict"`
 }
 
