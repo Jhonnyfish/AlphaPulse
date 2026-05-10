@@ -307,7 +307,7 @@ func (s *TushareSync) SyncMoneyFlow(ctx context.Context, tradeDate string) error
 		if i > 0 {
 			batch.WriteString(",")
 		}
-		batch.WriteString(fmt.Sprintf("('%s','%s',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+		batch.WriteString(fmt.Sprintf("('%s','%s',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
 			r.TsCode, r.TradeDate,
 			int64Str(r.BuySmVol), floatStr(r.BuySmAmount), int64Str(r.SellSmVol), floatStr(r.SellSmAmount),
 			int64Str(r.BuyMdVol), floatStr(r.BuyMdAmount), int64Str(r.SellMdVol), floatStr(r.SellMdAmount),
@@ -535,6 +535,9 @@ func (s *TushareSync) RunBackfill(ctx context.Context, startDate, endDate string
 		}
 		if err := s.SyncDailyBasic(ctx, tradeDate); err != nil {
 			log.Printf("[tushare-backfill] daily_basic failed for %s: %v", tradeDate, err)
+		}
+		if err := s.SyncMoneyFlow(ctx, tradeDate); err != nil {
+			log.Printf("[tushare-backfill] moneyflow failed for %s: %v", tradeDate, err)
 		}
 		if err := s.SyncAdjFactor(ctx, tradeDate); err != nil {
 			log.Printf("[tushare-backfill] adj_factor failed for %s: %v", tradeDate, err)
