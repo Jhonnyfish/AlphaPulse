@@ -836,6 +836,282 @@ func containsAny(s string, words []string) bool {
 	return false
 }
 
+// ==================== P0 Analysis Functions ====================
+
+// AnalyzeFundamentals evaluates financial health from financial statement data.
+func AnalyzeFundamentals(financials []FinancialData) models.FundamentalsAnalysis {
+	a := models.FundamentalsAnalysis{}
+	if len(financials) == 0 {
+		a.Verdict = "暂无财务数据"
+		return a
+	}
+
+	latest := financials[0]
+	a.ROE = latest.ROE
+	a.GrossMargin = latest.GrossMargin
+	a.NetMargin = latest.NetMargin
+	a.DebtRatio = latest.DebtRatio
+	// EPS not in struct, skip
+
+	// ROE level
+	switch {
+	case latest.ROE > 15:
+		a.ROELevel = "优秀"
+	case latest.ROE > 10:
+		a.ROELevel = "良好"
+	case latest.ROE > 5:
+		a.ROELevel = "一般"
+	default:
+		a.ROELevel = "较差"
+	}
+
+	// Gross margin level
+	switch {
+	case latest.GrossMargin > 40:
+		a.GrossMarginLevel = "高毛利"
+	case latest.GrossMargin > 25:
+		a.GrossMarginLevel = "中毛利"
+	default:
+		a.GrossMarginLevel = "低毛利"
+	}
+
+	// Net margin level
+	switch {
+	case latest.NetMargin > 15:
+		a.NetMarginLevel = "高净利"
+	case latest.NetMargin > 8:
+		a.NetMarginLevel = "中净利"
+	default:
+		a.NetMarginLevel = "低净利"
+	}
+
+	// Debt ratio level
+	switch {
+	case latest.DebtRatio < 40:
+		a.DebtRatioLevel = "低负债"
+	case latest.DebtRatio < 60:
+		a.DebtRatioLevel = "中等负债"
+	default:
+		a.DebtRatioLevel = "高负债"
+	}
+
+	// Revenue growth
+	a.RevenueGrowth = latest.RevenueYoY
+	switch {
+	case latest.RevenueYoY > 20:
+		a.RevenueGrowthLevel = "高增长"
+	case latest.RevenueYoY > 10:
+		a.RevenueGrowthLevel = "中增长"
+	case latest.RevenueYoY > 0:
+		a.RevenueGrowthLevel = "低增长"
+	default:
+		a.RevenueGrowthLevel = "负增长"
+	}
+
+	// Net profit growth
+	a.NetProfitGrowth = latest.NetProfitYoY
+	switch {
+	case latest.NetProfitYoY > 20:
+		a.NetProfitGrowthLevel = "高增长"
+	case latest.NetProfitYoY > 10:
+		a.NetProfitGrowthLevel = "中增长"
+	case latest.NetProfitYoY > 0:
+		a.NetProfitGrowthLevel = "低增长"
+	default:
+		a.NetProfitGrowthLevel = "负增长"
+	}
+
+	// EPS trend (compare latest 2 periods)
+	if len(financials) >= 2 {
+		prev := financials[1]
+		if latest.EPS > prev.EPS*1.05 {
+			a.EPSTrend = "上升"
+		} else if latest.EPS < prev.EPS*0.95 {
+			a.EPSTrend = "下降"
+		} else {
+			a.EPSTrend = "平稳"
+		}
+	} else {
+		a.EPSTrend = "数据不足"
+	}
+
+	// Overall score (0-100)
+	score := 50
+	if latest.ROE > 15 { score += 15 } else if latest.ROE > 10 { score += 10 } else if latest.ROE > 5 { score += 5 } else { score -= 10 }
+	if latest.GrossMargin > 40 { score += 10 } else if latest.GrossMargin > 25 { score += 5 } else { score -= 5 }
+	if latest.NetMargin > 15 { score += 10 } else if latest.NetMargin > 8 { score += 5 } else { score -= 5 }
+	if latest.DebtRatio < 40 { score += 5 } else if latest.DebtRatio < 60 { score += 0 } else { score -= 10 }
+	if latest.RevenueYoY > 20 { score += 10 } else if latest.RevenueYoY > 10 { score += 5 } else if latest.RevenueYoY < 0 { score -= 10 }
+	if latest.NetProfitYoY > 20 { score += 10 } else if latest.NetProfitYoY > 10 { score += 5 } else if latest.NetProfitYoY < 0 { score -= 10 }
+	if a.EPSTrend == "上升" { score += 5 } else if a.EPSTrend == "下降" { score -= 5 }
+	if score > 100 { score = 100 }
+	if score < 0 { score = 0 }
+	a.Score = score
+
+	// Verdict
+	switch {
+	case score >= 75:
+		a.Verdict = "基本面优秀，盈利能力强，成长性好"
+	case score >= 60:
+		a.Verdict = "基本面良好，整体稳健"
+	case score >= 40:
+		a.Verdict = "基本面一般，有改善空间"
+	default:
+		a.Verdict = "基本面较弱，需关注风险"
+	}
+	return a
+}
+
+// AnalyzeNorthbound evaluates northbound capital flow signals.
+func AnalyzeNorthbound(hsgtData []HsgtData, top10Data []HsgtTop10Data) models.NorthboundAnalysis {
+	a := models.NorthboundAnalysis{}
+
+	// Market-level northbound flow
+	if len(hsgtData) > 0 {
+		a.LatestNetFlow = hsgtData[0].NorthMoney
+		// 5-day trend
+		limit := 5
+		if len(hsgtData) < limit { limit = len(hsgtData) }
+		sum := 0.0
+		for i := 0; i < limit; i++ { sum += hsgtData[i].NorthMoney }
+		a.Trend5D = sum
+
+		if sum > 100 {
+			a.FlowDirection = "持续流入"
+		} else if sum < -100 {
+			a.FlowDirection = "持续流出"
+		} else if sum > 0 {
+			a.FlowDirection = "小幅流入"
+		} else if sum < 0 {
+			a.FlowDirection = "小幅流出"
+		} else {
+			a.FlowDirection = "持平"
+		}
+	} else {
+		a.FlowDirection = "无数据"
+	}
+
+	// Stock-level northbound activity
+	if len(top10Data) > 0 {
+		totalNet := 0.0
+		for _, d := range top10Data { totalNet += d.NetAmount }
+		a.StockNetAmount = totalNet
+
+		if totalNet > 5000 {
+			a.StockAction = "大幅买入"
+			a.Signal = "北向大幅买入"
+		} else if totalNet > 1000 {
+			a.StockAction = "小幅买入"
+			a.Signal = "北向小幅买入"
+		} else if totalNet < -5000 {
+			a.StockAction = "大幅卖出"
+			a.Signal = "北向大幅卖出"
+		} else if totalNet < -1000 {
+			a.StockAction = "小幅卖出"
+			a.Signal = "北向小幅卖出"
+		} else {
+			a.StockAction = "无明显方向"
+			a.Signal = "无明显信号"
+		}
+	} else {
+		a.StockAction = "未进入十大成交"
+		a.Signal = "无明显信号"
+	}
+
+	// Verdict
+	switch a.Signal {
+	case "北向大幅买入":
+		a.Verdict = "北向资金大幅买入，外资看好"
+	case "北向小幅买入":
+		a.Verdict = "北向资金小幅流入，偏正面"
+	case "北向大幅卖出":
+		a.Verdict = "北向资金大幅卖出，需警惕"
+	case "北向小幅卖出":
+		a.Verdict = "北向资金小幅流出，偏负面"
+	default:
+		a.Verdict = "北向资金无明显信号"
+	}
+	return a
+}
+
+// AnalyzeMarginDetail evaluates margin trading signals for a stock.
+func AnalyzeMarginDetail(marginData []MarginDetailData) models.MarginAnalysis {
+	a := models.MarginAnalysis{}
+	if len(marginData) == 0 {
+		a.Verdict = "暂无融资融券数据"
+		return a
+	}
+
+	latest := marginData[0]
+	a.LatestMarginBalance = latest.Rzye
+
+	// Trend analysis (compare latest vs 5 days ago)
+	if len(marginData) >= 5 {
+		old := marginData[4]
+		if latest.Rzye > old.Rzye*1.02 {
+			a.MarginBalanceTrend = "融资余额增加"
+		} else if latest.Rzye < old.Rzye*0.98 {
+			a.MarginBalanceTrend = "融资余额减少"
+		} else {
+			a.MarginBalanceTrend = "融资余额平稳"
+		}
+
+		// Margin buying trend
+		avgBuy := 0.0
+		for i, d := range marginData {
+			if i >= 5 { break }
+			avgBuy += d.Rzmre
+		}
+		avgBuy /= float64(len(marginData))
+		if latest.Rzmre > avgBuy*1.2 {
+			a.MarginBuyingTrend = "融资买入活跃"
+		} else if latest.Rzmre < avgBuy*0.8 {
+			a.MarginBuyingTrend = "融资买入萎缩"
+		} else {
+			a.MarginBuyingTrend = "融资买入正常"
+		}
+
+		// Short selling trend
+		if latest.Rqye > old.Rqye*1.1 {
+			a.ShortSellingTrend = "融券余额增加"
+		} else if latest.Rqye < old.Rqye*0.9 {
+			a.ShortSellingTrend = "融券余额减少"
+		} else {
+			a.ShortSellingTrend = "融券余额平稳"
+		}
+	} else {
+		a.MarginBalanceTrend = "数据不足"
+		a.MarginBuyingTrend = "数据不足"
+		a.ShortSellingTrend = "数据不足"
+	}
+
+	// Signal
+	score := 0.0
+	if a.MarginBalanceTrend == "融资余额增加" { score += 0.3 } else if a.MarginBalanceTrend == "融资余额减少" { score -= 0.3 }
+	if a.MarginBuyingTrend == "融资买入活跃" { score += 0.2 } else if a.MarginBuyingTrend == "融资买入萎缩" { score -= 0.2 }
+	if a.ShortSellingTrend == "融券余额增加" { score -= 0.2 } else if a.ShortSellingTrend == "融券余额减少" { score += 0.1 }
+	a.SentimentScore = score
+
+	switch {
+	case score > 0.3:
+		a.Signal = "融资看多"
+		a.Verdict = "融资余额增加、买入活跃，杠杆资金看多"
+	case score > 0:
+		a.Signal = "融资偏多"
+		a.Verdict = "融资端偏正面"
+	case score < -0.3:
+		a.Signal = "融资看空"
+		a.Verdict = "融资余额减少或融券增加，杠杆资金看空"
+	case score < 0:
+		a.Signal = "融资偏空"
+		a.Verdict = "融资端偏负面"
+	default:
+		a.Signal = "中性"
+		a.Verdict = "融资融券无明显信号"
+	}
+	return a
+}
+
 func BuildSummary(a *models.StockAnalysis) models.AnalysisSummary {
 	score := 50
 	var strengths, risks []string
@@ -927,6 +1203,60 @@ func BuildSummary(a *models.StockAnalysis) models.AnalysisSummary {
 		} else {
 			risks = append(risks, "消息面负面")
 		}
+	}
+
+	// Fundamentals (P0)
+	fund := a.Fundamentals
+	if fund.Score >= 75 {
+		score += 10
+		strengths = append(strengths, "基本面优秀")
+	} else if fund.Score >= 60 {
+		score += 5
+		strengths = append(strengths, "基本面良好")
+	} else if fund.Score < 40 && fund.Score > 0 {
+		score -= 8
+		risks = append(risks, "基本面较弱")
+	}
+	if fund.RevenueGrowth > 20 {
+		strengths = append(strengths, "营收高增长")
+	}
+	if fund.NetProfitGrowth < 0 && fund.NetProfitGrowth != 0 {
+		risks = append(risks, "净利润负增长")
+	}
+
+	// Northbound (P0)
+	nb := a.Northbound
+	if nb.Signal == "北向大幅买入" {
+		score += 8
+		strengths = append(strengths, "北向资金大幅买入")
+	} else if nb.Signal == "北向小幅买入" {
+		score += 4
+	} else if nb.Signal == "北向大幅卖出" {
+		score -= 8
+		risks = append(risks, "北向资金大幅卖出")
+	} else if nb.Signal == "北向小幅卖出" {
+		score -= 4
+	}
+	if nb.FlowDirection == "持续流入" {
+		score += 3
+		strengths = append(strengths, "北向资金持续流入")
+	} else if nb.FlowDirection == "持续流出" {
+		score -= 3
+		risks = append(risks, "北向资金持续流出")
+	}
+
+	// Margin (P0)
+	mg := a.MarginDetail
+	if mg.Signal == "融资看多" {
+		score += 5
+		strengths = append(strengths, "融资余额增加")
+	} else if mg.Signal == "融资偏多" {
+		score += 2
+	} else if mg.Signal == "融资看空" {
+		score -= 5
+		risks = append(risks, "融资余额减少")
+	} else if mg.Signal == "融资偏空" {
+		score -= 2
 	}
 
 	if score < 0 {

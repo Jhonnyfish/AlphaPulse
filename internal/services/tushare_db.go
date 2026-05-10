@@ -21,28 +21,76 @@ type DailyBasicData struct {
 	DVRatio float64 `json:"dv_ratio"`
 }
 
+// FinancialData holds fundamental financial data from Tushare local DB.
+type FinancialData struct {
+	EndDate      string  `json:"end_date"`
+	AnnDate      string  `json:"ann_date"`
+	ROE          float64 `json:"roe"`
+	ROA          float64 `json:"roa"`
+	GrossMargin  float64 `json:"gross_margin"`
+	NetMargin    float64 `json:"net_margin"`
+	EPS          float64 `json:"eps"`
+	BPS          float64 `json:"bps"`
+	DebtRatio    float64 `json:"debt_ratio"`
+	RevenueYoY   float64 `json:"revenue_yoy"`
+	NetProfitYoY float64 `json:"n_income_yoy"`
+}
+
+// HsgtData holds Hong Kong – mainland Stock Connect flow data.
+type HsgtData struct {
+	TradeDate  string  `json:"trade_date"`
+	NorthMoney float64 `json:"north_money"`
+	SouthMoney float64 `json:"south_money"`
+}
+
+// HsgtTop10Data holds per-stock HSGT top-10 trading data.
+type HsgtTop10Data struct {
+	TradeDate string  `json:"trade_date"`
+	NetAmount float64 `json:"net_amount"`
+	BuyAmount float64 `json:"buy_amount"`
+	SellAmount float64 `json:"sell_amount"`
+}
+
+// MarginDetailData holds per-stock margin detail data.
+type MarginDetailData struct {
+	TradeDate string  `json:"trade_date"`
+	Rzye      float64 `json:"rzye"`
+	Rzmre     float64 `json:"rzmre"`
+	Rzche     float64 `json:"rzche"`
+	Rqye      float64 `json:"rqye"`
+	Rzrqye    float64 `json:"rzrqye"`
+}
+
 // TushareDB provides read-only access to local Tushare data tables.
 type TushareDB struct {
 	db     *pgxpool.Pool
 	logger *zap.Logger
 
-	klineCache    *cache.Cache[[]models.KlinePoint]
-	basicCache    *cache.Cache[DailyBasicData]
-	flowCache     *cache.Cache[[]models.MoneyFlowDay]
-	industryCache *cache.Cache[string]
-	nameCache     *cache.Cache[string]
+	klineCache       *cache.Cache[[]models.KlinePoint]
+	basicCache       *cache.Cache[DailyBasicData]
+	flowCache        *cache.Cache[[]models.MoneyFlowDay]
+	industryCache    *cache.Cache[string]
+	nameCache        *cache.Cache[string]
+	financialsCache  *cache.Cache[[]FinancialData]
+	hsgtCache        *cache.Cache[[]HsgtData]
+	hsgtTop10Cache   *cache.Cache[[]HsgtTop10Data]
+	marginDetailCache *cache.Cache[[]MarginDetailData]
 }
 
 // NewTushareDB creates a new TushareDB service.
 func NewTushareDB(db *pgxpool.Pool, log *zap.Logger) *TushareDB {
 	return &TushareDB{
-		db:            db,
-		logger:        log,
-		klineCache:    cache.New[[]models.KlinePoint](),
-		basicCache:    cache.New[DailyBasicData](),
-		flowCache:     cache.New[[]models.MoneyFlowDay](),
-		industryCache: cache.New[string](),
-		nameCache:     cache.New[string](),
+		db:                 db,
+		logger:             log,
+		klineCache:         cache.New[[]models.KlinePoint](),
+		basicCache:         cache.New[DailyBasicData](),
+		flowCache:          cache.New[[]models.MoneyFlowDay](),
+		industryCache:      cache.New[string](),
+		nameCache:          cache.New[string](),
+		financialsCache:    cache.New[[]FinancialData](),
+		hsgtCache:          cache.New[[]HsgtData](),
+		hsgtTop10Cache:     cache.New[[]HsgtTop10Data](),
+		marginDetailCache:  cache.New[[]MarginDetailData](),
 	}
 }
 
@@ -544,4 +592,183 @@ func (s *TushareDB) FetchAdjKline(ctx context.Context, code string, days int) ([
 
 	s.klineCache.Set(cacheKey, klines, 5*time.Minute)
 	return klines, nil
+}
+
+// ==================== Financials ====================
+
+// FetchFinancials fetches fundamental financial data from local Tushare tables.
+func (s *TushareDB) FetchFinancials(ctx context.Context, code string, limit int) ([]FinancialData, error) {
+	tsCode := ToTsCode(code)
+	cacheKey := fmt.Sprintf("financials:%s:%d", tsCode, limit)
+
+	if cached, ok := s.financialsCache.Get(cacheKey); ok {
+		return cached, nil
+	}
+
+	query := `
+		SELECT end_date, ann_date, roe, roa, gross_margin, net_margin,
+		       diluted_eps, bps, debt_ratio, revenue_yoy, n_income_yoy
+		FROM tushare_financials
+		WHERE ts_code = $1
+		ORDER BY end_date DESC
+		LIMIT $2
+	`
+
+	rows, err := s.db.Query(ctx, query, tsCode, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query tushare_financials: %w", err)
+	}
+	defer rows.Close()
+
+	var items []FinancialData
+	for rows.Next() {
+		var f FinancialData
+		var endDate, annDate string
+		if err := rows.Scan(&endDate, &annDate, &f.ROE, &f.ROA, &f.GrossMargin,
+			&f.NetMargin, &f.EPS, &f.BPS, &f.DebtRatio, &f.RevenueYoY, &f.NetProfitYoY); err != nil {
+			s.logger.Warn("scan financials", zap.Error(err))
+			continue
+		}
+		f.EndDate = FormatDate(endDate)
+		f.AnnDate = FormatDate(annDate)
+		items = append(items, f)
+	}
+
+	if len(items) == 0 {
+		return nil, fmt.Errorf("no financials data for %s", code)
+	}
+
+	s.financialsCache.Set(cacheKey, items, 30*time.Minute)
+	return items, nil
+}
+
+// ==================== HSGT (Stock Connect) ====================
+
+// FetchHsgtHistory fetches market-level north/south bound money flow data.
+func (s *TushareDB) FetchHsgtHistory(ctx context.Context, days int) ([]HsgtData, error) {
+	cacheKey := fmt.Sprintf("hsgt:%d", days)
+
+	if cached, ok := s.hsgtCache.Get(cacheKey); ok {
+		return cached, nil
+	}
+
+	query := `
+		SELECT trade_date, north_money, south_money
+		FROM tushare_hsgt
+		ORDER BY trade_date DESC
+		LIMIT $1
+	`
+
+	rows, err := s.db.Query(ctx, query, days)
+	if err != nil {
+		return nil, fmt.Errorf("query tushare_hsgt: %w", err)
+	}
+	defer rows.Close()
+
+	var items []HsgtData
+	for rows.Next() {
+		var h HsgtData
+		var tradeDate string
+		if err := rows.Scan(&tradeDate, &h.NorthMoney, &h.SouthMoney); err != nil {
+			s.logger.Warn("scan hsgt", zap.Error(err))
+			continue
+		}
+		h.TradeDate = FormatDate(tradeDate)
+		items = append(items, h)
+	}
+
+	if len(items) == 0 {
+		return nil, fmt.Errorf("no hsgt data found")
+	}
+
+	s.hsgtCache.Set(cacheKey, items, 10*time.Minute)
+	return items, nil
+}
+
+// FetchHsgtTop10ByCode fetches per-stock HSGT top-10 trading data.
+func (s *TushareDB) FetchHsgtTop10ByCode(ctx context.Context, code string, limit int) ([]HsgtTop10Data, error) {
+	tsCode := ToTsCode(code)
+	cacheKey := fmt.Sprintf("hsgt_top10:%s:%d", tsCode, limit)
+
+	if cached, ok := s.hsgtTop10Cache.Get(cacheKey); ok {
+		return cached, nil
+	}
+
+	query := `
+		SELECT trade_date, net_amount, buy_amount, sell_amount
+		FROM tushare_hsgt_top10
+		WHERE ts_code = $1
+		ORDER BY trade_date DESC
+		LIMIT $2
+	`
+
+	rows, err := s.db.Query(ctx, query, tsCode, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query tushare_hsgt_top10: %w", err)
+	}
+	defer rows.Close()
+
+	var items []HsgtTop10Data
+	for rows.Next() {
+		var h HsgtTop10Data
+		var tradeDate string
+		if err := rows.Scan(&tradeDate, &h.NetAmount, &h.BuyAmount, &h.SellAmount); err != nil {
+			s.logger.Warn("scan hsgt_top10", zap.Error(err))
+			continue
+		}
+		h.TradeDate = FormatDate(tradeDate)
+		items = append(items, h)
+	}
+
+	if len(items) == 0 {
+		return nil, fmt.Errorf("no hsgt_top10 data for %s", code)
+	}
+
+	s.hsgtTop10Cache.Set(cacheKey, items, 10*time.Minute)
+	return items, nil
+}
+
+// ==================== Margin Detail ====================
+
+// FetchMarginDetailHistory fetches per-stock margin detail data.
+func (s *TushareDB) FetchMarginDetailHistory(ctx context.Context, code string, limit int) ([]MarginDetailData, error) {
+	tsCode := ToTsCode(code)
+	cacheKey := fmt.Sprintf("margin_detail:%s:%d", tsCode, limit)
+
+	if cached, ok := s.marginDetailCache.Get(cacheKey); ok {
+		return cached, nil
+	}
+
+	query := `
+		SELECT trade_date, rzye, rzmre, rzche, rqye, rzrqye
+		FROM tushare_margin_detail
+		WHERE ts_code = $1
+		ORDER BY trade_date DESC
+		LIMIT $2
+	`
+
+	rows, err := s.db.Query(ctx, query, tsCode, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query tushare_margin_detail: %w", err)
+	}
+	defer rows.Close()
+
+	var items []MarginDetailData
+	for rows.Next() {
+		var m MarginDetailData
+		var tradeDate string
+		if err := rows.Scan(&tradeDate, &m.Rzye, &m.Rzmre, &m.Rzche, &m.Rqye, &m.Rzrqye); err != nil {
+			s.logger.Warn("scan margin_detail", zap.Error(err))
+			continue
+		}
+		m.TradeDate = FormatDate(tradeDate)
+		items = append(items, m)
+	}
+
+	if len(items) == 0 {
+		return nil, fmt.Errorf("no margin_detail data for %s", code)
+	}
+
+	s.marginDetailCache.Set(cacheKey, items, 10*time.Minute)
+	return items, nil
 }

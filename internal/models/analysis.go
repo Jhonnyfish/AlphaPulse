@@ -186,6 +186,46 @@ type AnalysisSummary struct {
 	Suggestion    string   `json:"suggestion"`
 }
 
+// ---- Extended Analysis Dimensions ----
+
+type FundamentalsAnalysis struct {
+	ROE                  float64 `json:"roe"`
+	ROELevel             string  `json:"roe_level"`
+	GrossMargin          float64 `json:"gross_margin"`
+	GrossMarginLevel     string  `json:"gross_margin_level"`
+	NetMargin            float64 `json:"net_margin"`
+	NetMarginLevel       string  `json:"net_margin_level"`
+	DebtRatio            float64 `json:"debt_ratio"`
+	DebtRatioLevel       string  `json:"debt_ratio_level"`
+	RevenueGrowth        float64 `json:"revenue_growth"`
+	RevenueGrowthLevel   string  `json:"revenue_growth_level"`
+	NetProfitGrowth      float64 `json:"net_profit_growth"`
+	NetProfitGrowthLevel string  `json:"net_profit_growth_level"`
+	EPSTrend             string  `json:"eps_trend"`
+	Score                int     `json:"score"`
+	Verdict              string  `json:"verdict"`
+}
+
+type NorthboundAnalysis struct {
+	LatestNetFlow  float64 `json:"latest_net_flow"`
+	Trend5D        float64 `json:"trend_5d"`
+	FlowDirection  string  `json:"flow_direction"`
+	StockNetAmount float64 `json:"stock_net_amount"`
+	StockAction    string  `json:"stock_action"`
+	Signal         string  `json:"signal"`
+	Verdict        string  `json:"verdict"`
+}
+
+type MarginAnalysis struct {
+	LatestMarginBalance float64 `json:"latest_margin_balance"`
+	MarginBalanceTrend  string  `json:"margin_balance_trend"`
+	MarginBuyingTrend   string  `json:"margin_buying_trend"`
+	ShortSellingTrend   string  `json:"short_selling_trend"`
+	Signal              string  `json:"signal"`
+	SentimentScore      float64 `json:"sentiment_score"`
+	Verdict             string  `json:"verdict"`
+}
+
 // StockAnalysis is the full response for /api/analyze
 type StockAnalysis struct {
 	Code        string              `json:"code"`
@@ -199,8 +239,11 @@ type StockAnalysis struct {
 	MoneyFlow   MoneyFlowAnalysis   `json:"money_flow"`
 	Technical   TechnicalAnalysis   `json:"technical"`
 	Sector      SectorAnalysis      `json:"sector"`
-	Sentiment   SentimentAnalysis   `json:"sentiment"`
-	Summary     AnalysisSummary     `json:"summary"`
+	Sentiment      SentimentAnalysis      `json:"sentiment"`
+	Fundamentals   FundamentalsAnalysis   `json:"fundamentals"`
+	Northbound     NorthboundAnalysis     `json:"northbound"`
+	MarginDetail   MarginAnalysis         `json:"margin_detail"`
+	Summary        AnalysisSummary        `json:"summary"`
 	DataSources map[string]string   `json:"data_sources"`
 	Errors      map[string]string   `json:"errors"`
 	FetchedAt   time.Time           `json:"fetched_at"`

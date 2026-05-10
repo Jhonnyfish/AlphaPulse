@@ -74,6 +74,18 @@ func (s *TushareSync) RunDaily(ctx context.Context) {
 		log.Printf("[tushare-sync] margin sync failed for %s: %v", tradeDate, err)
 	}
 
+	if err := s.SyncHsgt(ctx, tradeDate, tradeDate); err != nil {
+		log.Printf("[tushare-sync] hsgt sync failed for %s: %v", tradeDate, err)
+	}
+
+	if err := s.SyncHsgtTop10(ctx, tradeDate); err != nil {
+		log.Printf("[tushare-sync] hsgt_top10 sync failed for %s: %v", tradeDate, err)
+	}
+
+	if err := s.SyncMarginDetail(ctx, tradeDate); err != nil {
+		log.Printf("[tushare-sync] margin_detail sync failed for %s: %v", tradeDate, err)
+	}
+
 	// Sync news and announcements for watchlist stocks
 	if err := s.SyncNews(ctx); err != nil {
 		log.Printf("[tushare-sync] news sync failed: %v", err)
@@ -501,6 +513,198 @@ func (s *TushareSync) SyncMargin(ctx context.Context, tradeDate string) error {
 	return nil
 }
 
+// SyncFinancials syncs financial fundamentals for watchlist stocks.
+func (s *TushareSync) SyncFinancials(ctx context.Context, startDate, endDate string) error {
+	start := time.Now()
+	log.Printf("[tushare-sync] starting financials sync for %s to %s...", startDate, endDate)
+
+	codes, err := s.GetWatchlistCodes(ctx)
+	if err != nil {
+		return fmt.Errorf("get watchlist codes: %w", err)
+	}
+	if len(codes) == 0 {
+		log.Printf("[tushare-sync] no watchlist stocks to sync financials for")
+		return nil
+	}
+
+	totalInserted := 0
+	for _, code := range codes {
+		tsCode := ToTsCode(code)
+		rows, err := s.ts.FetchFinaIndicator(ctx, tsCode, startDate, endDate)
+		if err != nil {
+			log.Printf("[tushare-sync] fetch fina_indicator for %s failed: %v", code, err)
+			continue
+		}
+		if len(rows) == 0 {
+			continue
+		}
+
+		batch := &strings.Builder{}
+		for i, r := range rows {
+			if i > 0 {
+				batch.WriteString(",")
+			}
+			annDate := "NULL"
+			if r.AnnDate != "" {
+				annDate = "'" + r.AnnDate + "'"
+			}
+			batch.WriteString(fmt.Sprintf("('%s','%s',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+				r.TsCode, r.EndDate, annDate,
+				floatStr(r.ROE), floatStr(r.ROA), floatStr(r.GrossMargin), floatStr(r.NetMargin),
+				floatStr(r.EPS), floatStr(r.BPS), floatStr(r.DebtToAssets),
+				floatStr(r.RevenueYoY), floatStr(r.NetProfitYoY)))
+		}
+
+		query := fmt.Sprintf(`
+			INSERT INTO tushare_financials (ts_code, end_date, ann_date,
+				roe, roa, gross_margin, net_margin, diluted_eps, bps, debt_ratio,
+				revenue_yoy, n_income_yoy)
+			VALUES %s
+			ON CONFLICT (ts_code, end_date) DO NOTHING
+		`, batch.String())
+
+		tag, err := s.db.Exec(ctx, query)
+		if err != nil {
+			log.Printf("[tushare-sync] insert financials for %s failed: %v", code, err)
+			continue
+		}
+		totalInserted += int(tag.RowsAffected())
+
+		// Respect rate limits
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	log.Printf("[tushare-sync] financials sync completed: %d stocks, %d rows inserted in %v",
+		len(codes), totalInserted, time.Since(start))
+	return nil
+}
+
+// SyncHsgt syncs northbound money flow data (沪深港通).
+func (s *TushareSync) SyncHsgt(ctx context.Context, startDate, endDate string) error {
+	start := time.Now()
+	rows, err := s.ts.FetchHsgt(ctx, startDate, endDate)
+	if err != nil {
+		return fmt.Errorf("fetch hsgt for %s-%s: %w", startDate, endDate, err)
+	}
+
+	if len(rows) == 0 {
+		log.Printf("[tushare-sync] no hsgt data for %s to %s", startDate, endDate)
+		return nil
+	}
+
+	batch := &strings.Builder{}
+	for i, r := range rows {
+		if i > 0 {
+			batch.WriteString(",")
+		}
+		batch.WriteString(fmt.Sprintf("('%s',%s,%s,%s,%s,%s,%s)",
+			r.TradeDate,
+			floatStr(r.GgtSS), floatStr(r.GgtSZ),
+			floatStr(r.Hgt), floatStr(r.Sgt),
+			floatStr(r.NorthMoney), floatStr(r.SouthMoney)))
+	}
+
+	query := fmt.Sprintf(`
+		INSERT INTO tushare_hsgt (trade_date, ggt_ss, ggt_sz, hgt, sgt, north_money, south_money)
+		VALUES %s
+		ON CONFLICT (trade_date) DO NOTHING
+	`, batch.String())
+
+	tag, err := s.db.Exec(ctx, query)
+	if err != nil {
+		return fmt.Errorf("insert hsgt: %w", err)
+	}
+
+	log.Printf("[tushare-sync] synced %d hsgt rows for %s to %s, inserted %d in %v",
+		len(rows), startDate, endDate, tag.RowsAffected(), time.Since(start))
+	return nil
+}
+
+// SyncHsgtTop10 syncs top 10 northbound trading stocks for a specific trade date.
+func (s *TushareSync) SyncHsgtTop10(ctx context.Context, tradeDate string) error {
+	start := time.Now()
+	rows, err := s.ts.FetchHsgtTop10(ctx, tradeDate, "", 0)
+	if err != nil {
+		return fmt.Errorf("fetch hsgt_top10 for %s: %w", tradeDate, err)
+	}
+
+	if len(rows) == 0 {
+		log.Printf("[tushare-sync] no hsgt_top10 data for %s", tradeDate)
+		return nil
+	}
+
+	batch := &strings.Builder{}
+	for i, r := range rows {
+		if i > 0 {
+			batch.WriteString(",")
+		}
+		name := strings.ReplaceAll(r.Name, "'", "''")
+		batch.WriteString(fmt.Sprintf("('%s','%s','%s',%s,%s,%s,%s,%s,%s,%s,%s)",
+			r.TradeDate, r.TsCode, name,
+			floatStr(r.Close), floatStr(r.PctChange),
+			int64Str(int64(r.MarketType)),
+			int64Str(int64(r.Rank)),
+			floatStr(r.Amount), floatStr(r.NetAmount),
+			floatStr(r.BuyAmount), floatStr(r.SellAmount)))
+	}
+
+	query := fmt.Sprintf(`
+		INSERT INTO tushare_hsgt_top10 (trade_date, ts_code, name, close, pct_change, market_type, rank, amount, net_amount, buy_amount, sell_amount)
+		VALUES %s
+		ON CONFLICT (trade_date, ts_code, market_type) DO NOTHING
+	`, batch.String())
+
+	tag, err := s.db.Exec(ctx, query)
+	if err != nil {
+		return fmt.Errorf("insert hsgt_top10: %w", err)
+	}
+
+	log.Printf("[tushare-sync] synced %d hsgt_top10 rows for %s, inserted %d in %v",
+		len(rows), tradeDate, tag.RowsAffected(), time.Since(start))
+	return nil
+}
+
+// SyncMarginDetail syncs margin trading detail data by stock for a specific trade date.
+func (s *TushareSync) SyncMarginDetail(ctx context.Context, tradeDate string) error {
+	start := time.Now()
+	rows, err := s.ts.FetchMarginDetail(ctx, tradeDate, "")
+	if err != nil {
+		return fmt.Errorf("fetch margin_detail for %s: %w", tradeDate, err)
+	}
+
+	if len(rows) == 0 {
+		log.Printf("[tushare-sync] no margin_detail data for %s", tradeDate)
+		return nil
+	}
+
+	batch := &strings.Builder{}
+	for i, r := range rows {
+		if i > 0 {
+			batch.WriteString(",")
+		}
+		batch.WriteString(fmt.Sprintf("('%s','%s',%s,%s,%s,%s,%s,%s,%s)",
+			r.TradeDate, r.TsCode,
+			floatStr(r.Rzye), floatStr(r.Rzmre), floatStr(r.Rzche),
+			floatStr(r.Rqye), floatStr(r.Rqmcl), floatStr(r.Rqchl),
+			floatStr(r.Rzrqye)))
+	}
+
+	query := fmt.Sprintf(`
+		INSERT INTO tushare_margin_detail (trade_date, ts_code, rzye, rzmre, rzche, rqye, rqmcl, rqchl, rzrqye)
+		VALUES %s
+		ON CONFLICT (trade_date, ts_code) DO NOTHING
+	`, batch.String())
+
+	tag, err := s.db.Exec(ctx, query)
+	if err != nil {
+		return fmt.Errorf("insert margin_detail: %w", err)
+	}
+
+	log.Printf("[tushare-sync] synced %d margin_detail rows for %s, inserted %d in %v",
+		len(rows), tradeDate, tag.RowsAffected(), time.Since(start))
+	return nil
+}
+
 // RunBackfill populates historical data for a date range.
 func (s *TushareSync) RunBackfill(ctx context.Context, startDate, endDate string) error {
 	log.Printf("[tushare-backfill] starting backfill from %s to %s", startDate, endDate)
@@ -544,6 +748,13 @@ func (s *TushareSync) RunBackfill(ctx context.Context, startDate, endDate string
 		}
 		if err := s.SyncIndexDaily(ctx, tradeDate); err != nil {
 			log.Printf("[tushare-backfill] index_daily failed for %s: %v", tradeDate, err)
+		}
+
+		if err := s.SyncHsgt(ctx, tradeDate, tradeDate); err != nil {
+			log.Printf("[tushare-backfill] hsgt failed for %s: %v", tradeDate, err)
+		}
+		if err := s.SyncMarginDetail(ctx, tradeDate); err != nil {
+			log.Printf("[tushare-backfill] margin_detail failed for %s: %v", tradeDate, err)
 		}
 
 		// Respect rate limits

@@ -130,6 +130,10 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 		sectors  []models.StockSector
 		news     []models.NewsItem
 		anns     []models.Announcement
+		fins     []services.FinancialData
+		hsgt     []services.HsgtData
+		top10    []services.HsgtTop10Data
+		marginD  []services.MarginDetailData
 		quoteErr, klineErr, flowErr, sectorErr, newsErr, annErr error
 	)
 
@@ -173,6 +177,14 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 
 	wg.Wait()
 
+	// Fetch P0 data (financials, northbound, margin) - these use tushareDB directly
+	if h.tushareDB != nil {
+		fins, _ = h.tushareDB.FetchFinancials(ctx, code, 8)
+		top10, _ = h.tushareDB.FetchHsgtTop10ByCode(ctx, code, 10)
+		marginD, _ = h.tushareDB.FetchMarginDetailHistory(ctx, code, 10)
+		hsgt, _ = h.tushareDB.FetchHsgtHistory(ctx, 10)
+	}
+
 	if quoteErr != nil {
 		errs["quote"] = quoteErr.Error()
 	}
@@ -211,12 +223,18 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 		Technical:   services.AnalyzeTechnical(klines),
 		Sector:      services.AnalyzeSector(quote, sectorNames),
 		Sentiment:   services.AnalyzeSentiment(news, anns),
+		Fundamentals: services.AnalyzeFundamentals(fins),
+		Northbound:  services.AnalyzeNorthbound(hsgt, top10),
+		MarginDetail: services.AnalyzeMarginDetail(marginD),
 		DataSources: map[string]string{
 			"quote":         "tushare",
 			"klines":        "tushare",
 			"money_flow":    "tushare",
 			"sector":        "tushare",
 			"sentiment":     "db/eastmoney",
+			"fundamentals":  "tushare/fina_indicator",
+			"northbound":    "tushare/hsgt",
+			"margin":        "tushare/margin_detail",
 		},
 		Errors:    errs,
 		FetchedAt: time.Now(),

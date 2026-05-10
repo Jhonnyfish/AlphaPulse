@@ -783,6 +783,208 @@ func (s *TushareService) FetchCashflow(ctx context.Context, tsCode, startDate, e
 	return result, nil
 }
 
+// FinaIndicatorRow represents key fields from the financial indicator API.
+type FinaIndicatorRow struct {
+	TsCode       string
+	AnnDate      string
+	EndDate      string
+	ROE          float64
+	ROA          float64
+	GrossMargin  float64
+	NetMargin    float64
+	CurrentRatio float64
+	QuickRatio   float64
+	EPS          float64
+	BPS          float64
+	DebtToAssets float64
+	OpYoY        float64
+	NetProfitYoY float64
+	RevenueYoY   float64
+}
+
+// FetchFinaIndicator fetches financial indicator data from Tushare.
+func (s *TushareService) FetchFinaIndicator(ctx context.Context, tsCode, startDate, endDate string) ([]FinaIndicatorRow, error) {
+	params := map[string]string{}
+	if tsCode != "" {
+		params["ts_code"] = tsCode
+	}
+	if startDate != "" {
+		params["start_date"] = startDate
+	}
+	if endDate != "" {
+		params["end_date"] = endDate
+	}
+
+	resp, err := s.Query(ctx, "fina_indicator", params, "ts_code,ann_date,end_date,roe,roa,grossprofit_margin,netprofit_margin,current_ratio,quick_ratio,eps,bps,debt_to_assets,op_yoy,dt_netprofit_yoy,or_yoy")
+	if err != nil {
+		return nil, err
+	}
+
+	rows := parseRows(resp)
+	result := make([]FinaIndicatorRow, 0, len(rows))
+	for _, r := range rows {
+		result = append(result, FinaIndicatorRow{
+			TsCode:       strVal(r, "ts_code"),
+			AnnDate:      strVal(r, "ann_date"),
+			EndDate:      strVal(r, "end_date"),
+			ROE:          floatVal(r, "roe"),
+			ROA:          floatVal(r, "roa"),
+			GrossMargin:  floatVal(r, "grossprofit_margin"),
+			NetMargin:    floatVal(r, "netprofit_margin"),
+			CurrentRatio: floatVal(r, "current_ratio"),
+			QuickRatio:   floatVal(r, "quick_ratio"),
+			EPS:          floatVal(r, "eps"),
+			BPS:          floatVal(r, "bps"),
+			DebtToAssets: floatVal(r, "debt_to_assets"),
+			OpYoY:        floatVal(r, "op_yoy"),
+			NetProfitYoY: floatVal(r, "dt_netprofit_yoy"),
+			RevenueYoY:   floatVal(r, "or_yoy"),
+		})
+	}
+	return result, nil
+}
+
+// HsgtRow represents a row from the moneyflow_hsgt API.
+type HsgtRow struct {
+	TradeDate  string
+	GgtSS      float64
+	GgtSZ      float64
+	Hgt        float64
+	Sgt        float64
+	NorthMoney float64
+	SouthMoney float64
+}
+
+// FetchHsgt fetches Hong Kong-Shanghai-Shenzhen stock connect money flow data from Tushare.
+func (s *TushareService) FetchHsgt(ctx context.Context, startDate, endDate string) ([]HsgtRow, error) {
+	params := map[string]string{}
+	if startDate != "" {
+		params["start_date"] = startDate
+	}
+	if endDate != "" {
+		params["end_date"] = endDate
+	}
+
+	resp, err := s.Query(ctx, "moneyflow_hsgt", params, "trade_date,ggt_ss,ggt_sz,hgt,sgt,north_money,south_money")
+	if err != nil {
+		return nil, err
+	}
+
+	rows := parseRows(resp)
+	result := make([]HsgtRow, 0, len(rows))
+	for _, r := range rows {
+		result = append(result, HsgtRow{
+			TradeDate:  strVal(r, "trade_date"),
+			GgtSS:      floatVal(r, "ggt_ss"),
+			GgtSZ:      floatVal(r, "ggt_sz"),
+			Hgt:        floatVal(r, "hgt"),
+			Sgt:        floatVal(r, "sgt"),
+			NorthMoney: floatVal(r, "north_money"),
+			SouthMoney: floatVal(r, "south_money"),
+		})
+	}
+	return result, nil
+}
+
+// HsgtTop10Row represents a row from the hsgt_top10 API.
+type HsgtTop10Row struct {
+	TradeDate  string
+	TsCode     string
+	Name       string
+	Close      float64
+	PctChange  float64
+	Rank       float64
+	Amount     float64
+	NetAmount  float64
+	BuyAmount  float64
+	SellAmount float64
+	MarketType float64
+}
+
+// FetchHsgtTop10 fetches top 10 stocks in northbound/southbound trading from Tushare.
+func (s *TushareService) FetchHsgtTop10(ctx context.Context, tradeDate, tsCode string, marketType int) ([]HsgtTop10Row, error) {
+	params := map[string]string{}
+	if tradeDate != "" {
+		params["trade_date"] = tradeDate
+	}
+	if tsCode != "" {
+		params["ts_code"] = tsCode
+	}
+	if marketType != 0 {
+		params["market_type"] = fmt.Sprintf("%d", marketType)
+	}
+
+	resp, err := s.Query(ctx, "hsgt_top10", params, "trade_date,ts_code,name,close,pct_change,rank,amount,net_amount,buy_amount,sell_amount,market_type")
+	if err != nil {
+		return nil, err
+	}
+
+	rows := parseRows(resp)
+	result := make([]HsgtTop10Row, 0, len(rows))
+	for _, r := range rows {
+		result = append(result, HsgtTop10Row{
+			TradeDate:  strVal(r, "trade_date"),
+			TsCode:     strVal(r, "ts_code"),
+			Name:       strVal(r, "name"),
+			Close:      floatVal(r, "close"),
+			PctChange:  floatVal(r, "pct_change"),
+			Rank:       floatVal(r, "rank"),
+			Amount:     floatVal(r, "amount"),
+			NetAmount:  floatVal(r, "net_amount"),
+			BuyAmount:  floatVal(r, "buy_amount"),
+			SellAmount: floatVal(r, "sell_amount"),
+			MarketType: floatVal(r, "market_type"),
+		})
+	}
+	return result, nil
+}
+
+// MarginDetailRow represents a row from the margin_detail API.
+type MarginDetailRow struct {
+	TradeDate string
+	TsCode    string
+	Rzye      float64
+	Rzmre     float64
+	Rzche     float64
+	Rqye      float64
+	Rqmcl     float64
+	Rqchl     float64
+	Rzrqye    float64
+}
+
+// FetchMarginDetail fetches margin trading detail data by stock from Tushare.
+func (s *TushareService) FetchMarginDetail(ctx context.Context, tradeDate, tsCode string) ([]MarginDetailRow, error) {
+	params := map[string]string{}
+	if tradeDate != "" {
+		params["trade_date"] = tradeDate
+	}
+	if tsCode != "" {
+		params["ts_code"] = tsCode
+	}
+
+	resp, err := s.Query(ctx, "margin_detail", params, "trade_date,ts_code,rzye,rzmre,rzche,rqye,rqmcl,rqchl,rzrqye")
+	if err != nil {
+		return nil, err
+	}
+
+	rows := parseRows(resp)
+	result := make([]MarginDetailRow, 0, len(rows))
+	for _, r := range rows {
+		result = append(result, MarginDetailRow{
+			TradeDate: strVal(r, "trade_date"),
+			TsCode:    strVal(r, "ts_code"),
+			Rzye:      floatVal(r, "rzye"),
+			Rzmre:     floatVal(r, "rzmre"),
+			Rzche:     floatVal(r, "rzche"),
+			Rqye:      floatVal(r, "rqye"),
+			Rqmcl:     floatVal(r, "rqmcl"),
+			Rqchl:     floatVal(r, "rqchl"),
+			Rzrqye:    floatVal(r, "rzrqye"),
+		})
+	}
+	return result, nil
+}
+
 // ========== Helper functions ==========
 
 func int64Val(r Row, key string) int64 {
