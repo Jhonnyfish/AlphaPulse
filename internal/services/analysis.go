@@ -750,8 +750,35 @@ func AnalyzeSector(quote models.Quote, sectors []string) models.SectorAnalysis {
 	}
 }
 
-var positiveWords = []string{"预增", "增长", "利好", "突破", "新高", "涨停", "获利", "盈利", "超预期", "翻倍"}
-var negativeWords = []string{"预减", "下降", "利空", "跌停", "亏损", "风险", "违规", "处罚", "下跌", "暴跌"}
+var positiveWords = []string{
+	// 财务表现 (financial performance)
+	"预增", "增长", "盈利", "超预期", "翻倍", "大增", "扭亏", "减亏", "高增长",
+	"业绩预增", "净利增", "营收增", "毛利提升", "订单增长", "产能释放", "创新高",
+	// 技术面/动量 (technical/momentum)
+	"利好", "突破", "新高", "涨停", "大涨", "强势", "反弹", "放量", "金叉",
+	"多头", "主力加仓", "机构买入", "北向买入", "融资买入", "底部放量",
+	// 公司行为 (corporate actions)
+	"回购", "增持", "分红", "送转", "高送转", "股权激励", "战略合作", "中标",
+	"签约", "获批", "专利", "技术突破",
+	// 行业/政策 (industry/policy)
+	"龙头", "创新药", "新能源", "人工智能", "芯片", "国产替代", "政策利好",
+	"减税降费", "扩产", "并购", "重组",
+}
+
+var negativeWords = []string{
+	// 财务恶化 (financial deterioration)
+	"预减", "下降", "亏损", "暴跌", "大亏", "业绩下滑", "净利降", "营收降",
+	"商誉减值", "计提", "坏账", "现金流恶化", "负债率上升", "毛利率下降",
+	// 技术面/动量 (technical/momentum)
+	"利空", "跌停", "下跌", "破位", "死叉", "空头", "缩量", "放量下跌",
+	"主力出逃", "机构卖出", "北向卖出", "融资卖出", "连续跌停",
+	// 公司风险 (corporate risks)
+	"风险", "违规", "处罚", "立案", "调查", "退市", "ST", "*ST", "暂停上市",
+	"减持", "质押", "爆雷", "造假", "实控人", "被强制", "冻结",
+	// 行业/政策 (industry/policy)
+	"制裁", "限制", "环保处罚", "产能过剩", "需求萎缩", "行业寒冬",
+	"监管趋严", "反垄断", "关税",
+}
 
 func AnalyzeSentiment(news []models.NewsItem, announcements []models.Announcement) models.SentimentAnalysis {
 	positive := 0
