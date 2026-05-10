@@ -159,17 +159,23 @@ func (s *TushareDB) FetchMoneyFlow(ctx context.Context, code string, days int) (
 	for rows.Next() {
 		var f models.MoneyFlowDay
 		var tradeDate string
-		var mainNet, bigBuy, bigSell, smallBuy, smallSell float64
+		var mainNet, bigBuy, bigSell, smallBuy, smallSell *float64
 		if err := rows.Scan(&tradeDate, &mainNet, &bigBuy, &bigSell, &smallBuy, &smallSell); err != nil {
 			s.logger.Warn("scan moneyflow", zap.Error(err))
 			continue
 		}
 		f.Date = FormatDate(tradeDate)
 		// Tushare moneyflow amounts are in 万元
-		f.MainNet = mainNet
-		f.HugeNet = mainNet // net_mf_amount is total net
-		f.BigNet = bigBuy - bigSell
-		f.SmallNet = smallBuy - smallSell
+		if mainNet != nil {
+			f.MainNet = *mainNet
+			f.HugeNet = *mainNet // net_mf_amount is total net
+		}
+		if bigBuy != nil && bigSell != nil {
+			f.BigNet = *bigBuy - *bigSell
+		}
+		if smallBuy != nil && smallSell != nil {
+			f.SmallNet = *smallBuy - *smallSell
+		}
 		flows = append(flows, f)
 	}
 
@@ -440,12 +446,13 @@ func (s *TushareDB) FetchQuoteFromDB(ctx context.Context, code string) (models.Q
 	var q models.Quote
 	var tradeDate string
 	var peTTM, pb, totalMV, circMV *float64
+	var industry string // discarded, used for scan alignment
 
 	err := s.db.QueryRow(ctx, query, tsCode).Scan(
 		&tradeDate, &q.Open, &q.High, &q.Low, &q.Price, &q.PrevClose,
 		&q.Change, &q.ChangePercent, &q.Volume, &q.Turnover,
 		&peTTM, &pb, &totalMV, &circMV,
-		&q.Name, // reuse Name field; industry stored separately
+		&q.Name, &industry,
 	)
 	if err != nil {
 		return models.Quote{}, fmt.Errorf("query quote from db: %w", err)
