@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"alphapulse/internal/cache"
@@ -529,6 +530,87 @@ func (s *TushareDB) FetchQuoteFromDB(ctx context.Context, code string) (models.Q
 // FetchIndustryFromDB fetches industry from tushare_stock_basic (alias for FetchIndustry).
 func (s *TushareDB) FetchIndustryFromDB(ctx context.Context, code string) (string, error) {
 	return s.FetchIndustry(ctx, code)
+}
+
+// SectorPerformance holds relative strength data for a sector.
+type SectorPerformance struct {
+	Industry      string  `json:"industry"`
+	AvgPctChg5D   float64 `json:"avg_pct_chg_5d"`   // 5-day avg change for sector
+	AvgPctChg20D  float64 `json:"avg_pct_chg_20d"`  // 20-day avg change for sector
+	StockPctChg5D float64 `json:"stock_pct_chg_5d"` // stock's 5-day change
+	RelStrength   float64 `json:"rel_strength"`      // stock vs sector (positive = outperforming)
+	Trend         string  `json:"trend"`             // 强于板块/弱于板块/同步
+}
+
+// FetchSectorPerformance computes relative strength of a stock vs its sector.
+func (s *TushareDB) FetchSectorPerformance(ctx context.Context, code string) (SectorPerformance, error) {
+	tsCode := ToTsCode(code)
+	cacheKey := fmt.Sprintf("sector_perf:%s", tsCode)
+	if cached, ok := s.flowCache.Get(cacheKey); ok {
+		_ = cached // type mismatch, skip cache for now
+	}
+
+	// Get stock's industry
+	industry, err := s.FetchIndustry(ctx, code)
+	if err != nil || industry == "" {
+		return SectorPerformance{}, fmt.Errorf("industry not found for %s", code)
+	}
+
+	// Get stock's 5-day and 20-day performance
+	stockQuery := `
+		SELECT 
+			(SELECT AVG(pct_chg) FROM (SELECT pct_chg FROM tushare_daily WHERE ts_code = $1 ORDER BY trade_date DESC LIMIT 5) t),
+			(SELECT AVG(pct_chg) FROM (SELECT pct_chg FROM tushare_daily WHERE ts_code = $1 ORDER BY trade_date DESC LIMIT 20) t)
+	`
+	var stock5D, stock20D float64
+	err = s.db.QueryRow(ctx, stockQuery, tsCode).Scan(&stock5D, &stock20D)
+	if err != nil {
+		return SectorPerformance{}, err
+	}
+
+	// Get sector average performance
+	sectorQuery := `
+		SELECT 
+			(SELECT AVG(pct_chg) FROM (
+				SELECT d.pct_chg FROM tushare_daily d 
+				JOIN tushare_stock_basic b ON d.ts_code = b.ts_code 
+				WHERE b.industry = $1 
+				ORDER BY d.trade_date DESC LIMIT 500
+			) t),
+			(SELECT AVG(pct_chg) FROM (
+				SELECT d.pct_chg FROM tushare_daily d 
+				JOIN tushare_stock_basic b ON d.ts_code = b.ts_code 
+				WHERE b.industry = $1 
+				ORDER BY d.trade_date DESC LIMIT 2000
+			) t)
+	`
+	var sector5D, sector20D float64
+	err = s.db.QueryRow(ctx, sectorQuery, industry).Scan(&sector5D, &sector20D)
+	if err != nil {
+		return SectorPerformance{Industry: industry}, err
+	}
+
+	relStrength := stock5D - sector5D
+	trend := "同步"
+	if relStrength > 2 {
+		trend = "强于板块"
+	} else if relStrength < -2 {
+		trend = "弱于板块"
+	}
+
+	return SectorPerformance{
+		Industry:      industry,
+		AvgPctChg5D:   roundFloat(sector5D, 2),
+		AvgPctChg20D:  roundFloat(sector20D, 2),
+		StockPctChg5D: roundFloat(stock5D, 2),
+		RelStrength:   roundFloat(relStrength, 2),
+		Trend:         trend,
+	}, nil
+}
+
+func roundFloat(v float64, decimals int) float64 {
+	m := math.Pow(10, float64(decimals))
+	return math.Round(v*m) / m
 }
 
 // ==================== Adjusted K-line ====================

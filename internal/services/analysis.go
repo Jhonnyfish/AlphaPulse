@@ -874,7 +874,7 @@ func AggregateToWeekly(klines []models.KlinePoint) []models.KlinePoint {
 	return weekly
 }
 
-func AnalyzeSector(quote models.Quote, sectors []string) models.SectorAnalysis {
+func AnalyzeSector(quote models.Quote, sectors []string, sectorPerf *SectorPerformance) models.SectorAnalysis {
 	primary := ""
 	if len(sectors) > 0 {
 		primary = sectors[0]
@@ -884,18 +884,37 @@ func AnalyzeSector(quote models.Quote, sectors []string) models.SectorAnalysis {
 	isLeader := totalMV >= 500 || strings.HasPrefix(name, "中国") || strings.Contains(name, "龙头")
 
 	verdict := "板块数据不足，暂不判断"
-	if primary != "" && isLeader {
+	result := models.SectorAnalysis{
+		Sectors:        sectors,
+		PrimarySector:  primary,
+		IsSectorLeader: isLeader,
+	}
+
+	if sectorPerf != nil && sectorPerf.Industry != "" {
+		result.SectorPctChg5D = sectorPerf.AvgPctChg5D
+		result.StockPctChg5D = sectorPerf.StockPctChg5D
+		result.RelStrength = sectorPerf.RelStrength
+		result.RelStrengthTag = sectorPerf.Trend
+
+		if isLeader && sectorPerf.Trend == "强于板块" {
+			verdict = "所属" + primary + "板块龙头，强于板块表现"
+		} else if isLeader && sectorPerf.Trend == "弱于板块" {
+			verdict = "所属" + primary + "板块龙头，但近期弱于板块"
+		} else if sectorPerf.Trend == "强于板块" {
+			verdict = "所属" + primary + "板块，近期强于板块平均"
+		} else if sectorPerf.Trend == "弱于板块" {
+			verdict = "所属" + primary + "板块，近期弱于板块平均"
+		} else if primary != "" {
+			verdict = "所属" + primary + "板块，表现与板块同步"
+		}
+	} else if primary != "" && isLeader {
 		verdict = "所属" + primary + "板块，具备较强行业地位"
 	} else if primary != "" {
 		verdict = "所属" + primary + "板块，需结合板块强弱观察"
 	}
 
-	return models.SectorAnalysis{
-		Sectors:        sectors,
-		PrimarySector:  primary,
-		IsSectorLeader: isLeader,
-		Verdict:        verdict,
-	}
+	result.Verdict = verdict
+	return result
 }
 
 var positiveWords = []string{

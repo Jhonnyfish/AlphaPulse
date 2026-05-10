@@ -182,13 +182,13 @@ func TestAnalyzeTechnical(t *testing.T) {
 func TestAnalyzeSector(t *testing.T) {
 	t.Run("leader", func(t *testing.T) {
 		quote := models.Quote{Name: "中国平安", TotalMV: 800}
-		result := AnalyzeSector(quote, []string{"保险", "金融"})
+		result := AnalyzeSector(quote, []string{"保险", "金融"}, nil)
 		assert.True(t, result.IsSectorLeader)
 		assert.Equal(t, "保险", result.PrimarySector)
 	})
 
 	t.Run("no data", func(t *testing.T) {
-		result := AnalyzeSector(models.Quote{}, nil)
+		result := AnalyzeSector(models.Quote{}, nil, nil)
 		assert.False(t, result.IsSectorLeader)
 		assert.Contains(t, result.Verdict, "数据不足")
 	})

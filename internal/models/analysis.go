@@ -172,7 +172,12 @@ type SectorAnalysis struct {
 	Sectors        []string `json:"sectors"`
 	PrimarySector  string   `json:"primary_sector"`
 	IsSectorLeader bool     `json:"is_sector_leader"`
-	Verdict        string   `json:"verdict"`
+	// Relative strength (P1)
+	SectorPctChg5D float64 `json:"sector_pct_chg_5d"`
+	StockPctChg5D  float64 `json:"stock_pct_chg_5d"`
+	RelStrength    float64 `json:"rel_strength"`
+	RelStrengthTag string  `json:"rel_strength_tag"` // 强于板块/弱于板块/同步
+	Verdict        string  `json:"verdict"`
 }
 
 type SentimentAnalysis struct {
