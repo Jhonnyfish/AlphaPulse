@@ -606,8 +606,8 @@ func (s *TushareDB) FetchFinancials(ctx context.Context, code string, limit int)
 	}
 
 	query := `
-		SELECT end_date, ann_date, roe, roa, gross_margin, net_margin,
-		       diluted_eps, bps, debt_ratio, revenue_yoy, n_income_yoy
+		SELECT end_date, ann_date, COALESCE(roe,0), COALESCE(roa,0), COALESCE(gross_margin,0), COALESCE(net_margin,0),
+		       COALESCE(diluted_eps,0), COALESCE(bps,0), COALESCE(debt_ratio,0), COALESCE(revenue_yoy,0), COALESCE(n_income_yoy,0)
 		FROM tushare_financials
 		WHERE ts_code = $1
 		ORDER BY end_date DESC
