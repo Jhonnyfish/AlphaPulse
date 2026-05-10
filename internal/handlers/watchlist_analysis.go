@@ -417,9 +417,9 @@ func (h *WatchlistAnalysisHandler) Ranking(c *gin.Context) {
 		return
 	}
 
-	// Analyze each stock concurrently (limit to 8 workers)
+	// Analyze each stock concurrently (limit to 16 workers)
 	items := make([]RankingItem, len(codes))
-	sem := make(chan struct{}, 8)
+	sem := make(chan struct{}, 16)
 	var wg sync.WaitGroup
 	for i, code := range codes {
 		wg.Add(1)
@@ -578,7 +578,7 @@ func (h *WatchlistAnalysisHandler) RankingStream(c *gin.Context) {
 		item RankingItem
 	}
 	resultCh := make(chan indexedResult, total)
-	sem := make(chan struct{}, 8)
+	sem := make(chan struct{}, 16)
 	var wg sync.WaitGroup
 
 	for i, code := range codes {

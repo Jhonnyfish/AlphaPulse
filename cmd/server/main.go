@@ -116,7 +116,7 @@ func main() {
 	if cfg.TushareEnabled && cfg.TushareToken != "" {
 		tushareSvc := services.NewTushareService(cfg.TushareToken, cfg.HTTPTimeout)
 		tushareDB = services.NewTushareDB(db, logger.L())
-		tushareSync := services.NewTushareSync(tushareSvc, db, logger.L())
+		tushareSync := services.NewTushareSync(tushareSvc, eastMoneyService, db, logger.L())
 
 		analyzeHandler.SetTushareDB(tushareDB)
 		reportsHandler.SetTushareDB(tushareDB)
@@ -375,7 +375,7 @@ func main() {
 				syncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 				defer cancel()
 				tushareSvc := services.NewTushareService(cfg.TushareToken, cfg.HTTPTimeout)
-				ts := services.NewTushareSync(tushareSvc, db, logger.L())
+				ts := services.NewTushareSync(tushareSvc, eastMoneyService, db, logger.L())
 				ts.RunDaily(syncCtx)
 			})
 		}

@@ -13,17 +13,19 @@ import (
 
 // TushareSync handles syncing Tushare data to local PostgreSQL.
 type TushareSync struct {
-	ts     *TushareService
-	db     *pgxpool.Pool
-	logger *zap.Logger
+	ts        *TushareService
+	eastMoney *EastMoneyService
+	db        *pgxpool.Pool
+	logger    *zap.Logger
 }
 
 // NewTushareSync creates a new TushareSync instance.
-func NewTushareSync(ts *TushareService, db *pgxpool.Pool, logger *zap.Logger) *TushareSync {
+func NewTushareSync(ts *TushareService, eastMoney *EastMoneyService, db *pgxpool.Pool, logger *zap.Logger) *TushareSync {
 	return &TushareSync{
-		ts:     ts,
-		db:     db,
-		logger: logger,
+		ts:        ts,
+		eastMoney: eastMoney,
+		db:        db,
+		logger:    logger,
 	}
 }
 
@@ -70,6 +72,15 @@ func (s *TushareSync) RunDaily(ctx context.Context) {
 
 	if err := s.SyncMargin(ctx, tradeDate); err != nil {
 		log.Printf("[tushare-sync] margin sync failed for %s: %v", tradeDate, err)
+	}
+
+	// Sync news and announcements for watchlist stocks
+	if err := s.SyncNews(ctx); err != nil {
+		log.Printf("[tushare-sync] news sync failed: %v", err)
+	}
+
+	if err := s.SyncAnnouncements(ctx); err != nil {
+		log.Printf("[tushare-sync] announcements sync failed: %v", err)
 	}
 
 	log.Printf("[tushare-sync] daily sync completed in %v", time.Since(start))
@@ -537,5 +548,101 @@ func (s *TushareSync) RunBackfill(ctx context.Context, startDate, endDate string
 	}
 
 	log.Printf("[tushare-backfill] completed")
+	return nil
+}
+
+// SyncNews syncs news data for all watchlist stocks from EastMoney to DB.
+func (s *TushareSync) SyncNews(ctx context.Context) error {
+	start := time.Now()
+	log.Printf("[tushare-sync] starting news sync...")
+
+	// Get watchlist codes
+	codes, err := s.GetWatchlistCodes(ctx)
+	if err != nil {
+		return fmt.Errorf("get watchlist codes: %w", err)
+	}
+
+	if len(codes) == 0 {
+		log.Printf("[tushare-sync] no watchlist stocks to sync news for")
+		return nil
+	}
+
+	totalInserted := 0
+	for _, code := range codes {
+		// Fetch news from EastMoney
+		items, err := s.eastMoney.FetchStockNews(ctx, code, 20)
+		if err != nil {
+			s.logger.Warn("failed to fetch news for stock", zap.String("code", code), zap.Error(err))
+			continue
+		}
+
+		// Store in DB
+		for _, item := range items {
+			_, err := s.db.Exec(ctx, `
+				INSERT INTO stock_news (code, title, summary, source, url, published_at)
+				VALUES ($1, $2, $3, $4, $5, $6)
+				ON CONFLICT (code, title, published_at) DO NOTHING
+			`, item.Code, item.Title, item.Summary, item.Source, item.URL, item.PublishedAt)
+			if err != nil {
+				s.logger.Warn("failed to store news", zap.String("code", code), zap.Error(err))
+				continue
+			}
+			totalInserted++
+		}
+
+		// Respect rate limits
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	log.Printf("[tushare-sync] news sync completed: %d stocks, %d items inserted in %v",
+		len(codes), totalInserted, time.Since(start))
+	return nil
+}
+
+// SyncAnnouncements syncs announcement data for all watchlist stocks from EastMoney to DB.
+func (s *TushareSync) SyncAnnouncements(ctx context.Context) error {
+	start := time.Now()
+	log.Printf("[tushare-sync] starting announcements sync...")
+
+	// Get watchlist codes
+	codes, err := s.GetWatchlistCodes(ctx)
+	if err != nil {
+		return fmt.Errorf("get watchlist codes: %w", err)
+	}
+
+	if len(codes) == 0 {
+		log.Printf("[tushare-sync] no watchlist stocks to sync announcements for")
+		return nil
+	}
+
+	totalInserted := 0
+	for _, code := range codes {
+		// Fetch announcements from EastMoney
+		items, err := s.eastMoney.FetchStockAnnouncements(ctx, code, 20)
+		if err != nil {
+			s.logger.Warn("failed to fetch announcements for stock", zap.String("code", code), zap.Error(err))
+			continue
+		}
+
+		// Store in DB
+		for _, item := range items {
+			_, err := s.db.Exec(ctx, `
+				INSERT INTO stock_announcements (code, title, url, published_at)
+				VALUES ($1, $2, $3, $4)
+				ON CONFLICT (code, title, published_at) DO NOTHING
+			`, code, item.Title, item.URL, item.PublishedAt)
+			if err != nil {
+				s.logger.Warn("failed to store announcement", zap.String("code", code), zap.Error(err))
+				continue
+			}
+			totalInserted++
+		}
+
+		// Respect rate limits
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	log.Printf("[tushare-sync] announcements sync completed: %d stocks, %d items inserted in %v",
+		len(codes), totalInserted, time.Since(start))
 	return nil
 }

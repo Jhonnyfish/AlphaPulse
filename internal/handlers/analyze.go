@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -237,16 +238,10 @@ func (h *AnalyzeHandler) fetchQuote(ctx context.Context, code string) (models.Qu
 			h.quoteCache.Set(code, quote, 5*time.Second)
 			return quote, nil
 		}
-		h.logger.Warn("tushare quote failed, falling back to tencent", zap.String("code", code), zap.Error(err))
+		h.logger.Warn("tushare quote failed", zap.String("code", code), zap.Error(err))
 	}
 
-	// Fallback to Tencent
-	quote, err := h.tencent.FetchQuote(ctx, code)
-	if err != nil {
-		return models.Quote{}, err
-	}
-	h.quoteCache.Set(code, quote, 5*time.Second)
-	return quote, nil
+	return models.Quote{}, fmt.Errorf("quote not available from TushareDB for %s", code)
 }
 
 func (h *AnalyzeHandler) fetchKlines(ctx context.Context, code string) ([]models.KlinePoint, error) {
@@ -261,16 +256,10 @@ func (h *AnalyzeHandler) fetchKlines(ctx context.Context, code string) ([]models
 			h.klineCache.Set(code, klines, 60*time.Second)
 			return klines, nil
 		}
-		h.logger.Warn("tushare kline failed, falling back to eastmoney", zap.String("code", code), zap.Error(err))
+		h.logger.Warn("tushare kline failed", zap.String("code", code), zap.Error(err))
 	}
 
-	// Fallback to EastMoney
-	klines, err := h.eastMoney.FetchKline(ctx, code, 60)
-	if err != nil {
-		return nil, err
-	}
-	h.klineCache.Set(code, klines, 60*time.Second)
-	return klines, nil
+	return nil, fmt.Errorf("klines not available from TushareDB for %s", code)
 }
 
 func (h *AnalyzeHandler) fetchFlow(ctx context.Context, code string) ([]models.MoneyFlowDay, error) {
@@ -285,16 +274,10 @@ func (h *AnalyzeHandler) fetchFlow(ctx context.Context, code string) ([]models.M
 			h.flowCache.Set(code, flows, 60*time.Second)
 			return flows, nil
 		}
-		h.logger.Warn("tushare moneyflow failed, falling back to eastmoney", zap.String("code", code), zap.Error(err))
+		h.logger.Warn("tushare moneyflow failed", zap.String("code", code), zap.Error(err))
 	}
 
-	// Fallback to EastMoney
-	flows, err := h.eastMoney.FetchMoneyFlow(ctx, code, 10)
-	if err != nil {
-		return nil, err
-	}
-	h.flowCache.Set(code, flows, 60*time.Second)
-	return flows, nil
+	return nil, fmt.Errorf("money flow not available from TushareDB for %s", code)
 }
 
 func (h *AnalyzeHandler) fetchSectors(ctx context.Context, code string) ([]models.StockSector, error) {
@@ -310,16 +293,10 @@ func (h *AnalyzeHandler) fetchSectors(ctx context.Context, code string) ([]model
 			h.sectorsCache.Set(code, sectors, 600*time.Second)
 			return sectors, nil
 		}
-		h.logger.Warn("tushare industry failed, falling back to eastmoney", zap.String("code", code), zap.Error(err))
+		h.logger.Warn("tushare industry failed", zap.String("code", code), zap.Error(err))
 	}
 
-	// Fallback to EastMoney
-	sectors, err := h.eastMoney.FetchStockSectors(ctx, code)
-	if err != nil {
-		return nil, err
-	}
-	h.sectorsCache.Set(code, sectors, 600*time.Second)
-	return sectors, nil
+	return nil, fmt.Errorf("sectors not available from TushareDB for %s", code)
 }
 
 func (h *AnalyzeHandler) fetchNews(ctx context.Context, code string) ([]models.NewsItem, error) {
@@ -335,11 +312,8 @@ func (h *AnalyzeHandler) fetchNewsWithMode(ctx context.Context, code string, fas
 	if cached, ok := h.newsCache.Get(code); ok {
 		return cached, nil
 	}
-	if fast {
-		// DB-only mode: skip EastMoney fallback to avoid slow HTTP
-		return h.newsSvc.GetStockNewsDBOnly(ctx, code, 10)
-	}
-	news, err := h.newsSvc.GetStockNews(ctx, code, 10)
+	// Always use DB-only mode since news is pre-synced
+	news, err := h.newsSvc.GetStockNewsDBOnly(ctx, code, 10)
 	if err != nil {
 		return nil, err
 	}
@@ -352,11 +326,8 @@ func (h *AnalyzeHandler) fetchAnnouncementsWithMode(ctx context.Context, code st
 	if cached, ok := h.announcementsCache.Get(code); ok {
 		return cached, nil
 	}
-	if fast {
-		// DB-only mode: skip EastMoney fallback to avoid slow HTTP
-		return h.newsSvc.GetStockAnnouncementsDBOnly(ctx, code, 10)
-	}
-	anns, err := h.newsSvc.GetStockAnnouncements(ctx, code, 10)
+	// Always use DB-only mode since announcements are pre-synced
+	anns, err := h.newsSvc.GetStockAnnouncementsDBOnly(ctx, code, 10)
 	if err != nil {
 		return nil, err
 	}

@@ -61,7 +61,8 @@ func main() {
 
 	// Create Tushare service and sync
 	ts := services.NewTushareService(tushareToken, 30*time.Second)
-	sync := services.NewTushareSync(ts, db, logger.L())
+	eastMoneyService := services.NewEastMoneyService(30 * time.Second)
+	sync := services.NewTushareSync(ts, eastMoneyService, db, logger.L())
 
 	log.Printf("Starting backfill from %s to %s", *startDate, *endDate)
 
