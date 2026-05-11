@@ -185,6 +185,11 @@ export default function AnalyzePage() {
   const [error, setError] = useState<string | null>(null);
   const [alpha300Open, setAlpha300Open] = useState(false);
   const [scoreHistory, setScoreHistory] = useState<ScoreHistoryResponse | null>(null);
+  const [deepAnalysis, setDeepAnalysis] = useState<{ loading: boolean; report: string | null; error: string | null }>({
+    loading: false,
+    report: null,
+    error: null,
+  });
 
   const fetchAnalysis = useCallback(async (stockCode: string) => {
     setLoading(true);
@@ -221,6 +226,21 @@ export default function AnalyzePage() {
 
   const handleSelect = (suggestion: { code: string }) => {
     navigate('analyze', { code: suggestion.code });
+  };
+
+  const triggerDeepAnalysis = async (stockCode: string) => {
+    setDeepAnalysis({ loading: true, report: null, error: null });
+    try {
+      const res = await analyzeApi.deepAnalysis(stockCode);
+      if (res.data.ok) {
+        setDeepAnalysis({ loading: false, report: res.data.report, error: null });
+      } else {
+        setDeepAnalysis({ loading: false, report: null, error: res.data.error || '分析失败' });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '深度分析失败';
+      setDeepAnalysis({ loading: false, report: null, error: msg });
+    }
   };
 
   if (!code) {
@@ -417,6 +437,52 @@ export default function AnalyzePage() {
               )}
             </div>
           )}
+
+          {/* Deep Analysis */}
+          <div className="glass-panel p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                深度分析
+              </h3>
+              <button
+                onClick={() => triggerDeepAnalysis(code)}
+                disabled={deepAnalysis.loading}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{
+                  background: deepAnalysis.loading ? 'var(--color-bg-hover)' : 'var(--color-accent)',
+                  color: deepAnalysis.loading ? 'var(--color-text-muted)' : '#fff',
+                }}
+              >
+                {deepAnalysis.loading ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    分析中...
+                  </>
+                ) : (
+                  '🔬 触发深度分析'
+                )}
+              </button>
+            </div>
+
+            {deepAnalysis.error && (
+              <div className="text-sm p-3 rounded-lg mb-4" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
+                {deepAnalysis.error}
+              </div>
+            )}
+
+            {deepAnalysis.report && (
+              <DeepAnalysisReport report={deepAnalysis.report} />
+            )}
+
+            {!deepAnalysis.report && !deepAnalysis.loading && !deepAnalysis.error && (
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                点击按钮触发AI深度分析，包含行业研究、关联数据分析、估值判断等（约需30-60秒）
+              </p>
+            )}
+          </div>
         </>
       )}
 
@@ -867,6 +933,57 @@ function ComparisonCard({ comparison }: { comparison: NonNullable<ScoreHistoryRe
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function DeepAnalysisReport({ report }: { report: string }) {
+  // Simple markdown-like rendering
+  const renderLine = (line: string, index: number) => {
+    // Headers
+    if (line.startsWith('# ')) {
+      return <h2 key={index} className="text-lg font-bold mb-3 mt-4" style={{ color: 'var(--color-text-primary)' }}>{line.slice(2)}</h2>;
+    }
+    if (line.startsWith('## ')) {
+      return <h3 key={index} className="text-base font-semibold mb-2 mt-3" style={{ color: 'var(--color-text-primary)' }}>{line.slice(3)}</h3>;
+    }
+    if (line.startsWith('### ')) {
+      return <h4 key={index} className="text-sm font-medium mb-2 mt-2" style={{ color: 'var(--color-text-secondary)' }}>{line.slice(4)}</h4>;
+    }
+    // Bold
+    if (line.includes('**')) {
+      const parts = line.split('**');
+      return (
+        <p key={index} className="text-sm mb-1" style={{ color: 'var(--color-text-primary)' }}>
+          {parts.map((part, i) => i % 2 === 1 ? <strong key={i}>{part}</strong> : part)}
+        </p>
+      );
+    }
+    // List items
+    if (line.startsWith('- ')) {
+      return (
+        <div key={index} className="flex items-start gap-2 mb-1 ml-2">
+          <span className="text-xs mt-1.5" style={{ color: 'var(--color-accent)' }}>•</span>
+          <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>{line.slice(2)}</span>
+        </div>
+      );
+    }
+    // Empty line
+    if (line.trim() === '') {
+      return <div key={index} className="h-2" />;
+    }
+    // Regular text
+    return <p key={index} className="text-sm mb-1" style={{ color: 'var(--color-text-primary)' }}>{line}</p>;
+  };
+
+  const lines = report.split('\n');
+
+  return (
+    <div className="mt-4 p-4 rounded-lg" style={{ background: 'var(--color-bg-secondary)' }}>
+      {lines.map((line, index) => renderLine(line, index))}
+      <div className="mt-4 pt-3 text-xs" style={{ borderTop: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
+        *本报告由AI生成，仅供参考，不构成投资建议
       </div>
     </div>
   );

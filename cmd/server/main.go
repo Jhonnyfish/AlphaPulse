@@ -109,6 +109,7 @@ func main() {
 	defer alertsHandler.Stop()
 	docsHandler := handlers.NewDocsHandler()
 	dashboardHandler := handlers.NewDashboardHandler(db, tencentService, eastMoneyService, tushareSectorService, watchlistHandler, logger.L())
+	deepAnalysisHandler := handlers.NewDeepAnalysisHandler()
 	watchlistHandler.SetAlpha300(alpha300Cache)
 		watchlistHandler.SetOnChange(watchlistAnalysisHandler.InvalidateRankingCache)
 
@@ -215,6 +216,10 @@ func main() {
 	scoreHistoryGroup := api.Group("/score-history")
 	scoreHistoryGroup.Use(authMiddleware)
 	scoreHistoryGroup.GET("/:code", scoreHistoryHandler.GetHistory)
+
+	deepAnalysisGroup := api.Group("/deep-analysis")
+	deepAnalysisGroup.Use(authMiddleware)
+	deepAnalysisGroup.POST("", deepAnalysisHandler.Analyze)
 
 	analyzeGroup := api.Group("/analyze")
 	analyzeGroup.Use(authMiddleware)
