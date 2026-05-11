@@ -26,7 +26,7 @@ const DIM_LABELS: Record<string, string> = {
 
 const DIMENSIONS = Object.keys(DIM_LABELS);
 
-type SortKey = 'rank' | 'overall_score' | 'change_pct' | 'price' | string;
+type SortKey = 'rank' | 'overall_score' | 'change_pct' | 'price' | 'weighted_score' | 'short_score' | 'medium_score' | 'long_score' | 'confidence' | string;
 type SortDir = 'asc' | 'desc';
 
 /* ---- helpers ---- */
@@ -291,6 +291,21 @@ export default function RankingPage() {
     } else if (sortKey === 'overall_score') {
       va = a.overall_score;
       vb = b.overall_score;
+    } else if (sortKey === 'weighted_score') {
+      va = a.weighted_score ?? a.overall_score;
+      vb = b.weighted_score ?? b.overall_score;
+    } else if (sortKey === 'short_score') {
+      va = a.period_scores?.short ?? 50;
+      vb = b.period_scores?.short ?? 50;
+    } else if (sortKey === 'medium_score') {
+      va = a.period_scores?.medium ?? 50;
+      vb = b.period_scores?.medium ?? 50;
+    } else if (sortKey === 'long_score') {
+      va = a.period_scores?.long ?? 50;
+      vb = b.period_scores?.long ?? 50;
+    } else if (sortKey === 'confidence') {
+      va = a.confidence?.overall ?? 0;
+      vb = b.confidence?.overall ?? 0;
     } else if (sortKey === 'change_pct') {
       va = a.change_pct;
       vb = b.change_pct;
@@ -755,6 +770,34 @@ export default function RankingPage() {
                 >
                   信号
                 </th>
+                <th
+                  className="px-2 py-3 text-center font-medium cursor-pointer select-none whitespace-nowrap text-xs"
+                  style={{ color: 'var(--color-text-muted)' }}
+                  onClick={() => toggleSort('short_score')}
+                >
+                  短线 <SortIcon col="short_score" />
+                </th>
+                <th
+                  className="px-2 py-3 text-center font-medium cursor-pointer select-none whitespace-nowrap text-xs"
+                  style={{ color: 'var(--color-text-muted)' }}
+                  onClick={() => toggleSort('medium_score')}
+                >
+                  中线 <SortIcon col="medium_score" />
+                </th>
+                <th
+                  className="px-2 py-3 text-center font-medium cursor-pointer select-none whitespace-nowrap text-xs"
+                  style={{ color: 'var(--color-text-muted)' }}
+                  onClick={() => toggleSort('long_score')}
+                >
+                  长线 <SortIcon col="long_score" />
+                </th>
+                <th
+                  className="px-2 py-3 text-center font-medium cursor-pointer select-none whitespace-nowrap text-xs"
+                  style={{ color: 'var(--color-text-muted)' }}
+                  onClick={() => toggleSort('confidence')}
+                >
+                  置信度 <SortIcon col="confidence" />
+                </th>
                 {DIMENSIONS.map((d) => (
                   <th
                     key={d}
@@ -864,12 +907,7 @@ export default function RankingPage() {
                           background: `${signalColor(item.overall_signal)}18`,
                           color: signalColor(item.overall_signal),
                         }}
-                      >
-                        {signalLabel(item.overall_signal)}
-                      </span>
-                    </td>
-
-                    {/* Dimension mini bars */}
+                      >\n                        {signalLabel(item.overall_signal)}\n                      </span>\n                    </td>\n\n                    {/* Multi-period scores */}\n                    <td className=\"px-2 py-3 text-center\">\n                      <span\n                        className=\"text-xs font-mono font-medium\"\n                        style={{ color: scoreColor(item.period_scores?.short ?? 50) }}\n                      >\n                        {(item.period_scores?.short ?? 50).toFixed(0)}\n                      </span>\n                    </td>\n                    <td className=\"px-2 py-3 text-center\">\n                      <span\n                        className=\"text-xs font-mono font-medium\"\n                        style={{ color: scoreColor(item.period_scores?.medium ?? 50) }}\n                      >\n                        {(item.period_scores?.medium ?? 50).toFixed(0)}\n                      </span>\n                    </td>\n                    <td className=\"px-2 py-3 text-center\">\n                      <span\n                        className=\"text-xs font-mono font-medium\"\n                        style={{ color: scoreColor(item.period_scores?.long ?? 50) }}\n                      >\n                        {(item.period_scores?.long ?? 50).toFixed(0)}\n                      </span>\n                    </td>\n\n                    {/* Confidence */}\n                    <td className=\"px-2 py-3 text-center\">\n                      <div className=\"flex flex-col items-center gap-0.5\">\n                        <span\n                          className=\"text-xs font-mono font-medium\"\n                          style={{\n                            color:\n                              (item.confidence?.overall ?? 0) >= 80\n                                ? '#22c55e'\n                                : (item.confidence?.overall ?? 0) >= 50\n                                  ? '#f59e0b'\n                                  : '#ef4444',\n                          }}\n                        >\n                          {(item.confidence?.overall ?? 0).toFixed(0)}%\n                        </span>\n                        <div\n                          className=\"w-10 h-1 rounded-full overflow-hidden\"\n                          style={{ background: 'rgba(148,163,184,0.1)' }}\n                        >\n                          <div\n                            className=\"h-full rounded-full transition-all duration-300\"\n                            style={{\n                              width: `${item.confidence?.overall ?? 0}%`,\n                              background:\n                                (item.confidence?.overall ?? 0) >= 80\n                                  ? '#22c55e'\n                                  : (item.confidence?.overall ?? 0) >= 50\n                                    ? '#f59e0b'\n                                    : '#ef4444',\n                            }}\n                          />\n                        </div>\n                      </div>\n                    </td>\n\n                    {/* Dimension mini bars */}
                     {DIMENSIONS.map((d) => {
                       const val = item.dimension_scores?.[d] ?? 0;
                       return (

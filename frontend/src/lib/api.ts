@@ -605,6 +605,19 @@ export interface HeatmapItem {
   amount: number;
 }
 
+export interface MultiPeriodScore {
+  short: number;
+  medium: number;
+  long: number;
+}
+
+export interface Confidence {
+  overall: number;
+  by_dim: Record<string, number>;
+  data_age: string;
+  missing: string[];
+}
+
 export interface RankingItem {
   code: string;
   name: string;
@@ -616,6 +629,11 @@ export interface RankingItem {
   strengths: string[];
   risks: string[];
   rank: number;
+  // Enhanced scoring fields
+  weighted_score: number;
+  period_scores: MultiPeriodScore;
+  confidence: Confidence;
+  dim_contributions: Record<string, number>;
   error?: string;
 }
 

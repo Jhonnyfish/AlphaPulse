@@ -27,6 +27,7 @@ type WatchlistAnalysisHandler struct {
 	eastMoney *services.EastMoneyService
 	analyze   *AnalyzeHandler
 	log       *zap.Logger
+	scoring   *services.ScoringEngine
 
 	heatmapCache *cache.Cache[[]HeatmapItem]
 	sectorsCache *cache.Cache[SectorsResponse]
@@ -47,6 +48,7 @@ func NewWatchlistAnalysisHandler(
 		eastMoney:    eastMoney,
 		analyze:      analyze,
 		log:          log,
+		scoring:      services.NewScoringEngine(),
 		heatmapCache: cache.New[[]HeatmapItem](),
 		sectorsCache: cache.New[SectorsResponse](),
 		rankingCache: cache.New[RankingResponse](),
@@ -359,7 +361,12 @@ type RankingItem struct {
 	Strengths       []string           `json:"strengths"`
 	Risks           []string           `json:"risks"`
 	Rank            int                `json:"rank"`
-	Error           string             `json:"error,omitempty"`
+	// Enhanced scoring fields
+	WeightedScore   float64                    `json:"weighted_score"`
+	PeriodScores    models.MultiPeriodScore    `json:"period_scores"`
+	Confidence      models.Confidence          `json:"confidence"`
+	DimContributions map[string]float64        `json:"dim_contributions"`
+	Error           string                     `json:"error,omitempty"`
 }
 
 // RankingSummary is summary statistics for the ranking.
@@ -676,30 +683,52 @@ func (h *WatchlistAnalysisHandler) analyzeForRanking(ctx context.Context, code s
 		}
 	}
 
-	dimScores := make(map[string]float64)
-	dimScores["order_flow"] = scoreDimension(analysis.OrderFlow.Verdict, analysis.OrderFlow.OuterRatio > 55)
-	dimScores["volume_price"] = scoreDimensionVP(analysis.VolumePrice)
-	dimScores["valuation"] = scoreDimensionValuation(analysis.Valuation)
-	dimScores["volatility"] = scoreDimension(analysis.Volatility.Verdict, false)
-	dimScores["money_flow"] = scoreDimensionMF(analysis.MoneyFlow)
-	dimScores["technical"] = scoreDimensionTech(analysis.Technical)
-	dimScores["sector"] = scoreDimension(analysis.Sector.Verdict, analysis.Sector.IsSectorLeader)
-	dimScores["sentiment"] = scoreDimension(analysis.Sentiment.Verdict, analysis.Sentiment.SentimentScore > 0)
-	// P0 dimensions
-	dimScores["fundamentals"] = scoreDimensionFundamentals(analysis.Fundamentals)
-	dimScores["northbound"] = scoreDimensionNorthbound(analysis.Northbound)
-	dimScores["margin"] = scoreDimensionMargin(analysis.MarginDetail)
+	// Compute dimension scores (0-100)
+	dimScoresMap := make(map[string]float64)
+	dimScoresMap["order_flow"] = scoreDimension(analysis.OrderFlow.Verdict, analysis.OrderFlow.OuterRatio > 55)
+	dimScoresMap["volume_price"] = scoreDimensionVP(analysis.VolumePrice)
+	dimScoresMap["valuation"] = scoreDimensionValuation(analysis.Valuation)
+	dimScoresMap["volatility"] = scoreDimension(analysis.Volatility.Verdict, false)
+	dimScoresMap["money_flow"] = scoreDimensionMF(analysis.MoneyFlow)
+	dimScoresMap["technical"] = scoreDimensionTech(analysis.Technical)
+	dimScoresMap["sector"] = scoreDimension(analysis.Sector.Verdict, analysis.Sector.IsSectorLeader)
+	dimScoresMap["sentiment"] = scoreDimension(analysis.Sentiment.Verdict, analysis.Sentiment.SentimentScore > 0)
+	dimScoresMap["fundamentals"] = scoreDimensionFundamentals(analysis.Fundamentals)
+	dimScoresMap["northbound"] = scoreDimensionNorthbound(analysis.Northbound)
+	dimScoresMap["margin"] = scoreDimensionMargin(analysis.MarginDetail)
+
+	// Build dimension scores struct for scoring engine
+	dimScores := services.DimensionScores{
+		OrderFlow:    dimScoresMap["order_flow"],
+		VolumePrice:  dimScoresMap["volume_price"],
+		Valuation:    dimScoresMap["valuation"],
+		Volatility:   dimScoresMap["volatility"],
+		MoneyFlow:    dimScoresMap["money_flow"],
+		Technical:    dimScoresMap["technical"],
+		Sector:       dimScoresMap["sector"],
+		Sentiment:    dimScoresMap["sentiment"],
+		Fundamentals: dimScoresMap["fundamentals"],
+		Northbound:   dimScoresMap["northbound"],
+		Margin:       dimScoresMap["margin"],
+	}
+
+	// Compute enhanced summary with weighted scoring
+	enhanced := h.scoring.ComputeEnhancedSummary(&analysis, dimScores)
 
 	return RankingItem{
-		Code:            services.StockCode6(code),
-		Name:            analysis.Name,
-		OverallScore:    analysis.Summary.OverallScore,
-		OverallSignal:   analysis.Summary.OverallSignal,
-		DimensionScores: dimScores,
-		ChangePct:       analysis.Quote.ChangePercent,
-		Price:           analysis.Quote.Price,
-		Strengths:       safeStrings(analysis.Summary.Strengths),
-		Risks:           safeStrings(analysis.Summary.Risks),
+		Code:             services.StockCode6(code),
+		Name:             analysis.Name,
+		OverallScore:     enhanced.OverallScore,
+		OverallSignal:    enhanced.OverallSignal,
+		DimensionScores:  dimScoresMap,
+		ChangePct:        analysis.Quote.ChangePercent,
+		Price:            analysis.Quote.Price,
+		Strengths:        safeStrings(enhanced.Strengths),
+		Risks:            safeStrings(enhanced.Risks),
+		WeightedScore:    enhanced.WeightedScore,
+		PeriodScores:     enhanced.PeriodScores,
+		Confidence:       enhanced.Confidence,
+		DimContributions: enhanced.DimContributions,
 	}
 }
 
