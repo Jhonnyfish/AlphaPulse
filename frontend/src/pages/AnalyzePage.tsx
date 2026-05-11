@@ -126,6 +126,26 @@ function scoreLabel(score: number): string {
   return '弱势';
 }
 
+function formatVolume(vol: number): string {
+  if (vol >= 100000000) return `${(vol / 100000000).toFixed(1)}亿`;
+  if (vol >= 10000) return `${(vol / 10000).toFixed(1)}万`;
+  return vol.toFixed(0);
+}
+
+function formatMoney(amount: number): string {
+  const abs = Math.abs(amount);
+  const sign = amount >= 0 ? '+' : '-';
+  if (abs >= 100000000) return `${sign}${(abs / 100000000).toFixed(2)}亿`;
+  if (abs >= 10000) return `${sign}${(abs / 10000).toFixed(0)}万`;
+  return `${sign}${abs.toFixed(0)}`;
+}
+
+function formatMarketValue(mv: number): string {
+  if (mv >= 100000000) return `${(mv / 100000000).toFixed(0)}亿`;
+  if (mv >= 10000) return `${(mv / 10000).toFixed(0)}万`;
+  return mv.toFixed(0);
+}
+
 export default function AnalyzePage() {
   const { viewParams, navigate } = useView();
   const code = viewParams.code ?? '';
@@ -418,35 +438,68 @@ function DimensionCard({ name, score, detail, rawData }: { name: string; score: 
   // Extract key metrics from raw data
   const metrics: { label: string; value: string; color?: string }[] = [];
   if (rawData) {
-    if (name === 'technical') {
-      if (rawData.macd_signal) metrics.push({ label: 'MACD', value: String(rawData.macd_signal) });
-      if (rawData.kdj_signal) metrics.push({ label: 'KDJ', value: String(rawData.kdj_signal) });
+    if (name === 'order_flow') {
+      if (rawData.outer_vol && Number(rawData.outer_vol) > 0) metrics.push({ label: '外盘', value: formatVolume(Number(rawData.outer_vol)) });
+      if (rawData.inner_vol && Number(rawData.inner_vol) > 0) metrics.push({ label: '内盘', value: formatVolume(Number(rawData.inner_vol)) });
+      if (rawData.outer_ratio && Number(rawData.outer_ratio) > 0) metrics.push({ label: '外盘比', value: `${Number(rawData.outer_ratio).toFixed(1)}%`, color: Number(rawData.outer_ratio) > 55 ? '#ef4444' : undefined });
+      if (rawData.net_direction) metrics.push({ label: '方向', value: String(rawData.net_direction), color: rawData.net_direction === '外盘占优' ? '#ef4444' : '#22c55e' });
+    } else if (name === 'volume_price') {
+      if (rawData.today_change_pct && Number(rawData.today_change_pct) !== 0) metrics.push({ label: '涨跌幅', value: `${Number(rawData.today_change_pct).toFixed(2)}%`, color: Number(rawData.today_change_pct) > 0 ? '#ef4444' : '#22c55e' });
+      if (rawData.volume_ratio && Number(rawData.volume_ratio) > 0) metrics.push({ label: '量比', value: Number(rawData.volume_ratio).toFixed(2), color: Number(rawData.volume_ratio) > 1.5 ? '#ef4444' : undefined });
+      if (rawData.turnover && Number(rawData.turnover) > 0) metrics.push({ label: '换手率', value: `${Number(rawData.turnover).toFixed(2)}%` });
+      if (rawData.price_volume_harmony) metrics.push({ label: '量价', value: String(rawData.price_volume_harmony) });
+    } else if (name === 'valuation') {
+      if (rawData.pe && Number(rawData.pe) > 0) metrics.push({ label: 'PE', value: Number(rawData.pe).toFixed(1), color: Number(rawData.pe) > 50 ? '#ef4444' : Number(rawData.pe) < 15 ? '#22c55e' : undefined });
+      if (rawData.pb && Number(rawData.pb) > 0) metrics.push({ label: 'PB', value: Number(rawData.pb).toFixed(2), color: Number(rawData.pb) > 5 ? '#ef4444' : Number(rawData.pb) < 1 ? '#22c55e' : undefined });
+      if (rawData.total_mv && Number(rawData.total_mv) > 0) metrics.push({ label: '市值', value: formatMarketValue(Number(rawData.total_mv)) });
+      if (rawData.mv_level) metrics.push({ label: '级别', value: String(rawData.mv_level) });
+    } else if (name === 'volatility') {
+      if (rawData.amplitude && Number(rawData.amplitude) > 0) metrics.push({ label: '振幅', value: `${Number(rawData.amplitude).toFixed(2)}%`, color: Number(rawData.amplitude) > 5 ? '#ef4444' : undefined });
+      if (rawData.distance_to_limit_up && Number(rawData.distance_to_limit_up) > 0) metrics.push({ label: '距涨停', value: `${Number(rawData.distance_to_limit_up).toFixed(1)}%` });
+      if (rawData.distance_to_limit_down && Number(rawData.distance_to_limit_down) > 0) metrics.push({ label: '距跌停', value: `${Number(rawData.distance_to_limit_down).toFixed(1)}%` });
+    } else if (name === 'money_flow') {
+      if (rawData.today_main_net && Number(rawData.today_main_net) !== 0) metrics.push({ label: '主力净流入', value: formatMoney(Number(rawData.today_main_net)), color: Number(rawData.today_main_net) > 0 ? '#ef4444' : '#22c55e' });
+      if (rawData.today_huge_net && Number(rawData.today_huge_net) !== 0) metrics.push({ label: '超大单', value: formatMoney(Number(rawData.today_huge_net)), color: Number(rawData.today_huge_net) > 0 ? '#ef4444' : '#22c55e' });
+      if (rawData.today_big_net && Number(rawData.today_big_net) !== 0) metrics.push({ label: '大单', value: formatMoney(Number(rawData.today_big_net)), color: Number(rawData.today_big_net) > 0 ? '#ef4444' : '#22c55e' });
+      if (rawData.main_consecutive_days && Number(rawData.main_consecutive_days) > 0) metrics.push({ label: '连续', value: `${rawData.main_consecutive_days}日${rawData.main_consecutive_direction || ''}` });
+    } else if (name === 'technical') {
       if (rawData.rsi_14 && Number(rawData.rsi_14) > 0) {
         const rsi = Number(rawData.rsi_14);
         metrics.push({ label: 'RSI', value: rsi.toFixed(1), color: rsi > 70 ? '#ef4444' : rsi < 30 ? '#22c55e' : undefined });
       }
+      if (rawData.macd_signal) metrics.push({ label: 'MACD', value: String(rawData.macd_signal), color: rawData.macd_signal === '金叉' ? '#ef4444' : rawData.macd_signal === '死叉' ? '#22c55e' : undefined });
+      if (rawData.kdj_signal) metrics.push({ label: 'KDJ', value: String(rawData.kdj_signal) });
       if (rawData.ma_arrangement) metrics.push({ label: '均线', value: String(rawData.ma_arrangement) });
-    } else if (name === 'money_flow') {
-      if (rawData.today_main_direction) metrics.push({ label: '主力', value: String(rawData.today_main_direction), color: rawData.today_main_direction === '流入' ? '#ef4444' : '#22c55e' });
-      if (rawData.main_consecutive_days && Number(rawData.main_consecutive_days) > 0) metrics.push({ label: '连续', value: `${rawData.main_consecutive_days}日` });
-    } else if (name === 'valuation') {
-      if (rawData.pe && Number(rawData.pe) > 0) metrics.push({ label: 'PE', value: String(rawData.pe) });
-      if (rawData.pb && Number(rawData.pb) > 0) metrics.push({ label: 'PB', value: String(rawData.pb) });
-      if (rawData.mv_level) metrics.push({ label: '市值', value: String(rawData.mv_level) });
-    } else if (name === 'volume_price') {
-      if (rawData.volume_ratio && Number(rawData.volume_ratio) > 0) metrics.push({ label: '量比', value: Number(rawData.volume_ratio).toFixed(2) });
-      if (rawData.price_volume_harmony) metrics.push({ label: '量价', value: String(rawData.price_volume_harmony) });
+      if (rawData.period_align) metrics.push({ label: '周期', value: String(rawData.period_align), color: rawData.period_align === '日周共振' ? '#ef4444' : undefined });
+    } else if (name === 'sector') {
+      if (rawData.primary_sector) metrics.push({ label: '板块', value: String(rawData.primary_sector) });
+      if (rawData.rel_strength_tag) metrics.push({ label: '相对强度', value: String(rawData.rel_strength_tag), color: rawData.rel_strength_tag === '强于板块' ? '#ef4444' : rawData.rel_strength_tag === '弱于板块' ? '#22c55e' : undefined });
+      if (rawData.stock_pct_chg_5d && Number(rawData.stock_pct_chg_5d) !== 0) metrics.push({ label: '个股5日', value: `${Number(rawData.stock_pct_chg_5d).toFixed(2)}%`, color: Number(rawData.stock_pct_chg_5d) > 0 ? '#ef4444' : '#22c55e' });
+      if (rawData.sector_pct_chg_5d && Number(rawData.sector_pct_chg_5d) !== 0) metrics.push({ label: '板块5日', value: `${Number(rawData.sector_pct_chg_5d).toFixed(2)}%`, color: Number(rawData.sector_pct_chg_5d) > 0 ? '#ef4444' : '#22c55e' });
+    } else if (name === 'sentiment') {
+      if (rawData.news_count && Number(rawData.news_count) > 0) metrics.push({ label: '新闻', value: `${rawData.news_count}条` });
+      if (rawData.announcement_count && Number(rawData.announcement_count) > 0) metrics.push({ label: '公告', value: `${rawData.announcement_count}条` });
+      if (rawData.sentiment_score && Number(rawData.sentiment_score) !== 0) metrics.push({ label: '情绪分', value: Number(rawData.sentiment_score).toFixed(1), color: Number(rawData.sentiment_score) > 0 ? '#ef4444' : '#22c55e' });
+      if (rawData.sentiment_label) metrics.push({ label: '情绪', value: String(rawData.sentiment_label) });
     } else if (name === 'fundamentals') {
-      if (rawData.roe && Number(rawData.roe) > 0) metrics.push({ label: 'ROE', value: `${Number(rawData.roe).toFixed(1)}%` });
+      if (rawData.roe && Number(rawData.roe) > 0) metrics.push({ label: 'ROE', value: `${Number(rawData.roe).toFixed(1)}%`, color: Number(rawData.roe) > 15 ? '#ef4444' : Number(rawData.roe) < 5 ? '#22c55e' : undefined });
       if (rawData.gross_margin && Number(rawData.gross_margin) > 0) metrics.push({ label: '毛利率', value: `${Number(rawData.gross_margin).toFixed(1)}%` });
       if (rawData.net_margin && Number(rawData.net_margin) > 0) metrics.push({ label: '净利率', value: `${Number(rawData.net_margin).toFixed(1)}%` });
+      if (rawData.debt_ratio && Number(rawData.debt_ratio) > 0) metrics.push({ label: '负债率', value: `${Number(rawData.debt_ratio).toFixed(1)}%`, color: Number(rawData.debt_ratio) > 60 ? '#ef4444' : undefined });
       if (rawData.revenue_growth && Number(rawData.revenue_growth) !== 0) metrics.push({ label: '营收增长', value: `${Number(rawData.revenue_growth).toFixed(1)}%`, color: Number(rawData.revenue_growth) > 0 ? '#ef4444' : '#22c55e' });
+      if (rawData.net_profit_growth && Number(rawData.net_profit_growth) !== 0) metrics.push({ label: '利润增长', value: `${Number(rawData.net_profit_growth).toFixed(1)}%`, color: Number(rawData.net_profit_growth) > 0 ? '#ef4444' : '#22c55e' });
     } else if (name === 'northbound') {
+      if (rawData.latest_net_flow && Number(rawData.latest_net_flow) !== 0) metrics.push({ label: '净流入', value: formatMoney(Number(rawData.latest_net_flow)), color: Number(rawData.latest_net_flow) > 0 ? '#ef4444' : '#22c55e' });
+      if (rawData.stock_net_amount && Number(rawData.stock_net_amount) !== 0) metrics.push({ label: '个股净买', value: formatMoney(Number(rawData.stock_net_amount)), color: Number(rawData.stock_net_amount) > 0 ? '#ef4444' : '#22c55e' });
+      if (rawData.trend_5d && Number(rawData.trend_5d) !== 0) metrics.push({ label: '5日趋势', value: formatMoney(Number(rawData.trend_5d)), color: Number(rawData.trend_5d) > 0 ? '#ef4444' : '#22c55e' });
       if (rawData.flow_direction) metrics.push({ label: '方向', value: String(rawData.flow_direction), color: rawData.flow_direction === '流入' ? '#ef4444' : '#22c55e' });
       if (rawData.stock_action) metrics.push({ label: '操作', value: String(rawData.stock_action) });
     } else if (name === 'margin_detail') {
+      if (rawData.latest_margin_balance && Number(rawData.latest_margin_balance) > 0) metrics.push({ label: '融资余额', value: formatMoney(Number(rawData.latest_margin_balance)) });
+      if (rawData.margin_balance_trend) metrics.push({ label: '余额趋势', value: String(rawData.margin_balance_trend), color: rawData.margin_balance_trend === '上升' ? '#ef4444' : rawData.margin_balance_trend === '下降' ? '#22c55e' : undefined });
+      if (rawData.margin_buying_trend) metrics.push({ label: '融资买入', value: String(rawData.margin_buying_trend) });
+      if (rawData.short_selling_trend) metrics.push({ label: '融券卖出', value: String(rawData.short_selling_trend) });
       if (rawData.signal) metrics.push({ label: '信号', value: String(rawData.signal) });
-      if (rawData.margin_balance_trend) metrics.push({ label: '趋势', value: String(rawData.margin_balance_trend) });
     }
   }
 
