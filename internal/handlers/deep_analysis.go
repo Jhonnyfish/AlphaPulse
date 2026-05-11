@@ -78,7 +78,8 @@ func (h *DeepAnalysisHandler) Analyze(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Minute)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "hermes", "run", prompt, "--skill", "stock-deep-analysis")
+	hermesPath := "/home/finn/.local/bin/hermes"
+	cmd := exec.CommandContext(ctx, hermesPath, "run", prompt, "--skill", "stock-deep-analysis")
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
