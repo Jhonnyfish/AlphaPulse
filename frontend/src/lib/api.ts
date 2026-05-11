@@ -736,7 +736,7 @@ export const analyzeApi = {
   analyze: (code: string) => api.get<AnalyzeResult>('/analyze', { params: { code } }),
   stockInfo: (code: string) => api.get('/stockinfo', { params: { code } }),
   scoreHistory: (code: string) => api.get<ScoreHistoryResponse>(`/score-history/${code}`),
-  deepAnalysis: (code: string) => api.post<{ ok: boolean; code: string; report: string; error: string }>('/deep-analysis', { code }),
+  deepAnalysis: (code: string, signal?: AbortSignal) => api.post<DeepAnalysisResponse>('/deep-analysis', { code }, { timeout: 0, signal }),
 };
 
 export interface DeepAnalysisResponse {

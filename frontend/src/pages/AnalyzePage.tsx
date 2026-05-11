@@ -185,10 +185,11 @@ export default function AnalyzePage() {
   const [error, setError] = useState<string | null>(null);
   const [alpha300Open, setAlpha300Open] = useState(false);
   const [scoreHistory, setScoreHistory] = useState<ScoreHistoryResponse | null>(null);
-  const [deepAnalysis, setDeepAnalysis] = useState<{ loading: boolean; report: string | null; error: string | null }>({
+  const [deepAnalysis, setDeepAnalysis] = useState<{ loading: boolean; report: string | null; error: string | null; abortController: AbortController | null }>({
     loading: false,
     report: null,
     error: null,
+    abortController: null,
   });
 
   const fetchAnalysis = useCallback(async (stockCode: string) => {
@@ -229,17 +230,28 @@ export default function AnalyzePage() {
   };
 
   const triggerDeepAnalysis = async (stockCode: string) => {
-    setDeepAnalysis({ loading: true, report: null, error: null });
+    const abortController = new AbortController();
+    setDeepAnalysis({ loading: true, report: null, error: null, abortController });
     try {
-      const res = await analyzeApi.deepAnalysis(stockCode);
+      const res = await analyzeApi.deepAnalysis(stockCode, abortController.signal);
       if (res.data.ok) {
-        setDeepAnalysis({ loading: false, report: res.data.report, error: null });
+        setDeepAnalysis({ loading: false, report: res.data.report, error: null, abortController: null });
       } else {
-        setDeepAnalysis({ loading: false, report: null, error: res.data.error || '分析失败' });
+        setDeepAnalysis({ loading: false, report: null, error: res.data.error || '分析失败', abortController: null });
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '深度分析失败';
-      setDeepAnalysis({ loading: false, report: null, error: msg });
+      if (err instanceof Error && err.name === 'CanceledError') {
+        setDeepAnalysis({ loading: false, report: null, error: '已取消', abortController: null });
+      } else {
+        const msg = err instanceof Error ? err.message : '深度分析失败';
+        setDeepAnalysis({ loading: false, report: null, error: msg, abortController: null });
+      }
+    }
+  };
+
+  const cancelDeepAnalysis = () => {
+    if (deepAnalysis.abortController) {
+      deepAnalysis.abortController.abort();
     }
   };
 
@@ -445,12 +457,12 @@ export default function AnalyzePage() {
                 深度分析
               </h3>
               <button
-                onClick={() => triggerDeepAnalysis(code)}
-                disabled={deepAnalysis.loading}
+                onClick={() => deepAnalysis.loading ? cancelDeepAnalysis() : triggerDeepAnalysis(code)}
+                disabled={false}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                 style={{
-                  background: deepAnalysis.loading ? 'var(--color-bg-hover)' : 'var(--color-accent)',
-                  color: deepAnalysis.loading ? 'var(--color-text-muted)' : '#fff',
+                  background: deepAnalysis.loading ? '#ef4444' : 'var(--color-accent)',
+                  color: '#fff',
                 }}
               >
                 {deepAnalysis.loading ? (
@@ -459,7 +471,7 @@ export default function AnalyzePage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
-                    分析中...
+                    取消分析
                   </>
                 ) : (
                   '🔬 触发深度分析'
@@ -479,7 +491,7 @@ export default function AnalyzePage() {
 
             {!deepAnalysis.report && !deepAnalysis.loading && !deepAnalysis.error && (
               <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                点击按钮触发AI深度分析，包含行业研究、关联数据分析、估值判断等（约需30-60秒）
+                点击按钮触发AI深度分析，包含行业研究、关联数据分析、估值判断等（约需1-3分钟）
               </p>
             )}
           </div>
