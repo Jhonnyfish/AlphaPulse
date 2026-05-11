@@ -16,6 +16,9 @@ interface RawAnalyzeResponse {
   technical: { verdict: string; [k: string]: unknown };
   sector: { verdict: string; [k: string]: unknown };
   sentiment: { verdict: string; sentiment_score?: number; [k: string]: unknown };
+  fundamentals?: { verdict: string; score?: number; roe?: number; gross_margin?: number; net_margin?: number; debt_ratio?: number; revenue_growth?: number; net_profit_growth?: number; roe_level?: string; [k: string]: unknown };
+  northbound?: { verdict: string; signal?: string; flow_direction?: string; stock_action?: string; [k: string]: unknown };
+  margin_detail?: { verdict: string; signal?: string; margin_balance_trend?: string; [k: string]: unknown };
   summary: {
     overall_score: number;
     overall_signal: string;
@@ -50,6 +53,9 @@ function transformResponse(raw: RawAnalyzeResponse): AnalyzeResult {
     { name: 'technical',    score: levelToScore(raw.technical.rsi_level as string),        detail: raw.technical.verdict, rawData: raw.technical as Record<string, unknown> },
     { name: 'sector',       score: raw.sector.is_sector_leader ? 7 : 5,                   detail: raw.sector.verdict, rawData: raw.sector as Record<string, unknown> },
     { name: 'sentiment',    score: Math.max(1, Math.min(10, ((strengths.length - risks.length) * 1.5) + 5)), detail: raw.sentiment.verdict, rawData: raw.sentiment as Record<string, unknown> },
+    { name: 'fundamentals', score: levelToScore(raw.fundamentals?.roe_level as string),    detail: raw.fundamentals?.verdict ?? '数据不足', rawData: raw.fundamentals as Record<string, unknown> },
+    { name: 'northbound',   score: levelToScore(raw.northbound?.flow_direction as string), detail: raw.northbound?.verdict ?? '数据不足', rawData: raw.northbound as Record<string, unknown> },
+    { name: 'margin_detail', score: levelToScore(raw.margin_detail?.margin_balance_trend as string), detail: raw.margin_detail?.verdict ?? '数据不足', rawData: raw.margin_detail as Record<string, unknown> },
   ];
 
   const parts: string[] = [s.suggestion];
@@ -87,6 +93,9 @@ const DIMENSION_LABELS: Record<string, string> = {
   technical: '技术面',
   sector: '板块',
   sentiment: '情绪',
+  fundamentals: '基本面',
+  northbound: '北向资金',
+  margin_detail: '融资融券',
 };
 
 const DIMENSION_ICONS: Record<string, React.ElementType> = {
@@ -98,6 +107,9 @@ const DIMENSION_ICONS: Record<string, React.ElementType> = {
   technical: TrendingDown,
   sector: Star,
   sentiment: Search,
+  fundamentals: Shield,
+  northbound: TrendingUp,
+  margin_detail: BarChart3,
 };
 
 function scoreColor(score: number): string {
@@ -424,6 +436,17 @@ function DimensionCard({ name, score, detail, rawData }: { name: string; score: 
     } else if (name === 'volume_price') {
       if (rawData.volume_ratio && Number(rawData.volume_ratio) > 0) metrics.push({ label: '量比', value: Number(rawData.volume_ratio).toFixed(2) });
       if (rawData.price_volume_harmony) metrics.push({ label: '量价', value: String(rawData.price_volume_harmony) });
+    } else if (name === 'fundamentals') {
+      if (rawData.roe && Number(rawData.roe) > 0) metrics.push({ label: 'ROE', value: `${Number(rawData.roe).toFixed(1)}%` });
+      if (rawData.gross_margin && Number(rawData.gross_margin) > 0) metrics.push({ label: '毛利率', value: `${Number(rawData.gross_margin).toFixed(1)}%` });
+      if (rawData.net_margin && Number(rawData.net_margin) > 0) metrics.push({ label: '净利率', value: `${Number(rawData.net_margin).toFixed(1)}%` });
+      if (rawData.revenue_growth && Number(rawData.revenue_growth) !== 0) metrics.push({ label: '营收增长', value: `${Number(rawData.revenue_growth).toFixed(1)}%`, color: Number(rawData.revenue_growth) > 0 ? '#ef4444' : '#22c55e' });
+    } else if (name === 'northbound') {
+      if (rawData.flow_direction) metrics.push({ label: '方向', value: String(rawData.flow_direction), color: rawData.flow_direction === '流入' ? '#ef4444' : '#22c55e' });
+      if (rawData.stock_action) metrics.push({ label: '操作', value: String(rawData.stock_action) });
+    } else if (name === 'margin_detail') {
+      if (rawData.signal) metrics.push({ label: '信号', value: String(rawData.signal) });
+      if (rawData.margin_balance_trend) metrics.push({ label: '趋势', value: String(rawData.margin_balance_trend) });
     }
   }
 

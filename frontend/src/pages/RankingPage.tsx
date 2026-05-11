@@ -112,8 +112,8 @@ export default function RankingPage() {
   const [fromCache, setFromCache] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey>('rank');
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [sortKey, setSortKey] = useState<SortKey>('overall_score');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [stockNews, setStockNews] = useState<Record<string, NewsItem[]>>({});
   const [streaming, setStreaming] = useState(false);
@@ -229,10 +229,17 @@ export default function RankingPage() {
       setFetchedAt(finalFetchedAt);
       setFromCache(false);
       setStreaming(false);
-      // Save to cache using current data from state callback
+      // Recalculate ranks by overall_score and save to cache
       setData((prev) => {
-        saveCache(prev, finalSummary, finalFetchedAt);
-        return prev;
+        const ranked = [...prev]
+          .filter((d) => d.overall_score > 0)
+          .sort((a, b) => b.overall_score - a.overall_score)
+          .map((d, i) => ({ ...d, rank: i + 1 }));
+        // Merge ranked items back, preserving order for items with score=0
+        const rankedMap = new Map(ranked.map((d) => [d.code, d]));
+        const final = prev.map((d) => rankedMap.get(d.code) ?? d);
+        saveCache(final, finalSummary, finalFetchedAt);
+        return final;
       });
     } catch {
       setStreaming(false);
