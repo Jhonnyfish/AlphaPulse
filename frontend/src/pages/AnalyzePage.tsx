@@ -446,7 +446,8 @@ function DimensionCard({ name, score, detail, rawData }: { name: string; score: 
     } else if (name === 'volume_price') {
       if (rawData.today_change_pct && Number(rawData.today_change_pct) !== 0) metrics.push({ label: '涨跌幅', value: `${Number(rawData.today_change_pct).toFixed(2)}%`, color: Number(rawData.today_change_pct) > 0 ? '#ef4444' : '#22c55e' });
       if (rawData.volume_ratio && Number(rawData.volume_ratio) > 0) metrics.push({ label: '量比', value: Number(rawData.volume_ratio).toFixed(2), color: Number(rawData.volume_ratio) > 1.5 ? '#ef4444' : undefined });
-      if (rawData.turnover && Number(rawData.turnover) > 0) metrics.push({ label: '换手率', value: `${Number(rawData.turnover).toFixed(2)}%` });
+      if (rawData.turnover && Number(rawData.turnover) > 0) metrics.push({ label: '成交额', value: formatMoney(Number(rawData.turnover)) });
+      if (rawData.turnover_level) metrics.push({ label: '活跃度', value: String(rawData.turnover_level), color: rawData.turnover_level === '过热' ? '#ef4444' : rawData.turnover_level === '冷清' ? '#22c55e' : undefined });
       if (rawData.price_volume_harmony) metrics.push({ label: '量价', value: String(rawData.price_volume_harmony) });
     } else if (name === 'valuation') {
       if (rawData.pe && Number(rawData.pe) > 0) metrics.push({ label: 'PE', value: Number(rawData.pe).toFixed(1), color: Number(rawData.pe) > 50 ? '#ef4444' : Number(rawData.pe) < 15 ? '#22c55e' : undefined });
@@ -461,7 +462,10 @@ function DimensionCard({ name, score, detail, rawData }: { name: string; score: 
       if (rawData.today_main_net && Number(rawData.today_main_net) !== 0) metrics.push({ label: '主力净流入', value: formatMoney(Number(rawData.today_main_net)), color: Number(rawData.today_main_net) > 0 ? '#ef4444' : '#22c55e' });
       if (rawData.today_huge_net && Number(rawData.today_huge_net) !== 0) metrics.push({ label: '超大单', value: formatMoney(Number(rawData.today_huge_net)), color: Number(rawData.today_huge_net) > 0 ? '#ef4444' : '#22c55e' });
       if (rawData.today_big_net && Number(rawData.today_big_net) !== 0) metrics.push({ label: '大单', value: formatMoney(Number(rawData.today_big_net)), color: Number(rawData.today_big_net) > 0 ? '#ef4444' : '#22c55e' });
+      if (rawData.today_main_direction) metrics.push({ label: '主力方向', value: String(rawData.today_main_direction), color: rawData.today_main_direction === '流入' ? '#ef4444' : rawData.today_main_direction === '流出' ? '#22c55e' : undefined });
       if (rawData.main_consecutive_days && Number(rawData.main_consecutive_days) > 0) metrics.push({ label: '连续', value: `${rawData.main_consecutive_days}日${rawData.main_consecutive_direction || ''}` });
+      if (rawData.institution_vs_hotmoney) metrics.push({ label: '主导', value: String(rawData.institution_vs_hotmoney) });
+      if (rawData.retail_behavior) metrics.push({ label: '散户', value: String(rawData.retail_behavior) });
     } else if (name === 'technical') {
       if (rawData.rsi_14 && Number(rawData.rsi_14) > 0) {
         const rsi = Number(rawData.rsi_14);
@@ -470,7 +474,9 @@ function DimensionCard({ name, score, detail, rawData }: { name: string; score: 
       if (rawData.macd_signal) metrics.push({ label: 'MACD', value: String(rawData.macd_signal), color: rawData.macd_signal === '金叉' ? '#ef4444' : rawData.macd_signal === '死叉' ? '#22c55e' : undefined });
       if (rawData.kdj_signal) metrics.push({ label: 'KDJ', value: String(rawData.kdj_signal) });
       if (rawData.ma_arrangement) metrics.push({ label: '均线', value: String(rawData.ma_arrangement) });
-      if (rawData.period_align) metrics.push({ label: '周期', value: String(rawData.period_align), color: rawData.period_align === '日周共振' ? '#ef4444' : undefined });
+      if (rawData.boll_position) metrics.push({ label: '布林', value: String(rawData.boll_position) });
+      if (rawData.weekly_rsi_level) metrics.push({ label: '周RSI', value: String(rawData.weekly_rsi_level), color: rawData.weekly_rsi_level === '超买' ? '#ef4444' : rawData.weekly_rsi_level === '超卖' ? '#22c55e' : undefined });
+      if (rawData.period_align) metrics.push({ label: '周期', value: String(rawData.period_align), color: String(rawData.period_align).includes('共振') ? '#ef4444' : undefined });
     } else if (name === 'sector') {
       if (rawData.primary_sector) metrics.push({ label: '板块', value: String(rawData.primary_sector) });
       if (rawData.rel_strength_tag) metrics.push({ label: '相对强度', value: String(rawData.rel_strength_tag), color: rawData.rel_strength_tag === '强于板块' ? '#ef4444' : rawData.rel_strength_tag === '弱于板块' ? '#22c55e' : undefined });
