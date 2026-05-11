@@ -336,7 +336,7 @@ func (h *ScoreHistoryHandler) calculateComparison(ctx context.Context, code stri
 // RecordScore records a score entry for a stock.
 func (h *ScoreHistoryHandler) RecordScore(code string, score float64, dimensions map[string]float64) {
 	dimJSON, _ := json.Marshal(dimensions)
-	_, err := h.db.Exec(nil,
+	_, err := h.db.Exec(context.Background(),
 		`INSERT INTO score_history (code, score, dimensions) VALUES ($1, $2, $3)`,
 		code, score, dimJSON)
 	if err != nil {
@@ -348,7 +348,7 @@ func (h *ScoreHistoryHandler) RecordScore(code string, score float64, dimensions
 
 // PruneOldEntries removes entries older than 90 days.
 func (h *ScoreHistoryHandler) PruneOldEntries() {
-	tag, err := h.db.Exec(nil,
+	tag, err := h.db.Exec(context.Background(),
 		`DELETE FROM score_history WHERE recorded_at < NOW() - INTERVAL '90 days'`)
 	if err != nil {
 		logger.Warn("prune score history failed", zap.Error(err))
