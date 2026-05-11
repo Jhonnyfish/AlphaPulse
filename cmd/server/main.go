@@ -89,6 +89,7 @@ func main() {
 	scoreHistoryHandler := handlers.NewScoreHistoryHandler(db)
 	patternScannerHandler := handlers.NewPatternScannerHandler(eastMoneyService, tencentService, db)
 	analyzeHandler := handlers.NewAnalyzeHandler(eastMoneyService, tencentService, newsService, logger.L())
+	analyzeHandler.SetScoreHistory(scoreHistoryHandler)
 	trendHandler := handlers.NewTrendHandler(eastMoneyService, tencentService, db, logger.L())
 	compareHandler := handlers.NewCompareHandler(eastMoneyService, tencentService)
 	portfolioHandler := handlers.NewPortfolioHandler(tencentService, eastMoneyService, db, logger.L())

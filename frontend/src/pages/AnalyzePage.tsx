@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useView } from '@/lib/ViewContext';
-import { analyzeApi, type AnalyzeResult } from '@/lib/api';
+import { analyzeApi, type AnalyzeResult, type ScoreHistoryResponse } from '@/lib/api';
 
 // Raw API response type (actual backend structure)
 interface RawAnalyzeResponse {
@@ -184,14 +184,22 @@ export default function AnalyzePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [alpha300Open, setAlpha300Open] = useState(false);
+  const [scoreHistory, setScoreHistory] = useState<ScoreHistoryResponse | null>(null);
 
   const fetchAnalysis = useCallback(async (stockCode: string) => {
     setLoading(true);
     setError(null);
     setData(null);
+    setScoreHistory(null);
     try {
-      const res = await analyzeApi.analyze(stockCode);
-      setData(transformResponse(res.data as unknown as RawAnalyzeResponse));
+      const [analysisRes, historyRes] = await Promise.all([
+        analyzeApi.analyze(stockCode),
+        analyzeApi.scoreHistory(stockCode).catch(() => null),
+      ]);
+      setData(transformResponse(analysisRes.data as unknown as RawAnalyzeResponse));
+      if (historyRes?.data) {
+        setScoreHistory(historyRes.data);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '分析失败，请稍后重试';
       setError(msg);
@@ -396,6 +404,18 @@ export default function AnalyzePage() {
           {/* Trend Analysis */}
           {data.trend_analysis && (
             <TrendAnalysisCard trend={data.trend_analysis} />
+          )}
+
+          {/* Score Trend & Comparison */}
+          {scoreHistory && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {scoreHistory.trend && (
+                <ScoreTrendCard trend={scoreHistory.trend} dimTrends={scoreHistory.dim_trends} />
+              )}
+              {scoreHistory.comparison && (
+                <ComparisonCard comparison={scoreHistory.comparison} />
+              )}
+            </div>
           )}
         </>
       )}
@@ -708,6 +728,145 @@ function TrendAnalysisCard({ trend }: { trend: NonNullable<AnalyzeResult['trend_
       {/* Verdict */}
       <div className="mt-3 text-sm font-medium" style={{ color: 'var(--color-accent)' }}>
         {verdict}
+      </div>
+    </div>
+  );
+}
+
+function ScoreTrendCard({ trend, dimTrends }: {
+  trend: NonNullable<ScoreHistoryResponse['trend']>;
+  dimTrends?: ScoreHistoryResponse['dim_trends'];
+}) {
+  const trendColor = (change: number) => change > 0 ? '#ef4444' : change < 0 ? '#22c55e' : 'var(--color-text-muted)';
+  const trendArrow = (change: number) => change > 0 ? '↑' : change < 0 ? '↓' : '→';
+  const trendLabel = (t: string) => t === 'rising' ? '上升' : t === 'falling' ? '下降' : '稳定';
+
+  return (
+    <div className="glass-panel p-5">
+      <h3 className="text-sm font-medium mb-4" style={{ color: 'var(--color-text-secondary)' }}>
+        评分趋势
+      </h3>
+
+      {/* Score changes */}
+      <div className="grid grid-cols-3 gap-4 mb-4">
+        <div className="text-center">
+          <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>当前</div>
+          <div className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
+            {trend.current.toFixed(0)}
+          </div>
+        </div>
+        <div className="text-center">
+          <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>7日变化</div>
+          <div className="text-lg font-bold" style={{ color: trendColor(trend.change_7d) }}>
+            {trendArrow(trend.change_7d)} {Math.abs(trend.change_7d).toFixed(1)}
+          </div>
+          <div className="text-xs" style={{ color: trendColor(trend.change_7d) }}>
+            {trendLabel(trend.trend_7d)}
+          </div>
+        </div>
+        <div className="text-center">
+          <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>30日变化</div>
+          <div className="text-lg font-bold" style={{ color: trendColor(trend.change_30d) }}>
+            {trendArrow(trend.change_30d)} {Math.abs(trend.change_30d).toFixed(1)}
+          </div>
+          <div className="text-xs" style={{ color: trendColor(trend.change_30d) }}>
+            {trendLabel(trend.trend_30d)}
+          </div>
+        </div>
+      </div>
+
+      {/* Dimension trends */}
+      {dimTrends && Object.keys(dimTrends).length > 0 && (
+        <div>
+          <div className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>维度变化(7日)</div>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(dimTrends).map(([dim, dt]) => (
+              <span key={dim} className="text-xs px-2 py-1 rounded" style={{
+                background: dt.change_7d > 5 ? 'rgba(239,68,68,0.1)' : dt.change_7d < -5 ? 'rgba(34,197,94,0.1)' : 'var(--color-bg-hover)',
+                color: trendColor(dt.change_7d),
+              }}>
+                {DIMENSION_LABELS[dim] ?? dim}: {dt.change_7d > 0 ? '+' : ''}{dt.change_7d.toFixed(1)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ComparisonCard({ comparison }: { comparison: NonNullable<ScoreHistoryResponse['comparison']> }) {
+  const relColor = (v: number) => v > 0 ? '#ef4444' : v < 0 ? '#22c55e' : 'var(--color-text-muted)';
+
+  return (
+    <div className="glass-panel p-5">
+      <h3 className="text-sm font-medium mb-4" style={{ color: 'var(--color-text-secondary)' }}>
+        对比分析
+      </h3>
+
+      {/* Score comparison */}
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>个股评分</div>
+          <div className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
+            {comparison.stock_score.toFixed(0)}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>
+            {comparison.sector_name || '板块'}平均
+          </div>
+          <div className="text-2xl font-bold" style={{ color: 'var(--color-text-secondary)' }}>
+            {comparison.sector_avg_score.toFixed(0)}
+          </div>
+        </div>
+      </div>
+
+      {/* Price change comparison */}
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>5日涨跌</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-mono" style={{ color: comparison.stock_change_5d > 0 ? '#ef4444' : '#22c55e' }}>
+              {comparison.stock_change_5d > 0 ? '+' : ''}{comparison.stock_change_5d.toFixed(2)}%
+            </span>
+            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>vs</span>
+            <span className="text-xs font-mono" style={{ color: 'var(--color-text-secondary)' }}>
+              沪深300 {comparison.market_change_5d > 0 ? '+' : ''}{comparison.market_change_5d.toFixed(2)}%
+            </span>
+          </div>
+        </div>
+
+        <div className="flex justify-between items-center">
+          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>20日涨跌</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-mono" style={{ color: comparison.stock_change_20d > 0 ? '#ef4444' : '#22c55e' }}>
+              {comparison.stock_change_20d > 0 ? '+' : ''}{comparison.stock_change_20d.toFixed(2)}%
+            </span>
+            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>vs</span>
+            <span className="text-xs font-mono" style={{ color: 'var(--color-text-secondary)' }}>
+              沪深300 {comparison.market_change_20d > 0 ? '+' : ''}{comparison.market_change_20d.toFixed(2)}%
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Relative strength */}
+      <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--color-border)' }}>
+        <div className="flex justify-between">
+          <div className="text-center flex-1">
+            <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>vs板块</div>
+            <div className="text-sm font-bold" style={{ color: relColor(comparison.vs_sector) }}>
+              {comparison.vs_sector > 0 ? '+' : ''}{comparison.vs_sector.toFixed(2)}%
+            </div>
+          </div>
+          <div className="text-center flex-1">
+            <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>vs大盘</div>
+            <div className="text-sm font-bold" style={{ color: relColor(comparison.vs_market) }}>
+              {comparison.vs_market > 0 ? '+' : ''}{comparison.vs_market.toFixed(2)}%
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

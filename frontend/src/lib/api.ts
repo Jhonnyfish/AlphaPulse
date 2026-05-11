@@ -735,7 +735,46 @@ export interface AnalyzeResult {
 export const analyzeApi = {
   analyze: (code: string) => api.get<AnalyzeResult>('/analyze', { params: { code } }),
   stockInfo: (code: string) => api.get('/stockinfo', { params: { code } }),
+  scoreHistory: (code: string) => api.get<ScoreHistoryResponse>(`/score-history/${code}`),
 };
+
+export interface ScoreTrend {
+  current: number;
+  prev_7d: number;
+  prev_30d: number;
+  change_7d: number;
+  change_30d: number;
+  trend_7d: 'rising' | 'falling' | 'stable';
+  trend_30d: 'rising' | 'falling' | 'stable';
+}
+
+export interface DimensionTrend {
+  current: number;
+  change_7d: number;
+  trend: 'improving' | 'deteriorating' | 'stable';
+}
+
+export interface ComparisonData {
+  stock_score: number;
+  stock_change_5d: number;
+  stock_change_20d: number;
+  sector_avg_score: number;
+  sector_avg_change_5d: number;
+  sector_name: string;
+  market_change_5d: number;
+  market_change_20d: number;
+  vs_sector: number;
+  vs_market: number;
+}
+
+export interface ScoreHistoryResponse {
+  code: string;
+  count: number;
+  history: { score: number; dimensions: Record<string, number>; recorded_at: string }[];
+  trend?: ScoreTrend;
+  dim_trends?: Record<string, DimensionTrend>;
+  comparison?: ComparisonData;
+}
 
 // --- Candidates & Screener ---
 export interface CandidateListItem {

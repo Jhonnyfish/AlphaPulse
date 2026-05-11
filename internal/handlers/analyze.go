@@ -23,6 +23,7 @@ type AnalyzeHandler struct {
 	newsSvc            *services.NewsService
 	tushareDB          *services.TushareDB          // Primary data source, may be nil
 	logger             *zap.Logger
+	scoreHistory       *ScoreHistoryHandler
 	quoteCache         *cache.Cache[models.Quote]
 	klineCache       *cache.Cache[[]models.KlinePoint]
 	flowCache        *cache.Cache[[]models.MoneyFlowDay]
@@ -44,6 +45,11 @@ func NewAnalyzeHandler(eastMoney *services.EastMoneyService, tencent *services.T
 		newsCache:          cache.New[[]models.NewsItem](),
 		announcementsCache: cache.New[[]models.Announcement](),
 	}
+}
+
+// SetScoreHistory sets the score history handler for recording scores.
+func (h *AnalyzeHandler) SetScoreHistory(sh *ScoreHistoryHandler) {
+	h.scoreHistory = sh
 }
 
 // SetTushareDB sets the Tushare local database service as primary data source.
@@ -249,6 +255,24 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 	// Run trend analysis
 	trendAnalyzer := services.NewTrendAnalyzer()
 	analysis.TrendAnalysis = trendAnalyzer.AnalyzeTrend(analysis.Technical, analysis.VolumePrice, analysis.Quote.Price)
+
+	// Record score history (best-effort)
+	if h.scoreHistory != nil {
+		dimScores := map[string]float64{
+			"order_flow":   scoreDimensionFromVerdict(analysis.OrderFlow.Verdict),
+			"volume_price": scoreDimensionFromVerdict(analysis.VolumePrice.Verdict),
+			"valuation":    scoreDimensionFromVerdict(analysis.Valuation.Verdict),
+			"volatility":   scoreDimensionFromVerdict(analysis.Volatility.Verdict),
+			"money_flow":   scoreDimensionFromVerdict(analysis.MoneyFlow.Verdict),
+			"technical":    scoreDimensionFromVerdict(analysis.Technical.Verdict),
+			"sector":       scoreDimensionFromVerdict(analysis.Sector.Verdict),
+			"sentiment":    scoreDimensionFromVerdict(analysis.Sentiment.Verdict),
+			"fundamentals": scoreDimensionFromVerdict(analysis.Fundamentals.Verdict),
+			"northbound":   scoreDimensionFromVerdict(analysis.Northbound.Verdict),
+			"margin":       scoreDimensionFromVerdict(analysis.MarginDetail.Verdict),
+		}
+		go h.scoreHistory.RecordScore(code, float64(analysis.Summary.OverallScore), dimScores)
+	}
 
 	return analysis
 }
@@ -516,4 +540,54 @@ func (h *AnalyzeHandler) StockInfo(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, resp)
+}
+
+// scoreDimensionFromVerdict converts a verdict string to a 0-100 score for history recording.
+func scoreDimensionFromVerdict(verdict string) float64 {
+	if verdict == "" {
+		return 50
+	}
+	switch {
+	case contains(verdict, "强势") || contains(verdict, "优秀") || contains(verdict, "强烈"):
+		return 85
+	case contains(verdict, "偏多") || contains(verdict, "良好") || contains(verdict, "积极"):
+		return 70
+	case contains(verdict, "多头") || contains(verdict, "金叉"):
+		return 75
+	case contains(verdict, "占优") || contains(verdict, "流入") || contains(verdict, "较强"):
+		return 65
+	case contains(verdict, "上方") || contains(verdict, "上升"):
+		return 60
+	case contains(verdict, "略强") || contains(verdict, "偏强"):
+		return 55
+	case contains(verdict, "中性") || contains(verdict, "均衡") || contains(verdict, "正常") || contains(verdict, "持平"):
+		return 50
+	case contains(verdict, "不足") || contains(verdict, "偏弱") || contains(verdict, "谨慎"):
+		return 40
+	case contains(verdict, "偏空") || contains(verdict, "较低"):
+		return 35
+	case contains(verdict, "弱势") || contains(verdict, "危险"):
+		return 20
+	case contains(verdict, "空头") || contains(verdict, "死叉"):
+		return 25
+	case contains(verdict, "超买"):
+		return 30
+	case contains(verdict, "超卖"):
+		return 70
+	default:
+		return 50
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstring(s, substr))
+}
+
+func containsSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
