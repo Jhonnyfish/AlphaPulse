@@ -907,7 +907,74 @@ export default function RankingPage() {
                           background: `${signalColor(item.overall_signal)}18`,
                           color: signalColor(item.overall_signal),
                         }}
-                      >\n                        {signalLabel(item.overall_signal)}\n                      </span>\n                    </td>\n\n                    {/* Multi-period scores */}\n                    <td className=\"px-2 py-3 text-center\">\n                      <span\n                        className=\"text-xs font-mono font-medium\"\n                        style={{ color: scoreColor(item.period_scores?.short ?? 50) }}\n                      >\n                        {(item.period_scores?.short ?? 50).toFixed(0)}\n                      </span>\n                    </td>\n                    <td className=\"px-2 py-3 text-center\">\n                      <span\n                        className=\"text-xs font-mono font-medium\"\n                        style={{ color: scoreColor(item.period_scores?.medium ?? 50) }}\n                      >\n                        {(item.period_scores?.medium ?? 50).toFixed(0)}\n                      </span>\n                    </td>\n                    <td className=\"px-2 py-3 text-center\">\n                      <span\n                        className=\"text-xs font-mono font-medium\"\n                        style={{ color: scoreColor(item.period_scores?.long ?? 50) }}\n                      >\n                        {(item.period_scores?.long ?? 50).toFixed(0)}\n                      </span>\n                    </td>\n\n                    {/* Confidence */}\n                    <td className=\"px-2 py-3 text-center\">\n                      <div className=\"flex flex-col items-center gap-0.5\">\n                        <span\n                          className=\"text-xs font-mono font-medium\"\n                          style={{\n                            color:\n                              (item.confidence?.overall ?? 0) >= 80\n                                ? '#22c55e'\n                                : (item.confidence?.overall ?? 0) >= 50\n                                  ? '#f59e0b'\n                                  : '#ef4444',\n                          }}\n                        >\n                          {(item.confidence?.overall ?? 0).toFixed(0)}%\n                        </span>\n                        <div\n                          className=\"w-10 h-1 rounded-full overflow-hidden\"\n                          style={{ background: 'rgba(148,163,184,0.1)' }}\n                        >\n                          <div\n                            className=\"h-full rounded-full transition-all duration-300\"\n                            style={{\n                              width: `${item.confidence?.overall ?? 0}%`,\n                              background:\n                                (item.confidence?.overall ?? 0) >= 80\n                                  ? '#22c55e'\n                                  : (item.confidence?.overall ?? 0) >= 50\n                                    ? '#f59e0b'\n                                    : '#ef4444',\n                            }}\n                          />\n                        </div>\n                      </div>\n                    </td>\n\n                    {/* Dimension mini bars */}
+                      >
+                        {signalLabel(item.overall_signal)}
+                      </span>
+                    </td>
+
+                    {/* Multi-period scores */}
+                    <td className="px-2 py-3 text-center">
+                      <span
+                        className="text-xs font-mono font-medium"
+                        style={{ color: scoreColor(item.period_scores?.short ?? 50) }}
+                      >
+                        {(item.period_scores?.short ?? 50).toFixed(0)}
+                      </span>
+                    </td>
+                    <td className="px-2 py-3 text-center">
+                      <span
+                        className="text-xs font-mono font-medium"
+                        style={{ color: scoreColor(item.period_scores?.medium ?? 50) }}
+                      >
+                        {(item.period_scores?.medium ?? 50).toFixed(0)}
+                      </span>
+                    </td>
+                    <td className="px-2 py-3 text-center">
+                      <span
+                        className="text-xs font-mono font-medium"
+                        style={{ color: scoreColor(item.period_scores?.long ?? 50) }}
+                      >
+                        {(item.period_scores?.long ?? 50).toFixed(0)}
+                      </span>
+                    </td>
+
+                    {/* Confidence */}
+                    <td className="px-2 py-3 text-center">
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span
+                          className="text-xs font-mono font-medium"
+                          style={{
+                            color:
+                              (item.confidence?.overall ?? 0) >= 80
+                                ? '#22c55e'
+                                : (item.confidence?.overall ?? 0) >= 50
+                                  ? '#f59e0b'
+                                  : '#ef4444',
+                          }}
+                        >
+                          {(item.confidence?.overall ?? 0).toFixed(0)}%
+                        </span>
+                        <div
+                          className="w-10 h-1 rounded-full overflow-hidden"
+                          style={{ background: 'rgba(148,163,184,0.1)' }}
+                        >
+                          <div
+                            className="h-full rounded-full transition-all duration-300"
+                            style={{
+                              width: `${item.confidence?.overall ?? 0}%`,
+                              background:
+                                (item.confidence?.overall ?? 0) >= 80
+                                  ? '#22c55e'
+                                  : (item.confidence?.overall ?? 0) >= 50
+                                    ? '#f59e0b'
+                                    : '#ef4444',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Dimension mini bars */}
                     {DIMENSIONS.map((d) => {
                       const val = item.dimension_scores?.[d] ?? 0;
                       return (
@@ -959,7 +1026,7 @@ export default function RankingPage() {
                   {expandedRow === item.code && (
                     <tr key={`${item.code}-detail`}>
                       <td
-                        colSpan={4 + DIMENSIONS.length + 1}
+                        colSpan={8 + DIMENSIONS.length + 1}
                         className="px-6 py-4"
                         style={{ background: 'rgba(148,163,184,0.03)' }}
                       >
