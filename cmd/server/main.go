@@ -384,6 +384,15 @@ func main() {
 				ts := services.NewTushareSync(tushareSvc, eastMoneyService, db, logger.L())
 				ts.RunDaily(syncCtx)
 			})
+			// Retry at 17:00 in case Tushare data wasn't ready at 16:00
+			scheduler.AddDailyJob("tushare-daily-retry", 17, 0, func() {
+				log.Println("[scheduler] tushare daily retry (in case 16:00 missed data)...")
+				syncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				defer cancel()
+				tushareSvc := services.NewTushareService(cfg.TushareToken, cfg.HTTPTimeout)
+				ts := services.NewTushareSync(tushareSvc, eastMoneyService, db, logger.L())
+				ts.RunDaily(syncCtx)
+			})
 		}
 		// Pre-fetch watchlist news at 16:10 so ranking reads from DB
 		scheduler.AddDailyJob("watchlist-news-sync", 16, 10, func() {
@@ -453,9 +462,17 @@ func main() {
 		}
 	}()
 
-	// Pre-compute ranking on startup if Tushare data is available
+	// On startup: sync any missing trade dates, then pre-compute ranking
 	if tushareDB != nil {
 		go func() {
+			// Backfill missing trade dates on startup
+			log.Println("[startup] checking for missing trade dates...")
+			syncCtx, syncCancel := context.WithTimeout(context.Background(), 10*time.Minute)
+			defer syncCancel()
+			tushareSvc := services.NewTushareService(cfg.TushareToken, cfg.HTTPTimeout)
+			ts := services.NewTushareSync(tushareSvc, eastMoneyService, db, logger.L())
+			ts.RunDaily(syncCtx)
+
 			if tushareDB.HasData(context.Background()) {
 				log.Println("[startup] pre-computing ranking from TushareDB...")
 				watchlistAnalysisHandler.PreComputeRanking()

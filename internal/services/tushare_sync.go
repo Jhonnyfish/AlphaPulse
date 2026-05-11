@@ -43,9 +43,43 @@ func (s *TushareSync) RunDaily(ctx context.Context) {
 		log.Printf("[tushare-sync] trade_cal sync failed: %v", err)
 	}
 
-	// Use today's date as trade_date
+	// Backfill: find recent trading days missing from DB and sync them
+	missingDates := s.getMissingTradeDates(ctx)
+	if len(missingDates) > 0 {
+		log.Printf("[tushare-sync] found %d missing trade date(s): %v", len(missingDates), missingDates)
+	}
+	for _, date := range missingDates {
+		s.syncAllForDate(ctx, date)
+	}
+
+	// Today's date
 	tradeDate := time.Now().Format("20060102")
 
+	// Check if today is a trading day
+	isOpen, err := s.isTradeDay(ctx, tradeDate)
+	if err != nil {
+		log.Printf("[tushare-sync] failed to check trade calendar: %v", err)
+	}
+	if !isOpen {
+		log.Printf("[tushare-sync] %s is not a trading day, skipping today's sync", tradeDate)
+	} else {
+		s.syncAllForDate(ctx, tradeDate)
+	}
+
+	// Sync news and announcements for watchlist stocks
+	if err := s.SyncNews(ctx); err != nil {
+		log.Printf("[tushare-sync] news sync failed: %v", err)
+	}
+
+	if err := s.SyncAnnouncements(ctx); err != nil {
+		log.Printf("[tushare-sync] announcements sync failed: %v", err)
+	}
+
+	log.Printf("[tushare-sync] daily sync completed in %v", time.Since(start))
+}
+
+// syncAllForDate syncs all data tables for a specific trade date.
+func (s *TushareSync) syncAllForDate(ctx context.Context, tradeDate string) {
 	if err := s.SyncDaily(ctx, tradeDate); err != nil {
 		log.Printf("[tushare-sync] daily sync failed for %s: %v", tradeDate, err)
 	}
@@ -85,17 +119,49 @@ func (s *TushareSync) RunDaily(ctx context.Context) {
 	if err := s.SyncMarginDetail(ctx, tradeDate); err != nil {
 		log.Printf("[tushare-sync] margin_detail sync failed for %s: %v", tradeDate, err)
 	}
+}
 
-	// Sync news and announcements for watchlist stocks
-	if err := s.SyncNews(ctx); err != nil {
-		log.Printf("[tushare-sync] news sync failed: %v", err)
+// isTradeDay checks if a given date is a trading day according to the trade calendar.
+func (s *TushareSync) isTradeDay(ctx context.Context, date string) (bool, error) {
+	var isOpen int
+	err := s.db.QueryRow(ctx,
+		`SELECT COALESCE((SELECT is_open FROM tushare_trade_cal WHERE cal_date = $1 AND exchange = 'SSE' LIMIT 1), 0)`,
+		date).Scan(&isOpen)
+	if err != nil {
+		return false, err
 	}
+	return isOpen == 1, nil
+}
 
-	if err := s.SyncAnnouncements(ctx); err != nil {
-		log.Printf("[tushare-sync] announcements sync failed: %v", err)
+// getMissingTradeDates finds recent trading days (within last 14 days) that have
+// zero rows in tushare_daily. Returns dates in ascending order (oldest first).
+func (s *TushareSync) getMissingTradeDates(ctx context.Context) []string {
+	rows, err := s.db.Query(ctx, `
+		SELECT cal_date FROM tushare_trade_cal
+		WHERE exchange = 'SSE'
+		  AND is_open = 1
+		  AND cal_date < to_char(now(), 'YYYYMMDD')
+		  AND cal_date >= to_char(now() - interval '14 days', 'YYYYMMDD')
+		  AND cal_date NOT IN (
+		    SELECT DISTINCT trade_date FROM tushare_daily
+		    WHERE trade_date >= to_char(now() - interval '14 days', 'YYYYMMDD')
+		  )
+		ORDER BY cal_date ASC
+	`)
+	if err != nil {
+		log.Printf("[tushare-sync] failed to query missing dates: %v", err)
+		return nil
 	}
+	defer rows.Close()
 
-	log.Printf("[tushare-sync] daily sync completed in %v", time.Since(start))
+	var dates []string
+	for rows.Next() {
+		var d string
+		if rows.Scan(&d) == nil {
+			dates = append(dates, d)
+		}
+	}
+	return dates
 }
 
 // GetWatchlistCodes returns all stock codes in the watchlist table.
@@ -168,6 +234,15 @@ func (s *TushareSync) SyncDaily(ctx context.Context, tradeDate string) error {
 		return nil
 	}
 
+	// Verify that returned data actually matches the requested trade date.
+	// Tushare API may return stale data if today's data isn't published yet.
+	actualDate := rows[0].TradeDate
+	if actualDate != tradeDate {
+		log.Printf("[tushare-sync] WARNING: requested daily for %s but Tushare returned data for %s (data not yet published?), skipping insert",
+			tradeDate, actualDate)
+		return nil
+	}
+
 	batch := &strings.Builder{}
 	for i, r := range rows {
 		if i > 0 {
@@ -206,6 +281,13 @@ func (s *TushareSync) SyncDailyBasic(ctx context.Context, tradeDate string) erro
 
 	if len(rows) == 0 {
 		log.Printf("[tushare-sync] no daily_basic data for %s", tradeDate)
+		return nil
+	}
+
+	// Verify data date matches request
+	if rows[0].TradeDate != tradeDate {
+		log.Printf("[tushare-sync] WARNING: requested daily_basic for %s but got %s, skipping",
+			tradeDate, rows[0].TradeDate)
 		return nil
 	}
 
@@ -311,6 +393,13 @@ func (s *TushareSync) SyncMoneyFlow(ctx context.Context, tradeDate string) error
 
 	if len(rows) == 0 {
 		log.Printf("[tushare-sync] no moneyflow data for %s", tradeDate)
+		return nil
+	}
+
+	// Verify data date matches request
+	if rows[0].TradeDate != tradeDate {
+		log.Printf("[tushare-sync] WARNING: requested moneyflow for %s but got %s, skipping",
+			tradeDate, rows[0].TradeDate)
 		return nil
 	}
 
