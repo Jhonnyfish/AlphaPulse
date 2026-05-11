@@ -111,6 +111,9 @@ func (h *WatchlistAnalysisHandler) PreComputeRanking() {
 		valid[i].Rank = i + 1
 	}
 
+	// Calculate sector rankings
+	calculateSectorRankings(valid)
+
 	// Build summary
 	var avgScore float64
 	var best, worst *RankingBest
@@ -366,7 +369,13 @@ type RankingItem struct {
 	PeriodScores    models.MultiPeriodScore    `json:"period_scores"`
 	Confidence      models.Confidence          `json:"confidence"`
 	DimContributions map[string]float64        `json:"dim_contributions"`
-	Error           string                     `json:"error,omitempty"`
+	// Sector ranking
+	Sector          string `json:"sector"`
+	SectorRank      int    `json:"sector_rank"`
+	SectorTotal     int    `json:"sector_total"`
+	// Strategy used
+	Strategy        string `json:"strategy"`
+	Error           string `json:"error,omitempty"`
 }
 
 // RankingSummary is summary statistics for the ranking.
@@ -398,10 +407,14 @@ type RankingResponse struct {
 // @Description  对所有自选股进行多维度分析并返回排名结果
 // @Tags         watchlist-analysis
 // @Produce      json
+// @Param        strategy query string false "排名策略: momentum/value/balanced/default"
 // @Success      200  {object}  RankingResponse
 // @Router       /api/watchlist-ranking [get]
 func (h *WatchlistAnalysisHandler) Ranking(c *gin.Context) {
-	if cached, ok := h.rankingCache.Get("all"); ok {
+	strategy := models.ScoringStrategy(c.DefaultQuery("strategy", "default"))
+	cacheKey := "all_" + string(strategy)
+
+	if cached, ok := h.rankingCache.Get(cacheKey); ok {
 		c.JSON(http.StatusOK, cached)
 		return
 	}
@@ -486,7 +499,7 @@ func (h *WatchlistAnalysisHandler) Ranking(c *gin.Context) {
 		FetchedAt: time.Now().Format(time.RFC3339),
 	}
 
-	h.rankingCache.Set("all", resp, 180*time.Second)
+	h.rankingCache.Set(cacheKey, resp, 180*time.Second)
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -671,6 +684,10 @@ func (h *WatchlistAnalysisHandler) RankingStream(c *gin.Context) {
 }
 
 func (h *WatchlistAnalysisHandler) analyzeForRanking(ctx context.Context, code string) RankingItem {
+	return h.analyzeForRankingWithStrategy(ctx, code, models.StrategyDefault)
+}
+
+func (h *WatchlistAnalysisHandler) analyzeForRankingWithStrategy(ctx context.Context, code string, strategy models.ScoringStrategy) RankingItem {
 	analysis := h.analyze.analyzeSingleWithMode(ctx, code, true)
 	if len(analysis.Errors) > 0 {
 		// Check if critical data failed
@@ -712,8 +729,8 @@ func (h *WatchlistAnalysisHandler) analyzeForRanking(ctx context.Context, code s
 		Margin:       dimScoresMap["margin"],
 	}
 
-	// Compute enhanced summary with weighted scoring
-	enhanced := h.scoring.ComputeEnhancedSummary(&analysis, dimScores)
+	// Compute enhanced summary with strategy
+	enhanced := h.scoring.ComputeEnhancedSummaryWithStrategy(&analysis, dimScores, strategy)
 
 	return RankingItem{
 		Code:             services.StockCode6(code),
@@ -729,6 +746,32 @@ func (h *WatchlistAnalysisHandler) analyzeForRanking(ctx context.Context, code s
 		PeriodScores:     enhanced.PeriodScores,
 		Confidence:       enhanced.Confidence,
 		DimContributions: enhanced.DimContributions,
+		Sector:           analysis.Sector.PrimarySector,
+		Strategy:         string(strategy),
+	}
+}
+
+// calculateSectorRankings calculates each stock's rank within its sector.
+func calculateSectorRankings(items []RankingItem) {
+	// Group stocks by sector
+	sectorGroups := make(map[string][]int) // sector -> indices in items
+	for i, item := range items {
+		if item.Sector != "" {
+			sectorGroups[item.Sector] = append(sectorGroups[item.Sector], i)
+		}
+	}
+
+	// Calculate rank within each sector
+	for _, indices := range sectorGroups {
+		// Sort indices by score descending
+		sort.Slice(indices, func(a, b int) bool {
+			return items[indices[a]].OverallScore > items[indices[b]].OverallScore
+		})
+		total := len(indices)
+		for rank, idx := range indices {
+			items[idx].SectorRank = rank + 1
+			items[idx].SectorTotal = total
+		}
 	}
 }
 

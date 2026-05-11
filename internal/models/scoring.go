@@ -8,7 +8,19 @@ type ScoringModel struct {
 	Weights DimensionWeights `json:"weights"`
 	// Period-specific weights for multi-timeframe analysis
 	PeriodWeights map[string]DimensionWeights `json:"period_weights"`
+	// Strategy-specific weights
+	StrategyWeights map[string]DimensionWeights `json:"strategy_weights"`
 }
+
+// ScoringStrategy represents a ranking strategy style.
+type ScoringStrategy string
+
+const (
+	StrategyMomentum ScoringStrategy = "momentum" // 动量型
+	StrategyValue    ScoringStrategy = "value"    // 价值型
+	StrategyBalanced ScoringStrategy = "balanced"  // 均衡型
+	StrategyDefault  ScoringStrategy = "default"   // 默认
+)
 
 // DimensionWeights holds the weight for each analysis dimension.
 type DimensionWeights struct {
@@ -88,12 +100,62 @@ func DefaultScoringModel() ScoringModel {
 		Margin:       0.05,
 	}
 
+	// Momentum strategy - emphasize technical, money flow, volume
+	momentumStrategy := DimensionWeights{
+		OrderFlow:    0.08,
+		VolumePrice:  0.20,
+		Valuation:    0.03,
+		Volatility:   0.08,
+		MoneyFlow:    0.22,
+		Technical:    0.22,
+		Sector:       0.05,
+		Sentiment:    0.04,
+		Fundamentals: 0.03,
+		Northbound:   0.03,
+		Margin:       0.02,
+	}
+
+	// Value strategy - emphasize fundamentals, valuation
+	valueStrategy := DimensionWeights{
+		OrderFlow:    0.02,
+		VolumePrice:  0.05,
+		Valuation:    0.25,
+		Volatility:   0.03,
+		MoneyFlow:    0.05,
+		Technical:    0.08,
+		Sector:       0.12,
+		Sentiment:    0.05,
+		Fundamentals: 0.28,
+		Northbound:   0.05,
+		Margin:       0.02,
+	}
+
+	// Balanced strategy - equal emphasis
+	balancedStrategy := DimensionWeights{
+		OrderFlow:    0.05,
+		VolumePrice:  0.12,
+		Valuation:    0.12,
+		Volatility:   0.05,
+		MoneyFlow:    0.12,
+		Technical:    0.12,
+		Sector:       0.10,
+		Sentiment:    0.10,
+		Fundamentals: 0.12,
+		Northbound:   0.05,
+		Margin:       0.05,
+	}
+
 	return ScoringModel{
 		Weights: defaultWeights,
 		PeriodWeights: map[string]DimensionWeights{
 			"short":  shortTerm,
 			"medium": mediumTerm,
 			"long":   longTerm,
+		},
+		StrategyWeights: map[string]DimensionWeights{
+			"momentum": momentumStrategy,
+			"value":    valueStrategy,
+			"balanced": balancedStrategy,
 		},
 	}
 }

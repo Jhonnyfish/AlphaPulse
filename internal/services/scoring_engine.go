@@ -38,11 +38,26 @@ func (e *ScoringEngine) ComputeEnhancedSummary(
 	a *models.StockAnalysis,
 	dimScores DimensionScores,
 ) models.EnhancedSummary {
+	return e.ComputeEnhancedSummaryWithStrategy(a, dimScores, models.StrategyDefault)
+}
+
+// ComputeEnhancedSummaryWithStrategy produces a full enhanced summary with a specific strategy.
+func (e *ScoringEngine) ComputeEnhancedSummaryWithStrategy(
+	a *models.StockAnalysis,
+	dimScores DimensionScores,
+	strategy models.ScoringStrategy,
+) models.EnhancedSummary {
 	// 1. Build base summary (existing logic)
 	base := BuildSummary(a)
 
-	// 2. Compute weighted score with default weights
-	weightedScore := e.computeWeightedScore(dimScores, e.model.Weights)
+	// 2. Compute weighted score with strategy or default weights
+	weights := e.model.Weights
+	if strategy != models.StrategyDefault {
+		if sw, ok := e.model.StrategyWeights[string(strategy)]; ok {
+			weights = sw
+		}
+	}
+	weightedScore := e.computeWeightedScore(dimScores, weights)
 
 	// 3. Compute multi-period scores
 	periodScores := models.MultiPeriodScore{
@@ -55,7 +70,7 @@ func (e *ScoringEngine) ComputeEnhancedSummary(
 	confidence := e.computeConfidence(a)
 
 	// 5. Compute per-dimension contributions
-	dimContribs := e.computeContributions(dimScores, e.model.Weights)
+	dimContribs := e.computeContributions(dimScores, weights)
 
 	// 6. Override overall score with weighted score
 	base.OverallScore = int(math.Round(weightedScore))

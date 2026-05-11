@@ -118,6 +118,7 @@ export default function RankingPage() {
   const [stockNews, setStockNews] = useState<Record<string, NewsItem[]>>({});
   const [streaming, setStreaming] = useState(false);
   const [streamProgress, setStreamProgress] = useState({ completed: 0, total: 0 });
+  const [strategy, setStrategy] = useState<string>('default');
 
   // ── fetchData (fallback: full response) ────────────────────────────
   const fetchData = useCallback((silent = false) => {
@@ -125,7 +126,7 @@ export default function RankingPage() {
     if (silent) setRefreshing(true);
     setError('');
     api
-      .get<RankingResponse>('/watchlist-ranking')
+      .get<RankingResponse>('/watchlist-ranking', { params: { strategy } })
       .then((res) => {
         if (res.data.ok) {
           setData(res.data.items);
@@ -541,13 +542,34 @@ export default function RankingPage() {
             </span>
           )}
         </div>
-        <button
-          onClick={() => { localStorage.removeItem(CACHE_KEY); fetchData(true); }}
-          disabled={refreshing || streaming}
-          className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
-        >
-          <RefreshCw className={`w-4 h-4 ${refreshing || streaming ? 'animate-spin' : ''}`} style={{ color: refreshing || streaming ? '#3b82f6' : 'var(--color-text-muted)' }} />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Strategy selector */}
+          <select
+            value={strategy}
+            onChange={(e) => {
+              setStrategy(e.target.value);
+              localStorage.removeItem(CACHE_KEY);
+            }}
+            className="text-xs px-2 py-1.5 rounded-lg border"
+            style={{
+              background: 'var(--color-bg-card)',
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-text-primary)',
+            }}
+          >
+            <option value="default">默认策略</option>
+            <option value="momentum">动量型</option>
+            <option value="value">价值型</option>
+            <option value="balanced">均衡型</option>
+          </select>
+          <button
+            onClick={() => { localStorage.removeItem(CACHE_KEY); fetchData(true); }}
+            disabled={refreshing || streaming}
+            className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing || streaming ? 'animate-spin' : ''}`} style={{ color: refreshing || streaming ? '#3b82f6' : 'var(--color-text-muted)' }} />
+          </button>
+        </div>
       </div>
 
       {/* Streaming progress bar */}
@@ -798,6 +820,12 @@ export default function RankingPage() {
                 >
                   置信度 <SortIcon col="confidence" />
                 </th>
+                <th
+                  className="px-2 py-3 text-center font-medium whitespace-nowrap text-xs"
+                  style={{ color: 'var(--color-text-muted)' }}
+                >
+                  板块排名
+                </th>
                 {DIMENSIONS.map((d) => (
                   <th
                     key={d}
@@ -974,6 +1002,22 @@ export default function RankingPage() {
                       </div>
                     </td>
 
+                    {/* Sector ranking */}
+                    <td className="px-2 py-3 text-center">
+                      {item.sector && item.sector_total > 0 ? (
+                        <div className="flex flex-col items-center">
+                          <span className="text-xs font-mono font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                            {item.sector_rank}/{item.sector_total}
+                          </span>
+                          <span className="text-xs truncate max-w-[60px]" style={{ color: 'var(--color-text-muted)' }}>
+                            {item.sector}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>—</span>
+                      )}
+                    </td>
+
                     {/* Dimension mini bars */}
                     {DIMENSIONS.map((d) => {
                       const val = item.dimension_scores?.[d] ?? 0;
@@ -1026,7 +1070,7 @@ export default function RankingPage() {
                   {expandedRow === item.code && (
                     <tr key={`${item.code}-detail`}>
                       <td
-                        colSpan={8 + DIMENSIONS.length + 1}
+                        colSpan={9 + DIMENSIONS.length + 1}
                         className="px-6 py-4"
                         style={{ background: 'rgba(148,163,184,0.03)' }}
                       >

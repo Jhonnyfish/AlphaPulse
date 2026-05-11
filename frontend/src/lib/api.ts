@@ -634,6 +634,12 @@ export interface RankingItem {
   period_scores: MultiPeriodScore;
   confidence: Confidence;
   dim_contributions: Record<string, number>;
+  // Sector ranking
+  sector: string;
+  sector_rank: number;
+  sector_total: number;
+  // Strategy used
+  strategy: string;
   error?: string;
 }
 
