@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"alphapulse/internal/logger"
+	"alphapulse/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -22,18 +23,25 @@ type DeepAnalysisRequest struct {
 
 // DeepAnalysisResponse is the response for deep analysis.
 type DeepAnalysisResponse struct {
-	OK      bool   `json:"ok"`
-	Code    string `json:"code"`
-	Report  string `json:"report,omitempty"`
-	Error   string `json:"error,omitempty"`
+	OK     bool   `json:"ok"`
+	Code   string `json:"code"`
+	Report string `json:"report,omitempty"`
+	Error  string `json:"error,omitempty"`
 }
 
 // DeepAnalysisHandler handles deep analysis requests.
-type DeepAnalysisHandler struct{}
+type DeepAnalysisHandler struct {
+	tushareDB *services.TushareDB
+}
 
 // NewDeepAnalysisHandler creates a new DeepAnalysisHandler.
 func NewDeepAnalysisHandler() *DeepAnalysisHandler {
 	return &DeepAnalysisHandler{}
+}
+
+// SetTushareDB sets the TushareDB service.
+func (h *DeepAnalysisHandler) SetTushareDB(db *services.TushareDB) {
+	h.tushareDB = db
 }
 
 // Analyze handles POST /api/deep-analysis
@@ -64,15 +72,21 @@ func (h *DeepAnalysisHandler) Analyze(c *gin.Context) {
 		return
 	}
 
-	// Get stock name from API (optional, for better prompt)
-	stockName := h.getStockName(code)
+	// Fetch stock data from DB directly
+	stockData := h.fetchStockData(code)
 
-	// Build prompt for Hermes Agent
-	prompt := fmt.Sprintf("对%s(%s)进行深度分析", stockName, code)
+	// Build prompt with data context
+	var prompt string
+	if stockData != "" {
+		prompt = fmt.Sprintf("对%s(%s)进行深度分析。\n\n以下是该股票的最新数据（来自AlphaPulse数据库）：\n\n%s\n\n请基于以上数据，结合你的研究，生成完整的深度分析报告。",
+			h.getStockNameFromData(stockData), code, stockData)
+	} else {
+		prompt = fmt.Sprintf("对%s进行深度分析", code)
+	}
 
 	logger.Info("triggering deep analysis",
 		zap.String("code", code),
-		zap.String("name", stockName))
+		zap.Bool("has_data", stockData != ""))
 
 	// Call Hermes Agent CLI
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Minute)
@@ -116,25 +130,56 @@ func (h *DeepAnalysisHandler) Analyze(c *gin.Context) {
 	})
 }
 
-// getStockName fetches stock name from AlphaPulse API.
-func (h *DeepAnalysisHandler) getStockName(code string) string {
-	// Try to get from local API
-	cmd := exec.Command("curl", "-s",
-		fmt.Sprintf("http://localhost:8080/api/analyze?code=%s", code))
-	output, err := cmd.Output()
-	if err != nil {
-		return code
+// fetchStockData fetches stock data from DB and returns it as a formatted string.
+func (h *DeepAnalysisHandler) fetchStockData(code string) string {
+	if h.tushareDB == nil {
+		return ""
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	quote, err := h.tushareDB.FetchQuoteFromDB(ctx, code)
+	if err != nil {
+		logger.Warn("failed to fetch quote for deep analysis", zap.String("code", code), zap.Error(err))
+		return ""
+	}
+
+	// Format as structured data
+	data := map[string]interface{}{
+		"code":           quote.Code,
+		"name":           quote.Name,
+		"price":          quote.Price,
+		"change":         quote.Change,
+		"change_percent": quote.ChangePercent,
+		"open":           quote.Open,
+		"high":           quote.High,
+		"low":            quote.Low,
+		"prev_close":     quote.PrevClose,
+		"volume":         quote.Volume,
+		"turnover":       quote.Turnover,
+		"pe":             quote.PE,
+		"pb":             quote.PB,
+		"total_mv":       quote.TotalMV,
+		"amplitude":      quote.Amplitude,
+		"updated_at":     quote.UpdatedAt,
+	}
+
+	jsonData, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return ""
+	}
+
+	return string(jsonData)
+}
+
+// getStockNameFromData extracts stock name from JSON data string.
+func (h *DeepAnalysisHandler) getStockNameFromData(data string) string {
 	var result struct {
 		Name string `json:"name"`
 	}
-	if err := json.Unmarshal(output, &result); err != nil {
-		return code
+	if err := json.Unmarshal([]byte(data), &result); err != nil {
+		return ""
 	}
-
-	if result.Name != "" {
-		return result.Name
-	}
-	return code
+	return result.Name
 }

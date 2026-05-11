@@ -480,8 +480,8 @@ func (s *TushareDB) LatestTradeDate(ctx context.Context) (string, error) {
 func (s *TushareDB) FetchQuoteFromDB(ctx context.Context, code string) (models.Quote, error) {
 	tsCode := ToTsCode(code)
 	query := `
-		SELECT d.trade_date, d.open, d.high, d.low, d.close, d.pre_close,
-		       d.change, d.pct_chg, d.vol, d.amount,
+		SELECT d.trade_date, d.open, d.high, d.low, d.close, COALESCE(d.pre_close, 0),
+		       COALESCE(d.change, 0), COALESCE(d.pct_chg, 0), COALESCE(d.vol, 0), COALESCE(d.amount, 0),
 		       b.pe_ttm, b.pb, b.total_mv, b.circ_mv,
 		       COALESCE(s.name, ''), COALESCE(s.industry, '')
 		FROM tushare_daily d
@@ -777,7 +777,7 @@ func (s *TushareDB) FetchHsgtTop10ByCode(ctx context.Context, code string, limit
 	}
 
 	query := `
-		SELECT trade_date, net_amount, buy_amount, sell_amount
+		SELECT trade_date, COALESCE(net_amount, 0), COALESCE(buy_amount, 0), COALESCE(sell_amount, 0)
 		FROM tushare_hsgt_top10
 		WHERE ts_code = $1
 		ORDER BY trade_date DESC

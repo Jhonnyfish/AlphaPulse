@@ -122,7 +122,8 @@ func main() {
 
 		analyzeHandler.SetTushareDB(tushareDB)
 		reportsHandler.SetTushareDB(tushareDB)
-	marketHandler.SetTushareDB(tushareDB)
+		marketHandler.SetTushareDB(tushareDB)
+		deepAnalysisHandler.SetTushareDB(tushareDB)
 
 		// Initial sync if tables are empty
 		if !tushareDB.HasData(context.Background()) {
