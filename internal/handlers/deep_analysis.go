@@ -88,8 +88,8 @@ func (h *DeepAnalysisHandler) Analyze(c *gin.Context) {
 		zap.String("code", code),
 		zap.Bool("has_data", stockData != ""))
 
-	// Call Hermes Agent CLI
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Minute)
+	// Call Hermes Agent CLI — deep analysis needs time for web research
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Minute)
 	defer cancel()
 
 	hermesPath := "/home/finn/.local/bin/hermes"
