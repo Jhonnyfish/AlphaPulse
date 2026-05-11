@@ -93,7 +93,7 @@ func (h *DeepAnalysisHandler) Analyze(c *gin.Context) {
 	defer cancel()
 
 	hermesPath := "/home/finn/.local/bin/hermes"
-	cmd := exec.CommandContext(ctx, hermesPath, "chat", "-q", prompt, "--skills", "stock-deep-analysis", "-Q")
+	cmd := exec.CommandContext(ctx, hermesPath, "chat", "-q", prompt, "--skills", "stock-deep-analysis", "-Q", "--yolo")
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
