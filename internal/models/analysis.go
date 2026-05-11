@@ -254,6 +254,7 @@ type StockAnalysis struct {
 	Fundamentals   FundamentalsAnalysis   `json:"fundamentals"`
 	Northbound     NorthboundAnalysis     `json:"northbound"`
 	MarginDetail   MarginAnalysis         `json:"margin_detail"`
+	TrendAnalysis  TrendAnalysis          `json:"trend_analysis"`
 	Summary        AnalysisSummary        `json:"summary"`
 	DataSources map[string]string   `json:"data_sources"`
 	Errors      map[string]string   `json:"errors"`

@@ -245,6 +245,11 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 	}
 
 	analysis.Summary = services.BuildSummary(&analysis)
+
+	// Run trend analysis
+	trendAnalyzer := services.NewTrendAnalyzer()
+	analysis.TrendAnalysis = trendAnalyzer.AnalyzeTrend(analysis.Technical, analysis.VolumePrice, analysis.Quote.Price)
+
 	return analysis
 }
 

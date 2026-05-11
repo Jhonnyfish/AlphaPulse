@@ -19,6 +19,35 @@ interface RawAnalyzeResponse {
   fundamentals?: { verdict: string; score?: number; roe?: number; gross_margin?: number; net_margin?: number; debt_ratio?: number; revenue_growth?: number; net_profit_growth?: number; roe_level?: string; [k: string]: unknown };
   northbound?: { verdict: string; signal?: string; flow_direction?: string; stock_action?: string; [k: string]: unknown };
   margin_detail?: { verdict: string; signal?: string; margin_balance_trend?: string; [k: string]: unknown };
+  trend_analysis?: {
+    trend_stage: {
+      direction: string;
+      stage: string;
+      strength: number;
+      confidence: number;
+      signals: string[];
+      description: string;
+    };
+    support_resistance: {
+      support1: number;
+      support2: number;
+      support3: number;
+      resistance1: number;
+      resistance2: number;
+      resistance3: number;
+      ma5: number;
+      ma10: number;
+      ma20: number;
+      ma60: number;
+      boll_upper: number;
+      boll_mid: number;
+      boll_lower: number;
+      nearest_level: number;
+      nearest_type: string;
+      distance_pct: number;
+    };
+    verdict: string;
+  };
   summary: {
     overall_score: number;
     overall_signal: string;
@@ -76,6 +105,7 @@ function transformResponse(raw: RawAnalyzeResponse): AnalyzeResult {
     summary: parts.join('。'),
     fetched_at: raw.fetched_at,
     data_stale: dataStale,
+    trend_analysis: raw.trend_analysis,
   };
 }
 import EChart from '@/components/charts/EChart';
@@ -362,6 +392,11 @@ export default function AnalyzePage() {
               {data.summary}
             </p>
           </div>
+
+          {/* Trend Analysis */}
+          {data.trend_analysis && (
+            <TrendAnalysisCard trend={data.trend_analysis} />
+          )}
         </>
       )}
 
@@ -544,6 +579,136 @@ function DimensionCard({ name, score, detail, rawData }: { name: string; score: 
       <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
         {detail}
       </p>
+    </div>
+  );
+}
+
+function TrendAnalysisCard({ trend }: { trend: NonNullable<AnalyzeResult['trend_analysis']> }) {
+  const { trend_stage: stage, support_resistance: sr, verdict } = trend;
+
+  const directionColor = stage.direction === '上升' ? '#ef4444' : stage.direction === '下降' ? '#22c55e' : '#f59e0b';
+  const stageColor = stage.stage === '早期' ? '#3b82f6' : stage.stage === '中期' ? '#f59e0b' : stage.stage === '末期' ? '#ef4444' : '#94a3b8';
+
+  return (
+    <div className="glass-panel p-5">
+      <h3 className="text-sm font-medium mb-4" style={{ color: 'var(--color-text-secondary)' }}>
+        趋势分析
+      </h3>
+
+      {/* Trend stage */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <div className="text-center">
+          <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>方向</div>
+          <div className="text-lg font-bold" style={{ color: directionColor }}>
+            {stage.direction}
+          </div>
+        </div>
+        <div className="text-center">
+          <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>阶段</div>
+          <div className="text-lg font-bold" style={{ color: stageColor }}>
+            {stage.stage}
+          </div>
+        </div>
+        <div className="text-center">
+          <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>强度</div>
+          <div className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>
+            {stage.strength.toFixed(0)}
+          </div>
+        </div>
+        <div className="text-center">
+          <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>置信度</div>
+          <div className="text-lg font-bold" style={{
+            color: stage.confidence >= 70 ? '#22c55e' : stage.confidence >= 40 ? '#f59e0b' : '#ef4444'
+          }}>
+            {stage.confidence.toFixed(0)}%
+          </div>
+        </div>
+      </div>
+
+      {/* Description */}
+      <p className="text-sm mb-4" style={{ color: 'var(--color-text-secondary)' }}>
+        {stage.description}
+      </p>
+
+      {/* Support/Resistance levels */}
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        {/* Resistance */}
+        <div>
+          <div className="text-xs font-medium mb-2" style={{ color: '#ef4444' }}>阻力位</div>
+          <div className="space-y-1">
+            {sr.resistance1 > 0 && (
+              <div className="flex justify-between text-xs">
+                <span style={{ color: 'var(--color-text-muted)' }}>R1</span>
+                <span className="font-mono" style={{ color: 'var(--color-text-primary)' }}>{sr.resistance1.toFixed(2)}</span>
+              </div>
+            )}
+            {sr.resistance2 > 0 && (
+              <div className="flex justify-between text-xs">
+                <span style={{ color: 'var(--color-text-muted)' }}>R2</span>
+                <span className="font-mono" style={{ color: 'var(--color-text-primary)' }}>{sr.resistance2.toFixed(2)}</span>
+              </div>
+            )}
+            {sr.resistance3 > 0 && (
+              <div className="flex justify-between text-xs">
+                <span style={{ color: 'var(--color-text-muted)' }}>R3</span>
+                <span className="font-mono" style={{ color: 'var(--color-text-primary)' }}>{sr.resistance3.toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* Support */}
+        <div>
+          <div className="text-xs font-medium mb-2" style={{ color: '#22c55e' }}>支撑位</div>
+          <div className="space-y-1">
+            {sr.support1 > 0 && (
+              <div className="flex justify-between text-xs">
+                <span style={{ color: 'var(--color-text-muted)' }}>S1</span>
+                <span className="font-mono" style={{ color: 'var(--color-text-primary)' }}>{sr.support1.toFixed(2)}</span>
+              </div>
+            )}
+            {sr.support2 > 0 && (
+              <div className="flex justify-between text-xs">
+                <span style={{ color: 'var(--color-text-muted)' }}>S2</span>
+                <span className="font-mono" style={{ color: 'var(--color-text-primary)' }}>{sr.support2.toFixed(2)}</span>
+              </div>
+            )}
+            {sr.support3 > 0 && (
+              <div className="flex justify-between text-xs">
+                <span style={{ color: 'var(--color-text-muted)' }}>S3</span>
+                <span className="font-mono" style={{ color: 'var(--color-text-primary)' }}>{sr.support3.toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Key MAs */}
+      <div className="flex flex-wrap gap-3 mb-3">
+        <span className="text-xs px-2 py-1 rounded" style={{ background: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)' }}>
+          MA5: {sr.ma5.toFixed(2)}
+        </span>
+        <span className="text-xs px-2 py-1 rounded" style={{ background: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)' }}>
+          MA10: {sr.ma10.toFixed(2)}
+        </span>
+        <span className="text-xs px-2 py-1 rounded" style={{ background: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)' }}>
+          MA20: {sr.ma20.toFixed(2)}
+        </span>
+        <span className="text-xs px-2 py-1 rounded" style={{ background: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)' }}>
+          MA60: {sr.ma60.toFixed(2)}
+        </span>
+      </div>
+
+      {/* Nearest level */}
+      {sr.nearest_level > 0 && (
+        <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+          距最近{sr.nearest_type}位 <span className="font-mono font-medium" style={{ color: 'var(--color-text-primary)' }}>{sr.nearest_level.toFixed(2)}</span> 约 <span className="font-mono" style={{ color: sr.distance_pct < 3 ? '#ef4444' : 'var(--color-text-secondary)' }}>{sr.distance_pct.toFixed(1)}%</span>
+        </div>
+      )}
+
+      {/* Verdict */}
+      <div className="mt-3 text-sm font-medium" style={{ color: 'var(--color-accent)' }}>
+        {verdict}
+      </div>
     </div>
   );
 }

@@ -695,6 +695,35 @@ export interface AnalyzeResult {
   summary: string;
   fetched_at?: string;
   data_stale?: boolean;
+  trend_analysis?: {
+    trend_stage: {
+      direction: string;
+      stage: string;
+      strength: number;
+      confidence: number;
+      signals: string[];
+      description: string;
+    };
+    support_resistance: {
+      support1: number;
+      support2: number;
+      support3: number;
+      resistance1: number;
+      resistance2: number;
+      resistance3: number;
+      ma5: number;
+      ma10: number;
+      ma20: number;
+      ma60: number;
+      boll_upper: number;
+      boll_mid: number;
+      boll_lower: number;
+      nearest_level: number;
+      nearest_type: string;
+      distance_pct: number;
+    };
+    verdict: string;
+  };
 }
 
 export const analyzeApi = {

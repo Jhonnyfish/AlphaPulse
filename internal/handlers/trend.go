@@ -185,7 +185,7 @@ func (h *TrendHandler) analyzeMultiTrend(ctx context.Context, code string) *mode
 	weeklyIndicators := computePeriodStrength(weeklyKlines)
 	monthlyIndicators := computePeriodStrength(monthlyKlines)
 
-	overallStrength := (dailyIndicators.Strength + weeklyIndicators.Strength + monthlyIndicators.Strength) / 3
+	overallStrength := float64((dailyIndicators.Strength + weeklyIndicators.Strength + monthlyIndicators.Strength)) / 3.0
 
 	return &models.MultiTrendStock{
 		Code:            code,
