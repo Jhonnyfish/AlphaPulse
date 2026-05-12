@@ -376,9 +376,9 @@ func main() {
 		log.Println("[scheduler] generating daily report...")
 		reportsHandler.GenerateDailyReportAuto()
 	})
-		// Tushare daily sync at 16:00 after market close
+		// Tushare daily sync at 18:00 (Tushare data usually ready by 17:30)
 		if tushareDB != nil {
-			scheduler.AddDailyJob("tushare-daily-sync", 16, 0, func() {
+			scheduler.AddDailyJob("tushare-daily-sync", 18, 0, func() {
 				log.Println("[scheduler] tushare daily sync...")
 				syncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 				defer cancel()
@@ -386,9 +386,9 @@ func main() {
 				ts := services.NewTushareSync(tushareSvc, eastMoneyService, db, logger.L())
 				ts.RunDaily(syncCtx)
 			})
-			// Retry at 17:00 in case Tushare data wasn't ready at 16:00
-			scheduler.AddDailyJob("tushare-daily-retry", 17, 0, func() {
-				log.Println("[scheduler] tushare daily retry (in case 16:00 missed data)...")
+			// Retry at 20:00 in case Tushare data wasn't ready at 18:00
+			scheduler.AddDailyJob("tushare-daily-retry", 20, 0, func() {
+				log.Println("[scheduler] tushare daily retry (in case 18:00 missed data)...")
 				syncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 				defer cancel()
 				tushareSvc := services.NewTushareService(cfg.TushareToken, cfg.HTTPTimeout)
@@ -396,8 +396,8 @@ func main() {
 				ts.RunDaily(syncCtx)
 			})
 		}
-		// Pre-fetch watchlist news at 16:10 so ranking reads from DB
-		scheduler.AddDailyJob("watchlist-news-sync", 16, 10, func() {
+		// Pre-fetch watchlist news at 18:10 so ranking reads from DB
+		scheduler.AddDailyJob("watchlist-news-sync", 18, 10, func() {
 			log.Println("[scheduler] syncing watchlist news to DB...")
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 			defer cancel()
@@ -426,8 +426,8 @@ func main() {
 			}
 			log.Printf("[scheduler] watchlist news sync done for %d stocks", len(codes))
 		})
-		// Pre-compute ranking at 16:15 so users see results instantly
-		scheduler.AddDailyJob("ranking-precompute", 16, 15, func() {
+		// Pre-compute ranking at 18:15 so users see results instantly
+		scheduler.AddDailyJob("ranking-precompute", 18, 15, func() {
 			watchlistAnalysisHandler.PreComputeRanking()
 		})
 	scheduler.AddDailyJob("news-cleanup", 3, 0, func() {
