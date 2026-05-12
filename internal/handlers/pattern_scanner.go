@@ -66,6 +66,12 @@ func NewPatternScannerHandler(eastMoney *services.EastMoneyService, tencent *ser
 	}
 }
 
+// InvalidateCache clears the pattern scanner cache.
+func (h *PatternScannerHandler) InvalidateCache() {
+	h.scanCache.Delete("pattern_scanner_all")
+	logger.Info("pattern scanner cache invalidated")
+}
+
 // Scan handles GET /api/pattern-scanner
 // @Summary 形态扫描
 // @Description 扫描自选股的技术形态，包括K线形态、图形形态和量价异动

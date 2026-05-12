@@ -112,6 +112,7 @@ func main() {
 	deepAnalysisHandler := handlers.NewDeepAnalysisHandler()
 	watchlistHandler.SetAlpha300(alpha300Cache)
 		watchlistHandler.SetOnChange(watchlistAnalysisHandler.InvalidateRankingCache)
+		watchlistHandler.SetOnChange(patternScannerHandler.InvalidateCache)
 
 	// Initialize Tushare data source (primary) if enabled
 	var tushareDB *services.TushareDB

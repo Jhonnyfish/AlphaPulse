@@ -31,7 +31,16 @@ func (h *WatchlistHandler) SetAlpha300(svc *services.Alpha300Cache) {
 
 // SetOnChange sets a callback invoked after watchlist modifications.
 func (h *WatchlistHandler) SetOnChange(fn func()) {
-	h.onChange = fn
+	// Support multiple callbacks by chaining
+	if h.onChange != nil {
+		prev := h.onChange
+		h.onChange = func() {
+			prev()
+			fn()
+		}
+	} else {
+		h.onChange = fn
+	}
 }
 
 func (h *WatchlistHandler) notifyChange() {
