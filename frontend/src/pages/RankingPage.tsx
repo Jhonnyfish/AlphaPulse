@@ -196,6 +196,14 @@ export default function RankingPage() {
                   strengths: [],
                   risks: [],
                   rank: i + 1,
+                  weighted_score: 0,
+                  period_scores: { short: 0, medium: 0, long: 0 },
+                  confidence: { overall: 0, by_dim: {}, data_age: '', missing: [] },
+                  dim_contributions: {},
+                  sector: '',
+                  sector_rank: 0,
+                  sector_total: 0,
+                  strategy: 'default',
                 }));
                 setData(placeholders);
                 setLoading(false);
@@ -472,7 +480,7 @@ export default function RankingPage() {
         >
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
           <span className="flex-1">{error}</span>
-          <button onClick={fetchData} className="underline whitespace-nowrap">
+          <button onClick={() => fetchData()} className="underline whitespace-nowrap">
             重试
           </button>
         </div>
@@ -490,7 +498,7 @@ export default function RankingPage() {
             <h1 className="text-xl font-bold">综合排名</h1>
           </div>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData()}
             className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
           >
             <RefreshCw className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />

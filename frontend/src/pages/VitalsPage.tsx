@@ -434,7 +434,7 @@ export default function VitalsPage() {
               LCP 趋势
             </h3>
             {entries.filter((e) => e.name === 'LCP').length > 0 ? (
-              <EChart option={lcpTrendOption} style={{ height: 280 }} />
+              <EChart option={lcpTrendOption} height={280} />
             ) : (
               <div className="flex items-center justify-center h-64 text-sm" style={{ color: 'var(--color-text-muted)' }}>
                 暂无 LCP 数据
@@ -452,7 +452,7 @@ export default function VitalsPage() {
               CLS 趋势
             </h3>
             {entries.filter((e) => e.name === 'CLS').length > 0 ? (
-              <EChart option={clsTrendOption} style={{ height: 280 }} />
+              <EChart option={clsTrendOption} height={280} />
             ) : (
               <div className="flex items-center justify-center h-64 text-sm" style={{ color: 'var(--color-text-muted)' }}>
                 暂无 CLS 数据
