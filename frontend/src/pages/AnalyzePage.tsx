@@ -185,11 +185,18 @@ export default function AnalyzePage() {
   const [error, setError] = useState<string | null>(null);
   const [alpha300Open, setAlpha300Open] = useState(false);
   const [scoreHistory, setScoreHistory] = useState<ScoreHistoryResponse | null>(null);
-  const [deepAnalysis, setDeepAnalysis] = useState<{ loading: boolean; report: string | null; error: string | null; abortController: AbortController | null }>({
-    loading: false,
-    report: null,
-    error: null,
-    abortController: null,
+  const [deepAnalysis, setDeepAnalysis] = useState<{ loading: boolean; report: string | null; error: string | null; abortController: AbortController | null }>(() => {
+    // Load from localStorage on init
+    if (code) {
+      const saved = localStorage.getItem(`deep_analysis_${code}`);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          return { loading: false, report: parsed.report, error: null, abortController: null };
+        } catch { /* ignore */ }
+      }
+    }
+    return { loading: false, report: null, error: null, abortController: null };
   });
 
   const fetchAnalysis = useCallback(async (stockCode: string) => {
@@ -218,10 +225,23 @@ export default function AnalyzePage() {
     if (code) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchAnalysis(code);
+      // Load deep analysis from localStorage
+      const saved = localStorage.getItem(`deep_analysis_${code}`);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setDeepAnalysis({ loading: false, report: parsed.report, error: null, abortController: null });
+        } catch {
+          setDeepAnalysis({ loading: false, report: null, error: null, abortController: null });
+        }
+      } else {
+        setDeepAnalysis({ loading: false, report: null, error: null, abortController: null });
+      }
     } else {
       setData(null);
       setError(null);
       setLoading(false);
+      setDeepAnalysis({ loading: false, report: null, error: null, abortController: null });
     }
   }, [code, fetchAnalysis]);
 
@@ -235,6 +255,11 @@ export default function AnalyzePage() {
     try {
       const res = await analyzeApi.deepAnalysis(stockCode, abortController.signal);
       if (res.data.ok) {
+        // Save to localStorage
+        localStorage.setItem(`deep_analysis_${stockCode}`, JSON.stringify({
+          report: res.data.report,
+          timestamp: Date.now(),
+        }));
         setDeepAnalysis({ loading: false, report: res.data.report, error: null, abortController: null });
       } else {
         setDeepAnalysis({ loading: false, report: null, error: res.data.error || '分析失败', abortController: null });
