@@ -170,6 +170,15 @@ function formatMoney(amount: number): string {
   return `${sign}${abs.toFixed(0)}`;
 }
 
+// Format values already in 万元 unit
+function formatWan(amount: number): string {
+  const abs = Math.abs(amount);
+  const sign = amount >= 0 ? '+' : '-';
+  if (abs >= 10000) return `${sign}${(abs / 10000).toFixed(2)}亿`;
+  if (abs >= 1) return `${sign}${abs.toFixed(0)}万`;
+  return `${sign}${(abs * 10000).toFixed(0)}`;
+}
+
 function formatMarketValue(mv: number): string {
   if (mv >= 100000000) return `${(mv / 100000000).toFixed(0)}亿`;
   if (mv >= 10000) return `${(mv / 10000).toFixed(0)}万`;
@@ -604,7 +613,7 @@ function DimensionCard({ name, score, detail, rawData }: { name: string; score: 
     } else if (name === 'volume_price') {
       if (rawData.today_change_pct && Number(rawData.today_change_pct) !== 0) metrics.push({ label: '涨跌幅', value: `${Number(rawData.today_change_pct).toFixed(2)}%`, color: Number(rawData.today_change_pct) > 0 ? '#ef4444' : '#22c55e' });
       if (rawData.volume_ratio && Number(rawData.volume_ratio) > 0) metrics.push({ label: '量比', value: Number(rawData.volume_ratio).toFixed(2), color: Number(rawData.volume_ratio) > 1.5 ? '#ef4444' : undefined });
-      if (rawData.turnover && Number(rawData.turnover) > 0) metrics.push({ label: '成交额', value: formatMoney(Number(rawData.turnover)) });
+      if (rawData.turnover && Number(rawData.turnover) > 0) metrics.push({ label: '换手率', value: `${Number(rawData.turnover).toFixed(2)}%` });
       if (rawData.turnover_level) metrics.push({ label: '活跃度', value: String(rawData.turnover_level), color: rawData.turnover_level === '过热' ? '#ef4444' : rawData.turnover_level === '冷清' ? '#22c55e' : undefined });
       if (rawData.price_volume_harmony) metrics.push({ label: '量价', value: String(rawData.price_volume_harmony) });
     } else if (name === 'valuation') {
@@ -617,9 +626,9 @@ function DimensionCard({ name, score, detail, rawData }: { name: string; score: 
       if (rawData.distance_to_limit_up && Number(rawData.distance_to_limit_up) > 0) metrics.push({ label: '距涨停', value: `${Number(rawData.distance_to_limit_up).toFixed(1)}%` });
       if (rawData.distance_to_limit_down && Number(rawData.distance_to_limit_down) > 0) metrics.push({ label: '距跌停', value: `${Number(rawData.distance_to_limit_down).toFixed(1)}%` });
     } else if (name === 'money_flow') {
-      if (rawData.today_main_net && Number(rawData.today_main_net) !== 0) metrics.push({ label: '主力净流入', value: formatMoney(Number(rawData.today_main_net)), color: Number(rawData.today_main_net) > 0 ? '#ef4444' : '#22c55e' });
-      if (rawData.today_huge_net && Number(rawData.today_huge_net) !== 0) metrics.push({ label: '超大单', value: formatMoney(Number(rawData.today_huge_net)), color: Number(rawData.today_huge_net) > 0 ? '#ef4444' : '#22c55e' });
-      if (rawData.today_big_net && Number(rawData.today_big_net) !== 0) metrics.push({ label: '大单', value: formatMoney(Number(rawData.today_big_net)), color: Number(rawData.today_big_net) > 0 ? '#ef4444' : '#22c55e' });
+      if (rawData.today_main_net && Number(rawData.today_main_net) !== 0) metrics.push({ label: '主力净流入', value: formatWan(Number(rawData.today_main_net)), color: Number(rawData.today_main_net) > 0 ? '#ef4444' : '#22c55e' });
+      if (rawData.today_huge_net && Number(rawData.today_huge_net) !== 0) metrics.push({ label: '超大单', value: formatWan(Number(rawData.today_huge_net)), color: Number(rawData.today_huge_net) > 0 ? '#ef4444' : '#22c55e' });
+      if (rawData.today_big_net && Number(rawData.today_big_net) !== 0) metrics.push({ label: '大单', value: formatWan(Number(rawData.today_big_net)), color: Number(rawData.today_big_net) > 0 ? '#ef4444' : '#22c55e' });
       if (rawData.today_main_direction) metrics.push({ label: '主力方向', value: String(rawData.today_main_direction), color: rawData.today_main_direction === '流入' ? '#ef4444' : rawData.today_main_direction === '流出' ? '#22c55e' : undefined });
       if (rawData.main_consecutive_days && Number(rawData.main_consecutive_days) > 0) metrics.push({ label: '连续', value: `${rawData.main_consecutive_days}日${rawData.main_consecutive_direction || ''}` });
       if (rawData.institution_vs_hotmoney) metrics.push({ label: '主导', value: String(rawData.institution_vs_hotmoney) });
@@ -653,9 +662,9 @@ function DimensionCard({ name, score, detail, rawData }: { name: string; score: 
       if (rawData.revenue_growth && Number(rawData.revenue_growth) !== 0) metrics.push({ label: '营收增长', value: `${Number(rawData.revenue_growth).toFixed(1)}%`, color: Number(rawData.revenue_growth) > 0 ? '#ef4444' : '#22c55e' });
       if (rawData.net_profit_growth && Number(rawData.net_profit_growth) !== 0) metrics.push({ label: '利润增长', value: `${Number(rawData.net_profit_growth).toFixed(1)}%`, color: Number(rawData.net_profit_growth) > 0 ? '#ef4444' : '#22c55e' });
     } else if (name === 'northbound') {
-      if (rawData.latest_net_flow && Number(rawData.latest_net_flow) !== 0) metrics.push({ label: '净流入', value: formatMoney(Number(rawData.latest_net_flow)), color: Number(rawData.latest_net_flow) > 0 ? '#ef4444' : '#22c55e' });
-      if (rawData.stock_net_amount && Number(rawData.stock_net_amount) !== 0) metrics.push({ label: '个股净买', value: formatMoney(Number(rawData.stock_net_amount)), color: Number(rawData.stock_net_amount) > 0 ? '#ef4444' : '#22c55e' });
-      if (rawData.trend_5d && Number(rawData.trend_5d) !== 0) metrics.push({ label: '5日趋势', value: formatMoney(Number(rawData.trend_5d)), color: Number(rawData.trend_5d) > 0 ? '#ef4444' : '#22c55e' });
+      if (rawData.latest_net_flow && Number(rawData.latest_net_flow) !== 0) metrics.push({ label: '净流入', value: formatWan(Number(rawData.latest_net_flow)), color: Number(rawData.latest_net_flow) > 0 ? '#ef4444' : '#22c55e' });
+      if (rawData.stock_net_amount && Number(rawData.stock_net_amount) !== 0) metrics.push({ label: '个股净买', value: formatWan(Number(rawData.stock_net_amount)), color: Number(rawData.stock_net_amount) > 0 ? '#ef4444' : '#22c55e' });
+      if (rawData.trend_5d && Number(rawData.trend_5d) !== 0) metrics.push({ label: '5日趋势', value: formatWan(Number(rawData.trend_5d)), color: Number(rawData.trend_5d) > 0 ? '#ef4444' : '#22c55e' });
       if (rawData.flow_direction) metrics.push({ label: '方向', value: String(rawData.flow_direction), color: rawData.flow_direction === '流入' ? '#ef4444' : '#22c55e' });
       if (rawData.stock_action) metrics.push({ label: '操作', value: String(rawData.stock_action) });
     } else if (name === 'margin_detail') {

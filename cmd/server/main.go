@@ -373,7 +373,7 @@ func main() {
 			log.Printf("[scheduler] alpha300 sync failed: %v", err)
 		}
 	})
-	scheduler.AddDailyJob("daily-report", 15, 30, func() {
+	scheduler.AddDailyJob("daily-report", 18, 30, func() {
 		log.Println("[scheduler] generating daily report...")
 		reportsHandler.GenerateDailyReportAuto()
 	})
