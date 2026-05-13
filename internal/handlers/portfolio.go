@@ -22,6 +22,7 @@ import (
 type PortfolioHandler struct {
 	tencent   *services.TencentService
 	eastMoney *services.EastMoneyService
+	tushareDB *services.TushareDB
 	db        *pgxpool.Pool
 	logger    *zap.Logger
 }
@@ -33,6 +34,33 @@ func NewPortfolioHandler(tencent *services.TencentService, eastMoney *services.E
 		db:        db,
 		logger:    logger,
 	}
+}
+
+// SetTushareDB sets the Tushare local database service as primary data source.
+func (h *PortfolioHandler) SetTushareDB(db *services.TushareDB) {
+	h.tushareDB = db
+}
+
+// fetchQuote tries TushareDB first, falls back to Tencent.
+func (h *PortfolioHandler) fetchQuote(ctx context.Context, code string) (models.Quote, error) {
+	if h.tushareDB != nil {
+		quote, err := h.tushareDB.FetchQuoteFromDB(ctx, code)
+		if err == nil && quote.Price > 0 {
+			return quote, nil
+		}
+	}
+	return h.tencent.FetchQuote(ctx, code)
+}
+
+// fetchKlines tries TushareDB first, falls back to EastMoney.
+func (h *PortfolioHandler) fetchKlines(ctx context.Context, code string, days int) ([]models.KlinePoint, error) {
+	if h.tushareDB != nil {
+		klines, err := h.tushareDB.FetchKline(ctx, code, days)
+		if err == nil && len(klines) > 0 {
+			return klines, nil
+		}
+	}
+	return h.eastMoney.FetchKline(ctx, code, days)
 }
 
 // List handles GET /api/portfolio — list all positions enriched with live quotes.
@@ -58,7 +86,7 @@ func (h *PortfolioHandler) List(c *gin.Context) {
 		ep := models.PortfolioPositionEnriched{
 			PortfolioPosition: pos,
 		}
-		if quote, err := h.tencent.FetchQuote(ctx, pos.Code); err == nil {
+		if quote, err := h.fetchQuote(ctx, pos.Code); err == nil {
 			ep.CurrentPrice = quote.Price
 		}
 		ep.MarketValue = roundPort(ep.CurrentPrice * float64(pos.Quantity))
@@ -118,7 +146,7 @@ func (h *PortfolioHandler) Add(c *gin.Context) {
 
 	// Resolve stock name
 	name := ""
-	if quote, err := h.tencent.FetchQuote(ctx, code); err == nil {
+	if quote, err := h.fetchQuote(ctx, code); err == nil {
 		name = quote.Name
 	}
 
@@ -216,7 +244,7 @@ func (h *PortfolioHandler) Update(c *gin.Context) {
 		code := strings.TrimSpace(*req.Code)
 		if len(code) >= 6 {
 			pos.Code = code
-			if quote, err := h.tencent.FetchQuote(ctx, code); err == nil {
+			if quote, err := h.fetchQuote(ctx, code); err == nil {
 				pos.Name = quote.Name
 			}
 		}
@@ -319,7 +347,7 @@ func (h *PortfolioHandler) Analytics(c *gin.Context) {
 	stats := make([]posStat, 0, len(positions))
 	for _, pos := range positions {
 		currentPrice := 0.0
-		if quote, err := h.tencent.FetchQuote(ctx, pos.Code); err == nil {
+		if quote, err := h.fetchQuote(ctx, pos.Code); err == nil {
 			currentPrice = quote.Price
 		}
 		totalCost := pos.CostPrice * float64(pos.Quantity)
@@ -391,7 +419,7 @@ func (h *PortfolioHandler) Analytics(c *gin.Context) {
 		if _, exists := klineMap[pos.Code]; exists {
 			continue
 		}
-		if klines, err := h.eastMoney.FetchKline(ctx, pos.Code, 60); err == nil && len(klines) > 0 {
+		if klines, err := h.fetchKlines(ctx, pos.Code, 60); err == nil && len(klines) > 0 {
 			klineMap[pos.Code] = klines
 		}
 	}
@@ -530,7 +558,7 @@ func (h *PortfolioHandler) Risk(c *gin.Context) {
 	stocks := make([]stockInfo, 0, len(positions))
 	for _, pos := range positions {
 		currentPrice := 0.0
-		if quote, err := h.tencent.FetchQuote(ctx, pos.Code); err == nil {
+		if quote, err := h.fetchQuote(ctx, pos.Code); err == nil {
 			currentPrice = quote.Price
 		}
 		mv := currentPrice * float64(pos.Quantity)

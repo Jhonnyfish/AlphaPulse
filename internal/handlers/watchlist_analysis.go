@@ -25,6 +25,7 @@ type WatchlistAnalysisHandler struct {
 	db        *pgxpool.Pool
 	tencent   *services.TencentService
 	eastMoney *services.EastMoneyService
+	tushareDB *services.TushareDB
 	analyze   *AnalyzeHandler
 	log       *zap.Logger
 	scoring   *services.ScoringEngine
@@ -53,6 +54,11 @@ func NewWatchlistAnalysisHandler(
 		sectorsCache: cache.New[SectorsResponse](),
 		rankingCache: cache.New[RankingResponse](),
 	}
+}
+
+// SetTushareDB sets the Tushare local database service as primary data source.
+func (h *WatchlistAnalysisHandler) SetTushareDB(db *services.TushareDB) {
+	h.tushareDB = db
 }
 
 // InvalidateRankingCache clears the ranking cache so the next request re-analyzes.
@@ -195,7 +201,14 @@ func (h *WatchlistAnalysisHandler) Heatmap(c *gin.Context) {
 		wg.Add(1)
 		go func(idx int, cd string) {
 			defer wg.Done()
-			quote, err := h.tencent.FetchQuote(context.Background(), cd)
+			var quote models.Quote
+			var err error
+			if h.tushareDB != nil {
+				quote, err = h.tushareDB.FetchQuoteFromDB(context.Background(), cd)
+			}
+			if err != nil || quote.Price <= 0 {
+				quote, err = h.tencent.FetchQuote(context.Background(), cd)
+			}
 			if err != nil {
 				h.log.Debug("heatmap: fetch quote failed", zap.String("code", cd), zap.Error(err))
 				items[idx] = HeatmapItem{Code: services.StockCode6(cd), Name: cd}
@@ -306,6 +319,14 @@ func (h *WatchlistAnalysisHandler) Sectors(c *gin.Context) {
 		wg.Add(1)
 		go func(idx int, cd string) {
 			defer wg.Done()
+			// Try TushareDB first
+			if h.tushareDB != nil {
+				if industry, err := h.tushareDB.FetchIndustryFromDB(context.Background(), cd); err == nil && industry != "" {
+					results[idx] = codeSectors{code: cd, sectors: []string{industry}}
+					return
+				}
+			}
+			// Fallback to EastMoney
 			sectors, err := h.eastMoney.FetchStockSectors(context.Background(), cd)
 			if err != nil {
 				h.log.Debug("sectors: fetch failed", zap.String("code", cd), zap.Error(err))

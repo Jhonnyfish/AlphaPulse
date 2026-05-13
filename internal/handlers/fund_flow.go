@@ -18,6 +18,7 @@ import (
 // FundFlowHandler handles fund flow / money flow endpoints.
 type FundFlowHandler struct {
 	eastMoney *services.EastMoneyService
+	tushareDB *services.TushareDB
 	logger    *zap.Logger
 	flowCache *alphacache.Cache[[]models.MoneyFlowDay]
 }
@@ -29,6 +30,11 @@ func NewFundFlowHandler(eastMoney *services.EastMoneyService, logger *zap.Logger
 		logger:    logger,
 		flowCache: alphacache.New[[]models.MoneyFlowDay](),
 	}
+}
+
+// SetTushareDB sets the Tushare local database service as primary data source.
+func (h *FundFlowHandler) SetTushareDB(db *services.TushareDB) {
+	h.tushareDB = db
 }
 
 // Flow godoc
@@ -72,12 +78,30 @@ func (h *FundFlowHandler) Flow(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"code":   code6,
 			"items":  cached,
-			"source": "eastmoney",
+			"source": "tushare",
 			"cached": true,
 		})
 		return
 	}
 
+	// Try TushareDB first (primary local data source)
+	if h.tushareDB != nil {
+		flows, err := h.tushareDB.FetchMoneyFlow(c.Request.Context(), code, days)
+		if err == nil && len(flows) > 0 {
+			h.flowCache.Set(cacheKey, flows, 5*time.Minute)
+			c.JSON(http.StatusOK, gin.H{
+				"code":   code6,
+				"items":  flows,
+				"source": "tushare",
+				"cached": false,
+			})
+			return
+		}
+		h.logger.Warn("tushare money flow failed, falling back to eastmoney",
+			zap.String("code", code6), zap.Error(err))
+	}
+
+	// Fallback to EastMoney
 	flows, err := h.eastMoney.FetchMoneyFlow(c.Request.Context(), normalized, days)
 	if err != nil {
 		h.logger.Warn("failed to fetch money flow, returning degraded response",

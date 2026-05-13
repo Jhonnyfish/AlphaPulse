@@ -125,6 +125,9 @@ func main() {
 		reportsHandler.SetTushareDB(tushareDB)
 		marketHandler.SetTushareDB(tushareDB)
 		deepAnalysisHandler.SetTushareDB(tushareDB)
+		fundFlowHandler.SetTushareDB(tushareDB)
+		watchlistAnalysisHandler.SetTushareDB(tushareDB)
+		portfolioHandler.SetTushareDB(tushareDB)
 		deepAnalysisHandler.SetTushareService(tushareSvc)
 
 		// Initial sync if tables are empty
