@@ -185,6 +185,7 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 
 	// Fetch P0 data (financials, northbound, margin) - these use tushareDB directly
 	var sectorPerf *services.SectorPerformance
+	var turnoverRate float64
 	if h.tushareDB != nil {
 		fins, _ = h.tushareDB.FetchFinancials(ctx, code, 8)
 		top10, _ = h.tushareDB.FetchHsgtTop10ByCode(ctx, code, 10)
@@ -192,6 +193,9 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 		hsgt, _ = h.tushareDB.FetchHsgtHistory(ctx, 10)
 		if sp, err := h.tushareDB.FetchSectorPerformance(ctx, code); err == nil {
 			sectorPerf = &sp
+		}
+		if basic, err := h.tushareDB.FetchDailyBasic(ctx, code); err == nil {
+			turnoverRate = basic.TurnoverRate
 		}
 	}
 
@@ -226,7 +230,7 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 		Version: "3.0",
 		Quote:   quote,
 		OrderFlow:   services.AnalyzeOrderFlow(quote),
-		VolumePrice: services.AnalyzeVolumePrice(quote, klines),
+		VolumePrice: services.AnalyzeVolumePrice(quote, klines, turnoverRate),
 		Valuation:   services.AnalyzeValuation(quote),
 		Volatility:  services.AnalyzeVolatility(quote),
 		MoneyFlow:   services.AnalyzeMoneyFlow(flows),

@@ -273,7 +273,7 @@ func AnalyzeOrderFlow(quote models.Quote) models.OrderFlowAnalysis {
 	}
 }
 
-func AnalyzeVolumePrice(quote models.Quote, klines []models.KlinePoint) models.VolumePriceAnalysis {
+func AnalyzeVolumePrice(quote models.Quote, klines []models.KlinePoint, turnoverRate float64) models.VolumePriceAnalysis {
 	todayVolume := quote.Volume
 	recent := make([]models.KlinePoint, 0, 5)
 	if len(klines) >= 6 {
@@ -294,7 +294,7 @@ func AnalyzeVolumePrice(quote models.Quote, klines []models.KlinePoint) models.V
 		volumeRatio = todayVolume / avgVolume
 	}
 	changePct := quote.ChangePercent
-	turnover := quote.Turnover
+	turnover := turnoverRate
 
 	turnoverLevel := "低迷"
 	if turnover >= 7 {

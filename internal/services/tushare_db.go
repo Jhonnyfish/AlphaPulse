@@ -15,11 +15,12 @@ import (
 
 // DailyBasicData holds valuation data from Tushare local DB.
 type DailyBasicData struct {
-	PE_TTM  float64 `json:"pe_ttm"`
-	PB      float64 `json:"pb"`
-	TotalMV float64 `json:"total_mv"`
-	CircMV  float64 `json:"circ_mv"`
-	DVRatio float64 `json:"dv_ratio"`
+	PE_TTM       float64 `json:"pe_ttm"`
+	PB           float64 `json:"pb"`
+	TotalMV      float64 `json:"total_mv"`
+	CircMV       float64 `json:"circ_mv"`
+	DVRatio      float64 `json:"dv_ratio"`
+	TurnoverRate float64 `json:"turnover_rate"`
 }
 
 // FinancialData holds fundamental financial data from Tushare local DB.
@@ -157,7 +158,7 @@ func (s *TushareDB) FetchDailyBasic(ctx context.Context, code string) (DailyBasi
 	}
 
 	query := `
-		SELECT pe_ttm, pb, total_mv, circ_mv, dv_ratio
+		SELECT pe_ttm, pb, total_mv, circ_mv, dv_ratio, COALESCE(turnover_rate, 0)
 		FROM tushare_daily_basic
 		WHERE ts_code = $1
 		ORDER BY trade_date DESC
@@ -165,7 +166,7 @@ func (s *TushareDB) FetchDailyBasic(ctx context.Context, code string) (DailyBasi
 	`
 
 	var b DailyBasicData
-	err := s.db.QueryRow(ctx, query, tsCode).Scan(&b.PE_TTM, &b.PB, &b.TotalMV, &b.CircMV, &b.DVRatio)
+	err := s.db.QueryRow(ctx, query, tsCode).Scan(&b.PE_TTM, &b.PB, &b.TotalMV, &b.CircMV, &b.DVRatio, &b.TurnoverRate)
 	if err != nil {
 		return DailyBasicData{}, fmt.Errorf("query tushare_daily_basic: %w", err)
 	}

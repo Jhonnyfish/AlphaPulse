@@ -123,7 +123,7 @@ func TestAnalyzeVolumePrice(t *testing.T) {
 	klines := []models.KlinePoint{
 		{Volume: 8000}, {Volume: 9000}, {Volume: 7000}, {Volume: 8500}, {Volume: 7500},
 	}
-	result := AnalyzeVolumePrice(quote, klines)
+	result := AnalyzeVolumePrice(quote, klines, 5.0)
 	assert.Equal(t, "量价齐升", result.PriceVolumeHarmony)
 	assert.Equal(t, "活跃", result.TurnoverLevel)
 }
