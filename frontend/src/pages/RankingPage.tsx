@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useView } from '@/lib/ViewContext';
-import api from '@/lib/api';
-import type { RankingItem, RankingSummary, RankingResponse, NewsItem } from '@/lib/api';
+import api, { analyzeApi } from '@/lib/api';
+import type { RankingItem, RankingSummary, RankingResponse, NewsItem, ScoreHistoryResponse } from '@/lib/api';
 import ReactECharts from '@/components/charts/ReactECharts';
 import {
   Trophy, RefreshCw, TrendingUp, TrendingDown,
@@ -116,6 +116,7 @@ export default function RankingPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [stockNews, setStockNews] = useState<Record<string, NewsItem[]>>({});
+  const [scoreHistories, setScoreHistories] = useState<Record<string, ScoreHistoryResponse>>({});
   const [streaming, setStreaming] = useState(false);
   const [streamProgress, setStreamProgress] = useState({ completed: 0, total: 0 });
   const [strategy, setStrategy] = useState<string>('default');
@@ -204,6 +205,7 @@ export default function RankingPage() {
                   sector_rank: 0,
                   sector_total: 0,
                   strategy: 'default',
+                  score_trend: '',
                 }));
                 setData(placeholders);
                 setLoading(false);
@@ -290,6 +292,19 @@ export default function RankingPage() {
         setStockNews((prev) => ({ ...prev, [expandedRow]: [] }));
       });
   }, [expandedRow, stockNews]);
+
+  /* ---- fetch score history when a row is expanded ---- */
+  useEffect(() => {
+    if (!expandedRow || scoreHistories[expandedRow]) return;
+    analyzeApi
+      .scoreHistory(expandedRow)
+      .then((res) => {
+        setScoreHistories((prev) => ({ ...prev, [expandedRow]: res.data }));
+      })
+      .catch(() => {
+        setScoreHistories((prev) => ({ ...prev, [expandedRow]: { code: expandedRow, count: 0, history: [] } }));
+      });
+  }, [expandedRow, scoreHistories]);
 
   /* ---- sorting ---- */
   const sorted = [...data].sort((a, b) => {
@@ -441,6 +456,51 @@ export default function RankingPage() {
           barWidth: '50%',
         },
       ],
+    };
+  };
+
+  /* ---- score trend chart for expanded detail ---- */
+  const getScoreTrendOption = (code: string) => {
+    const hd = scoreHistories[code];
+    if (!hd || hd.history.length === 0) return null;
+    const history = [...hd.history].reverse();
+    return {
+      tooltip: {
+        trigger: 'axis' as const,
+        formatter: (params: any) => {
+          const p = params[0];
+          const date = new Date(p.axisValue).toLocaleDateString('zh-CN');
+          return `${date}<br/>评分: <b>${p.value}</b>`;
+        },
+      },
+      grid: { top: 10, right: 16, bottom: 28, left: 40 },
+      xAxis: {
+        type: 'category' as const,
+        data: history.map((h) => h.recorded_at),
+        axisLabel: {
+          color: '#94a3b8', fontSize: 10,
+          formatter: (val: string) => new Date(val).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }),
+        },
+        axisLine: { lineStyle: { color: 'rgba(148,163,184,0.15)' } },
+      },
+      yAxis: {
+        type: 'value' as const, min: 0, max: 100,
+        axisLabel: { color: '#94a3b8', fontSize: 10 },
+        splitLine: { lineStyle: { color: 'rgba(148,163,184,0.1)' } },
+      },
+      series: [{
+        type: 'line', data: history.map((h) => h.score), smooth: true,
+        symbol: 'circle', symbolSize: 4,
+        lineStyle: { color: '#3b82f6', width: 2 },
+        areaStyle: {
+          color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: 'rgba(59,130,246,0.2)' },
+              { offset: 1, color: 'rgba(59,130,246,0)' },
+            ],
+          },
+        },
+      }],
     };
   };
 
@@ -828,22 +888,7 @@ export default function RankingPage() {
                 >
                   置信度 <SortIcon col="confidence" />
                 </th>
-                <th
-                  className="px-2 py-3 text-center font-medium whitespace-nowrap text-xs"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  板块排名
-                </th>
-                {DIMENSIONS.map((d) => (
-                  <th
-                    key={d}
-                    className="px-2 py-3 text-center font-medium cursor-pointer select-none whitespace-nowrap text-xs"
-                    style={{ color: 'var(--color-text-muted)' }}
-                    onClick={() => toggleSort(d)}
-                  >
-                    {DIM_LABELS[d]} <SortIcon col={d} />
-                  </th>
-                ))}
+
                 <th
                   className="px-3 py-3 text-center font-medium whitespace-nowrap"
                   style={{ color: 'var(--color-text-muted)' }}
@@ -883,14 +928,22 @@ export default function RankingPage() {
 
                     {/* Score */}
                     <td className="px-3 py-3">
-                      <div
-                        className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg font-mono font-bold text-sm"
-                        style={{
-                          background: scoreBg(item.overall_score),
-                          color: scoreColor(item.overall_score),
-                        }}
-                      >
-                        {item.overall_score}
+                      <div className="inline-flex items-center gap-1">
+                        <div
+                          className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg font-mono font-bold text-sm"
+                          style={{
+                            background: scoreBg(item.overall_score),
+                            color: scoreColor(item.overall_score),
+                          }}
+                        >
+                          {item.overall_score}
+                        </div>
+                        {item.score_trend === 'rising' && (
+                          <TrendingUp className="w-3.5 h-3.5" style={{ color: 'var(--color-danger)' }} />
+                        )}
+                        {item.score_trend === 'falling' && (
+                          <TrendingDown className="w-3.5 h-3.5" style={{ color: 'var(--color-success)' }} />
+                        )}
                       </div>
                     </td>
 
@@ -1010,50 +1063,9 @@ export default function RankingPage() {
                       </div>
                     </td>
 
-                    {/* Sector ranking */}
-                    <td className="px-2 py-3 text-center">
-                      {item.sector && item.sector_total > 0 ? (
-                        <div className="flex flex-col items-center">
-                          <span className="text-xs font-mono font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                            {item.sector_rank}/{item.sector_total}
-                          </span>
-                          <span className="text-xs truncate max-w-[60px]" style={{ color: 'var(--color-text-muted)' }}>
-                            {item.sector}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>—</span>
-                      )}
-                    </td>
 
-                    {/* Dimension mini bars */}
-                    {DIMENSIONS.map((d) => {
-                      const val = item.dimension_scores?.[d] ?? 0;
-                      return (
-                        <td key={d} className="px-2 py-3 text-center">
-                          <div className="flex flex-col items-center gap-0.5">
-                            <span
-                              className="text-xs font-mono font-medium"
-                              style={{ color: scoreColor(val) }}
-                            >
-                              {val.toFixed(0)}
-                            </span>
-                            <div
-                              className="w-10 h-1 rounded-full overflow-hidden"
-                              style={{ background: 'rgba(148,163,184,0.1)' }}
-                            >
-                              <div
-                                className="h-full rounded-full transition-all duration-300"
-                                style={{
-                                  width: `${val}%`,
-                                  background: scoreColor(val),
-                                }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-                      );
-                    })}
+
+
 
                     {/* Expand button */}
                     <td className="px-3 py-3 text-center">
@@ -1078,10 +1090,67 @@ export default function RankingPage() {
                   {expandedRow === item.code && (
                     <tr key={`${item.code}-detail`}>
                       <td
-                        colSpan={9 + DIMENSIONS.length + 1}
+                        colSpan={11}
                         className="px-6 py-4"
                         style={{ background: 'rgba(148,163,184,0.03)' }}
                       >
+                        {/* Dimension scores grid */}
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 mb-4">
+                          {DIMENSIONS.map((d) => {
+                            const val = item.dimension_scores?.[d] ?? 0;
+                            return (
+                              <div key={d} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg" style={{ background: 'rgba(148,163,184,0.06)' }}>
+                                <span className="text-xs whitespace-nowrap" style={{ color: 'var(--color-text-muted)' }}>{DIM_LABELS[d]}</span>
+                                <span className="text-xs font-mono font-medium" style={{ color: scoreColor(val) }}>{val.toFixed(0)}</span>
+                                <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(148,163,184,0.1)', minWidth: 20 }}>
+                                  <div className="h-full rounded-full" style={{ width: `${val}%`, background: scoreColor(val) }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {item.sector && item.sector_total > 0 && (
+                          <div className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
+                            板块排名：
+                            <span className="font-mono font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                              {' '}{item.sector} {item.sector_rank}/{item.sector_total}
+                            </span>
+                          </div>
+                        )}
+                        {/* Score trend chart */}
+                        {scoreHistories[item.code] && scoreHistories[item.code].history.length > 1 && getScoreTrendOption(item.code) && (
+                          <div className="mb-4">
+                            <div className="text-xs font-medium mb-2 flex items-center gap-1.5"
+                              style={{ color: 'var(--color-accent)' }}>
+                              <TrendingUp className="w-3.5 h-3.5" />
+                              评分趋势
+                              {scoreHistories[item.code].trend && (
+                                <span className="ml-2 flex items-center gap-1.5">
+                                  {(() => {
+                                    const t = scoreHistories[item.code].trend!;
+                                    return <>
+                                      <span style={{ color: t.trend_7d === 'rising' ? 'var(--color-danger)' : t.trend_7d === 'falling' ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
+                                        {t.trend_7d === 'rising' ? '↑' : t.trend_7d === 'falling' ? '↓' : '→'}
+                                        7日{t.change_7d > 0 ? '+' : ''}{t.change_7d.toFixed(1)}
+                                      </span>
+                                      <span style={{ color: 'var(--color-text-muted)' }}>|</span>
+                                      <span style={{ color: t.trend_30d === 'rising' ? 'var(--color-danger)' : t.trend_30d === 'falling' ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
+                                        {t.trend_30d === 'rising' ? '↑' : t.trend_30d === 'falling' ? '↓' : '→'}
+                                        30日{t.change_30d > 0 ? '+' : ''}{t.change_30d.toFixed(1)}
+                                      </span>
+                                    </>;
+                                  })()}
+                                </span>
+                              )}
+                            </div>
+                            <div className="h-40">
+                              <ReactECharts
+                                option={getScoreTrendOption(item.code)!}
+                                style={{ height: '100%' }}
+                              />
+                            </div>
+                          </div>
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           {/* Strengths */}
                           <div>

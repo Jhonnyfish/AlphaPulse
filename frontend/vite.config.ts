@@ -23,8 +23,8 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
-        timeout: 300000,
-        proxyTimeout: 300000,
+        timeout: 600000,
+        proxyTimeout: 600000,
       },
       '/health': {
         target: 'http://localhost:8080',

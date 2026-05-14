@@ -914,7 +914,7 @@ func (s *TushareService) FetchHsgtTop10(ctx context.Context, tradeDate, tsCode s
 		params["market_type"] = fmt.Sprintf("%d", marketType)
 	}
 
-	resp, err := s.Query(ctx, "hsgt_top10", params, "trade_date,ts_code,name,close,pct_change,rank,amount,net_amount,buy_amount,sell_amount,market_type")
+	resp, err := s.Query(ctx, "hsgt_top10", params, "trade_date,ts_code,name,close,pct_change,rank,amount,net_amount,buy,sell,market_type")
 	if err != nil {
 		return nil, err
 	}
@@ -931,8 +931,8 @@ func (s *TushareService) FetchHsgtTop10(ctx context.Context, tradeDate, tsCode s
 			Rank:       floatVal(r, "rank"),
 			Amount:     floatVal(r, "amount"),
 			NetAmount:  floatVal(r, "net_amount"),
-			BuyAmount:  floatVal(r, "buy_amount"),
-			SellAmount: floatVal(r, "sell_amount"),
+			BuyAmount:  floatVal(r, "buy"),
+			SellAmount: floatVal(r, "sell"),
 			MarketType: floatVal(r, "market_type"),
 		})
 	}

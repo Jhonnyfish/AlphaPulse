@@ -740,7 +740,9 @@ func (s *TushareSync) SyncHsgtTop10(ctx context.Context, tradeDate string) error
 	query := fmt.Sprintf(`
 		INSERT INTO tushare_hsgt_top10 (trade_date, ts_code, name, close, pct_change, market_type, rank, amount, net_amount, buy_amount, sell_amount)
 		VALUES %s
-		ON CONFLICT (trade_date, ts_code, market_type) DO NOTHING
+		ON CONFLICT (trade_date, ts_code, market_type) DO UPDATE
+		SET amount = EXCLUDED.amount, net_amount = EXCLUDED.net_amount,
+		    buy_amount = EXCLUDED.buy_amount, sell_amount = EXCLUDED.sell_amount
 	`, batch.String())
 
 	tag, err := s.db.Exec(ctx, query)

@@ -119,6 +119,7 @@ func (h *WatchlistAnalysisHandler) PreComputeRanking() {
 
 	// Calculate sector rankings
 	calculateSectorRankings(valid)
+	h.enrichWithTrends(ctx, valid)
 
 	// Build summary
 	var avgScore float64
@@ -396,7 +397,10 @@ type RankingItem struct {
 	SectorTotal     int    `json:"sector_total"`
 	// Strategy used
 	Strategy        string `json:"strategy"`
-	Error           string `json:"error,omitempty"`
+	// Score trend from score_history
+	ScoreTrend    string  `json:"score_trend"`
+	ScoreChange7D float64 `json:"score_change_7d,omitempty"`
+	Error         string  `json:"error,omitempty"`
 }
 
 // RankingSummary is summary statistics for the ranking.
@@ -487,6 +491,8 @@ func (h *WatchlistAnalysisHandler) Ranking(c *gin.Context) {
 		valid[i].Rank = i + 1
 	}
 
+	calculateSectorRankings(valid)
+	h.enrichWithTrends(c.Request.Context(), valid)
 	// Build summary
 	var avgScore float64
 	var best, worst *RankingBest
@@ -667,6 +673,9 @@ func (h *WatchlistAnalysisHandler) RankingStream(c *gin.Context) {
 		valid[i].Rank = i + 1
 	}
 
+		calculateSectorRankings(valid)
+		h.enrichWithTrends(c.Request.Context(), valid)
+
 	var avgScore float64
 	var best, worst *RankingBest
 	if len(valid) > 0 {
@@ -792,6 +801,81 @@ func calculateSectorRankings(items []RankingItem) {
 		for rank, idx := range indices {
 			items[idx].SectorRank = rank + 1
 			items[idx].SectorTotal = total
+		}
+	}
+}
+
+// enrichWithTrends batch-queries score_history to add trend data to each ranking item.
+func (h *WatchlistAnalysisHandler) enrichWithTrends(ctx context.Context, items []RankingItem) {
+	if len(items) == 0 {
+		return
+	}
+
+	codes := make([]string, 0, len(items))
+	for _, item := range items {
+		if item.Code != "" {
+			codes = append(codes, item.Code)
+		}
+	}
+
+	rows, err := h.db.Query(ctx,
+		`WITH latest AS (
+			SELECT DISTINCT ON (code) code, score
+			FROM score_history
+			WHERE code = ANY($1)
+			ORDER BY code, recorded_at DESC
+		),
+		old AS (
+			SELECT DISTINCT ON (code) code, score
+			FROM score_history
+			WHERE code = ANY($1)
+			  AND recorded_at <= NOW() - INTERVAL '6 days'
+			ORDER BY code, recorded_at DESC
+		)
+		SELECT l.code, l.score, o.score
+		FROM latest l
+		LEFT JOIN old o ON l.code = o.code`, codes)
+	if err != nil {
+		h.log.Warn("enrichWithTrends: query failed", zap.Error(err))
+		return
+	}
+	defer rows.Close()
+
+	type trendData struct {
+		current float64
+		prev7d  float64
+		hasOld  bool
+	}
+	trends := make(map[string]trendData, len(codes))
+	for rows.Next() {
+		var code string
+		var current float64
+		var prev7d *float64
+		if err := rows.Scan(&code, &current, &prev7d); err != nil {
+			continue
+		}
+		td := trendData{current: current}
+		if prev7d != nil {
+			td.prev7d = *prev7d
+			td.hasOld = true
+		}
+		trends[code] = td
+	}
+
+	for i := range items {
+		td, ok := trends[items[i].Code]
+		if !ok || !td.hasOld {
+			continue
+		}
+		change := td.current - td.prev7d
+		items[i].ScoreChange7D = change
+		switch {
+		case change > 3:
+			items[i].ScoreTrend = "rising"
+		case change < -3:
+			items[i].ScoreTrend = "falling"
+		default:
+			items[i].ScoreTrend = "stable"
 		}
 	}
 }
@@ -996,6 +1080,10 @@ func scoreDimensionNorthbound(nb models.NorthboundAnalysis) float64 {
 		return 15
 	case "北向小幅卖出":
 		return 35
+	case "北向成交活跃":
+		return 70
+	case "北向成交一般":
+		return 55
 	default:
 		return 50
 	}

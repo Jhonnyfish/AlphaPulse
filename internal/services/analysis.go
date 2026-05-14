@@ -1157,22 +1157,27 @@ func AnalyzeFundamentals(financials []FinancialData) models.FundamentalsAnalysis
 }
 
 // AnalyzeNorthbound evaluates northbound capital flow signals.
+// All monetary inputs are expected in 万元.
 func AnalyzeNorthbound(hsgtData []HsgtData, top10Data []HsgtTop10Data) models.NorthboundAnalysis {
 	a := models.NorthboundAnalysis{}
 
-	// Market-level northbound flow
+	// Market-level northbound flow (values in 万元 after conversion from 百万×100)
 	if len(hsgtData) > 0 {
 		a.LatestNetFlow = hsgtData[0].NorthMoney
-		// 5-day trend
 		limit := 5
-		if len(hsgtData) < limit { limit = len(hsgtData) }
+		if len(hsgtData) < limit {
+			limit = len(hsgtData)
+		}
 		sum := 0.0
-		for i := 0; i < limit; i++ { sum += hsgtData[i].NorthMoney }
+		for i := 0; i < limit; i++ {
+			sum += hsgtData[i].NorthMoney
+		}
 		a.Trend5D = sum
 
-		if sum > 100 {
+		// Thresholds in 万元: ±100亿(=±1,000,000万) for significant 5-day flow
+		if sum > 1000000 {
 			a.FlowDirection = "持续流入"
-		} else if sum < -100 {
+		} else if sum < -1000000 {
 			a.FlowDirection = "持续流出"
 		} else if sum > 0 {
 			a.FlowDirection = "小幅流入"
@@ -1185,26 +1190,48 @@ func AnalyzeNorthbound(hsgtData []HsgtData, top10Data []HsgtTop10Data) models.No
 		a.FlowDirection = "无数据"
 	}
 
-	// Stock-level northbound activity
+	// Stock-level northbound activity (values in 万元 after conversion from 元÷10000)
 	if len(top10Data) > 0 {
+		// After Aug 2024, net_amount is typically null; use total amount as activity indicator
 		totalNet := 0.0
-		for _, d := range top10Data { totalNet += d.NetAmount }
+		totalAmount := 0.0
+		for _, d := range top10Data {
+			totalNet += d.NetAmount
+			totalAmount += d.Amount
+		}
 		a.StockNetAmount = totalNet
 
-		if totalNet > 5000 {
-			a.StockAction = "大幅买入"
-			a.Signal = "北向大幅买入"
-		} else if totalNet > 1000 {
-			a.StockAction = "小幅买入"
-			a.Signal = "北向小幅买入"
-		} else if totalNet < -5000 {
-			a.StockAction = "大幅卖出"
-			a.Signal = "北向大幅卖出"
-		} else if totalNet < -1000 {
-			a.StockAction = "小幅卖出"
-			a.Signal = "北向小幅卖出"
+		hasNetData := totalNet != 0
+		if hasNetData {
+			// Thresholds in 万元: ±5000万 for significant action
+			if totalNet > 5000 {
+				a.StockAction = "大幅买入"
+				a.Signal = "北向大幅买入"
+			} else if totalNet > 1000 {
+				a.StockAction = "小幅买入"
+				a.Signal = "北向小幅买入"
+			} else if totalNet < -5000 {
+				a.StockAction = "大幅卖出"
+				a.Signal = "北向大幅卖出"
+			} else if totalNet < -1000 {
+				a.StockAction = "小幅卖出"
+				a.Signal = "北向小幅卖出"
+			} else {
+				a.StockAction = "无明显方向"
+				a.Signal = "无明显信号"
+			}
+		} else if totalAmount > 0 {
+			// No net_amount data (post Aug 2024); infer from presence in top10 + total amount
+			a.StockNetAmount = totalAmount
+			if totalAmount > 500000 {
+				a.StockAction = "成交活跃"
+				a.Signal = "北向成交活跃"
+			} else {
+				a.StockAction = "成交一般"
+				a.Signal = "北向成交一般"
+			}
 		} else {
-			a.StockAction = "无明显方向"
+			a.StockAction = "未进入十大成交"
 			a.Signal = "无明显信号"
 		}
 	} else {
@@ -1212,7 +1239,6 @@ func AnalyzeNorthbound(hsgtData []HsgtData, top10Data []HsgtTop10Data) models.No
 		a.Signal = "无明显信号"
 	}
 
-	// Verdict
 	switch a.Signal {
 	case "北向大幅买入":
 		a.Verdict = "北向资金大幅买入，外资看好"
@@ -1222,6 +1248,8 @@ func AnalyzeNorthbound(hsgtData []HsgtData, top10Data []HsgtTop10Data) models.No
 		a.Verdict = "北向资金大幅卖出，需警惕"
 	case "北向小幅卖出":
 		a.Verdict = "北向资金小幅流出，偏负面"
+	case "北向成交活跃":
+		a.Verdict = "北向资金成交活跃，关注度高"
 	default:
 		a.Verdict = "北向资金无明显信号"
 	}

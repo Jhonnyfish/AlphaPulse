@@ -148,7 +148,7 @@ func (h *DeepAnalysisHandler) Analyze(c *gin.Context) {
 		zap.Int("commodity_count", len(commodityData)))
 
 	// Call Hermes Agent CLI — deep analysis needs time for web research
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Minute)
 	defer cancel()
 
 	hermesPath := "/home/finn/.local/bin/hermes"

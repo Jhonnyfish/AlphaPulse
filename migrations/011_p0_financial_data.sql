@@ -61,10 +61,10 @@ CREATE TABLE IF NOT EXISTS tushare_hsgt_top10 (
     pct_change    NUMERIC(10,4),
     market_type   VARCHAR(4),              -- 1=沪股通 3=深股通
     rank          INT,
-    amount        NUMERIC(20,4),           -- 成交额(万)
-    net_amount    NUMERIC(20,4),           -- 净买入额(万)
-    buy_amount    NUMERIC(20,4),           -- 买入额(万)
-    sell_amount   NUMERIC(20,4),           -- 卖出额(万)
+    amount        NUMERIC(20,4),           -- 成交额(元)
+    net_amount    NUMERIC(20,4),           -- 净买入额(元) -- null after Aug 2024
+    buy_amount    NUMERIC(20,4),           -- 买入额(元) -- null after Aug 2024
+    sell_amount   NUMERIC(20,4),           -- 卖出额(元) -- null after Aug 2024
     PRIMARY KEY (trade_date, ts_code, market_type)
 );
 

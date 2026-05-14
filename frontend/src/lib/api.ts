@@ -640,6 +640,9 @@ export interface RankingItem {
   sector_total: number;
   // Strategy used
   strategy: string;
+  // Score trend
+  score_trend: 'rising' | 'falling' | 'stable' | '';
+  score_change_7d?: number;
   error?: string;
 }
 

@@ -46,10 +46,12 @@ type HsgtData struct {
 }
 
 // HsgtTop10Data holds per-stock HSGT top-10 trading data.
+// All monetary values are normalized to 万元 for downstream consistency.
 type HsgtTop10Data struct {
-	TradeDate string  `json:"trade_date"`
-	NetAmount float64 `json:"net_amount"`
-	BuyAmount float64 `json:"buy_amount"`
+	TradeDate  string  `json:"trade_date"`
+	Amount     float64 `json:"amount"`
+	NetAmount  float64 `json:"net_amount"`
+	BuyAmount  float64 `json:"buy_amount"`
 	SellAmount float64 `json:"sell_amount"`
 }
 
@@ -756,6 +758,9 @@ func (s *TushareDB) FetchHsgtHistory(ctx context.Context, days int) ([]HsgtData,
 			s.logger.Warn("scan hsgt", zap.Error(err))
 			continue
 		}
+		// Tushare moneyflow_hsgt stores values in 百万元; convert to 万元 for downstream consistency
+		h.NorthMoney *= 100
+		h.SouthMoney *= 100
 		h.TradeDate = FormatDate(tradeDate)
 		items = append(items, h)
 	}
@@ -778,7 +783,7 @@ func (s *TushareDB) FetchHsgtTop10ByCode(ctx context.Context, code string, limit
 	}
 
 	query := `
-		SELECT trade_date, COALESCE(net_amount, 0), COALESCE(buy_amount, 0), COALESCE(sell_amount, 0)
+		SELECT trade_date, COALESCE(amount, 0), COALESCE(net_amount, 0), COALESCE(buy_amount, 0), COALESCE(sell_amount, 0)
 		FROM tushare_hsgt_top10
 		WHERE ts_code = $1
 		ORDER BY trade_date DESC
@@ -795,10 +800,15 @@ func (s *TushareDB) FetchHsgtTop10ByCode(ctx context.Context, code string, limit
 	for rows.Next() {
 		var h HsgtTop10Data
 		var tradeDate string
-		if err := rows.Scan(&tradeDate, &h.NetAmount, &h.BuyAmount, &h.SellAmount); err != nil {
+		if err := rows.Scan(&tradeDate, &h.Amount, &h.NetAmount, &h.BuyAmount, &h.SellAmount); err != nil {
 			s.logger.Warn("scan hsgt_top10", zap.Error(err))
 			continue
 		}
+		// Tushare hsgt_top10 stores amount/net_amount/buy/sell in 元; convert to 万元
+		h.Amount /= 10000
+		h.NetAmount /= 10000
+		h.BuyAmount /= 10000
+		h.SellAmount /= 10000
 		h.TradeDate = FormatDate(tradeDate)
 		items = append(items, h)
 	}
