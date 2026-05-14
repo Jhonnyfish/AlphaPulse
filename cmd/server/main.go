@@ -226,6 +226,7 @@ func main() {
 	deepAnalysisGroup := api.Group("/deep-analysis")
 	deepAnalysisGroup.Use(authMiddleware)
 	deepAnalysisGroup.POST("", deepAnalysisHandler.Analyze)
+	deepAnalysisGroup.GET("/status/:code", deepAnalysisHandler.Status)
 
 	analyzeGroup := api.Group("/analyze")
 	analyzeGroup.Use(authMiddleware)

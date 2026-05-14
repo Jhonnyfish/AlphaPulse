@@ -740,13 +740,16 @@ export const analyzeApi = {
   stockInfo: (code: string) => api.get('/stockinfo', { params: { code } }),
   scoreHistory: (code: string) => api.get<ScoreHistoryResponse>(`/score-history/${code}`),
   deepAnalysis: (code: string, signal?: AbortSignal) => api.post<DeepAnalysisResponse>('/deep-analysis', { code }, { timeout: 0, signal }),
+  deepAnalysisStatus: (code: string) => api.get<DeepAnalysisResponse>(`/deep-analysis/status/${code}`),
 };
 
 export interface DeepAnalysisResponse {
   ok: boolean;
   code: string;
-  report: string;
-  error: string;
+  status?: string;
+  report?: string;
+  error?: string;
+  pct_done?: string;
 }
 
 export interface ScoreTrend {

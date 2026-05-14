@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"alphapulse/internal/logger"
@@ -23,22 +26,24 @@ type DeepAnalysisRequest struct {
 
 // DeepAnalysisResponse is the response for deep analysis.
 type DeepAnalysisResponse struct {
-	OK     bool   `json:"ok"`
-	Code   string `json:"code"`
-	Report string `json:"report,omitempty"`
-	Error  string `json:"error,omitempty"`
+	OK      bool    `json:"ok"`
+	Code    string  `json:"code"`
+	Status  string  `json:"status,omitempty"`  // "running", "completed", "failed"
+	Report  string  `json:"report,omitempty"`
+	Error   string  `json:"error,omitempty"`
+	PctDone *string `json:"pct_done,omitempty"` // progress indicator
 }
 
 // CommodityData holds futures price data for a commodity.
 type CommodityData struct {
-	Code      string  `json:"code"`       // e.g. "LC.GFE"
-	Name      string  `json:"name"`       // e.g. "碳酸锂"
-	LatestDate string `json:"latest_date"` // e.g. "20260512"
-	Close     float64 `json:"close"`      // latest close price
-	PrevClose float64 `json:"prev_close"` // previous close
-	Change5D  float64 `json:"change_5d"`  // 5-day change %
-	Change20D float64 `json:"change_20d"` // 20-day change %
-	Trend     string  `json:"trend"`      // "上涨"/"下跌"/"震荡"
+	Code      string  `json:"code"`
+	Name      string  `json:"name"`
+	LatestDate string `json:"latest_date"`
+	Close     float64 `json:"close"`
+	PrevClose float64 `json:"prev_close"`
+	Change5D  float64 `json:"change_5d"`
+	Change20D float64 `json:"change_20d"`
+	Trend     string  `json:"trend"`
 }
 
 // IndustryCommodityMap maps industry keywords to relevant commodity futures.
@@ -68,15 +73,28 @@ var IndustryCommodityMap = map[string][]struct {
 	"猪肉":   {{Code: "LH.DCE", Name: "生猪"}},
 }
 
+// AnalysisResult holds the result of an async deep analysis.
+type AnalysisResult struct {
+	Code     string
+	Status   string    // "running", "completed", "failed"
+	Report   string
+	Error    string
+	StartedAt time.Time
+}
+
 // DeepAnalysisHandler handles deep analysis requests.
 type DeepAnalysisHandler struct {
 	tushareDB  *services.TushareDB
 	tushareSvc *services.TushareService
+	results    map[string]*AnalysisResult
+	mu         sync.RWMutex
 }
 
 // NewDeepAnalysisHandler creates a new DeepAnalysisHandler.
 func NewDeepAnalysisHandler() *DeepAnalysisHandler {
-	return &DeepAnalysisHandler{}
+	return &DeepAnalysisHandler{
+		results: make(map[string]*AnalysisResult),
+	}
 }
 
 // SetTushareDB sets the TushareDB service.
@@ -89,15 +107,7 @@ func (h *DeepAnalysisHandler) SetTushareService(svc *services.TushareService) {
 	h.tushareSvc = svc
 }
 
-// Analyze handles POST /api/deep-analysis
-// @Summary 触发深度分析
-// @Description 调用Hermes Agent对股票进行深度分析
-// @Tags deep-analysis
-// @Accept json
-// @Produce json
-// @Param request body DeepAnalysisRequest true "股票代码"
-// @Success 200 {object} DeepAnalysisResponse
-// @Router /api/deep-analysis [post]
+// Analyze handles POST /api/deep-analysis — starts async analysis, returns immediately.
 func (h *DeepAnalysisHandler) Analyze(c *gin.Context) {
 	var req DeepAnalysisRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -117,13 +127,110 @@ func (h *DeepAnalysisHandler) Analyze(c *gin.Context) {
 		return
 	}
 
-	// Fetch stock data from DB directly
-	stockData, industry := h.fetchStockDataWithIndustry(code)
+	// Check if already running or completed
+	h.mu.RLock()
+	if result, exists := h.results[code]; exists {
+		if result.Status == "running" {
+			h.mu.RUnlock()
+			elapsed := time.Since(result.StartedAt)
+			pct := "分析中..."
+			if elapsed > 2*time.Minute {
+				pct = "分析中 (已运行" + fmt.Sprintf("%.0f", elapsed.Minutes()) + "分钟)"
+			}
+			c.JSON(http.StatusOK, DeepAnalysisResponse{
+				OK:     true,
+				Code:   code,
+				Status: "running",
+				PctDone: &pct,
+			})
+			return
+		}
+		h.mu.RUnlock()
+	} else {
+		h.mu.RUnlock()
+	}
 
-	// Fetch related commodity futures data based on industry
+	// Start analysis in background (uses context.Background(), NOT request context)
+	h.mu.Lock()
+	for k := range h.results {
+		// Clean up completed results older than 1 hour
+		if h.results[k].Status != "running" && time.Since(h.results[k].StartedAt) > 1*time.Hour {
+			delete(h.results, k)
+		}
+	}
+	h.results[code] = &AnalysisResult{
+		Code:      code,
+		Status:    "running",
+		StartedAt: time.Now(),
+	}
+	h.mu.Unlock()
+
+	go h.runAnalysis(code)
+
+	c.JSON(http.StatusOK, DeepAnalysisResponse{
+		OK:     true,
+		Code:   code,
+		Status: "running",
+	})
+}
+
+// Status handles GET /api/deep-analysis/status/:code — polls for result.
+func (h *DeepAnalysisHandler) Status(c *gin.Context) {
+	code := c.Param("code")
+	if code == "" {
+		c.JSON(http.StatusBadRequest, DeepAnalysisResponse{OK: false, Error: "code required"})
+		return
+	}
+
+	h.mu.RLock()
+	result, exists := h.results[code]
+	h.mu.RUnlock()
+
+	if !exists {
+		c.JSON(http.StatusOK, DeepAnalysisResponse{OK: true, Code: code, Status: "not_found"})
+		return
+	}
+
+	if result.Status == "running" {
+		elapsed := time.Since(result.StartedAt)
+		pct := "分析中..."
+		if elapsed > 2*time.Minute {
+			pct = "分析中 (已运行" + fmt.Sprintf("%.0f", elapsed.Minutes()) + "分钟)"
+		}
+		c.JSON(http.StatusOK, DeepAnalysisResponse{
+			OK:      true,
+			Code:    code,
+			Status:  "running",
+			PctDone: &pct,
+		})
+		return
+	}
+
+	if result.Status == "completed" {
+		c.JSON(http.StatusOK, DeepAnalysisResponse{
+			OK:     true,
+			Code:   code,
+			Status: "completed",
+			Report: result.Report,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, DeepAnalysisResponse{
+		OK:     false,
+		Code:   code,
+		Status: "failed",
+		Error:  result.Error,
+	})
+}
+
+// runAnalysis executes the deep analysis in a background goroutine.
+func (h *DeepAnalysisHandler) runAnalysis(code string) {
+	// Fetch stock data from DB
+	stockData, industry := h.fetchStockDataWithIndustry(code)
 	commodityData := h.fetchRelatedCommodities(industry)
 
-	// Build prompt with data context
+	// Build prompt
 	var prompt string
 	stockName := h.getStockNameFromData(stockData)
 
@@ -136,57 +243,90 @@ func (h *DeepAnalysisHandler) Analyze(c *gin.Context) {
 				industry, time.Now().Format("2006-01-02"), string(commodityJSON))
 			prompt += "\n\n⚠️ 重要：以上商品价格数据为实时查询结果，分析中必须使用以上数据，禁止使用你训练数据中的旧价格。"
 		}
-
 		prompt += "\n\n请基于以上数据，结合你的研究，生成完整的深度分析报告。"
 	} else {
 		prompt = fmt.Sprintf("对%s进行深度分析", code)
 	}
 
-	logger.Info("triggering deep analysis",
+	logger.Info("deep analysis: starting background job",
 		zap.String("code", code),
 		zap.Bool("has_data", stockData != ""),
 		zap.Int("commodity_count", len(commodityData)))
 
-	// Call Hermes Agent CLI — deep analysis needs time for web research
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Minute)
+	// Use context.Background() so process survives HTTP disconnect
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 
 	hermesPath := "/home/finn/.local/bin/hermes"
+
+	// Write output to a temp file so partial results persist
+	tmpDir := os.TempDir()
+	outFile := filepath.Join(tmpDir, fmt.Sprintf("alphapulse_deep_%s_%s.txt", code, time.Now().Format("150405")))
+	f, err := os.Create(outFile)
+	if err != nil {
+		logger.Error("deep analysis: failed to create output file", zap.Error(err))
+		h.updateResult(code, "failed", "", "failed to create output file")
+		return
+	}
+
 	cmd := exec.CommandContext(ctx, hermesPath, "chat", "-q", prompt, "--skills", "stock-deep-analysis", "-Q", "--yolo")
-	output, err := cmd.CombinedOutput()
+	cmd.Stdout = f
+	cmd.Stderr = f
+
+	startTime := time.Now()
+	err = cmd.Run()
+	f.Close()
 
 	if err != nil {
-		logger.Error("hermes agent failed",
+		// Read partial output from file
+		partial, _ := os.ReadFile(outFile)
+		partialStr := strings.TrimSpace(string(partial))
+		logger.Error("deep analysis: hermes agent failed",
 			zap.String("code", code),
 			zap.Error(err),
-			zap.String("output", string(output)))
-		c.JSON(http.StatusInternalServerError, DeepAnalysisResponse{
-			OK:    false,
-			Code:  code,
-			Error: "analysis failed: " + err.Error(),
-		})
+			zap.String("output_file", outFile),
+			zap.Int("partial_output_len", len(partialStr)))
+
+		// If we have partial output, try to use it
+		if len(partialStr) > 200 {
+			// Even on error, save what we have
+			h.updateResult(code, "completed", partialStr, "")
+			logger.Info("deep analysis: saved partial result despite error",
+				zap.String("code", code),
+				zap.Int("length", len(partialStr)),
+				zap.Duration("elapsed", time.Since(startTime)))
+		} else {
+			h.updateResult(code, "failed", "", fmt.Sprintf("analysis error after %.0f min: %v", time.Since(startTime).Minutes(), err))
+		}
 		return
 	}
 
+	// Read the full output
+	output, _ := os.ReadFile(outFile)
 	report := strings.TrimSpace(string(output))
+
 	if report == "" {
-		c.JSON(http.StatusInternalServerError, DeepAnalysisResponse{
-			OK:    false,
-			Code:  code,
-			Error: "empty report",
-		})
+		h.updateResult(code, "failed", "", "empty report")
 		return
 	}
 
-	logger.Info("deep analysis completed",
-		zap.String("code", code),
-		zap.Int("report_length", len(report)))
+	h.updateResult(code, "completed", report, "")
 
-	c.JSON(http.StatusOK, DeepAnalysisResponse{
-		OK:     true,
-		Code:   code,
-		Report: report,
-	})
+	logger.Info("deep analysis: completed",
+		zap.String("code", code),
+		zap.Int("report_length", len(report)),
+		zap.Duration("elapsed", time.Since(startTime)))
+}
+
+// updateResult thread-safely updates the analysis result.
+func (h *DeepAnalysisHandler) updateResult(code, status, report, err string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if result, exists := h.results[code]; exists {
+		result.Status = status
+		result.Report = report
+		result.Error = err
+	}
 }
 
 // fetchStockDataWithIndustry fetches stock data and industry from DB.
@@ -204,10 +344,8 @@ func (h *DeepAnalysisHandler) fetchStockDataWithIndustry(code string) (string, s
 		return "", ""
 	}
 
-	// Fetch industry
 	industry, _ := h.tushareDB.FetchIndustryFromDB(ctx, code)
 
-	// Format as structured data
 	data := map[string]interface{}{
 		"code":           quote.Code,
 		"name":           quote.Name,
@@ -242,7 +380,6 @@ func (h *DeepAnalysisHandler) fetchRelatedCommodities(industry string) []Commodi
 		return nil
 	}
 
-	// Find matching commodities for this industry
 	var commodities []struct {
 		Code string
 		Name string
@@ -250,10 +387,9 @@ func (h *DeepAnalysisHandler) fetchRelatedCommodities(industry string) []Commodi
 	for keyword, commodityList := range IndustryCommodityMap {
 		if strings.Contains(industry, keyword) {
 			commodities = append(commodities, commodityList...)
-			break // use first match
+			break
 		}
 	}
-
 	if len(commodities) == 0 {
 		return nil
 	}
@@ -272,14 +408,13 @@ func (h *DeepAnalysisHandler) fetchRelatedCommodities(industry string) []Commodi
 		}
 		results = append(results, cd)
 	}
-
 	return results
 }
 
 // fetchCommodityPrice fetches the latest futures price from Tushare API.
 func (h *DeepAnalysisHandler) fetchCommodityPrice(ctx context.Context, tsCode, name string) (CommodityData, error) {
 	endDate := time.Now().Format("20060102")
-	startDate := time.Now().AddDate(0, -1, 0).Format("20060102") // 1 month ago
+	startDate := time.Now().AddDate(0, -1, 0).Format("20060102")
 
 	resp, err := h.tushareSvc.Query(ctx, "fut_daily", map[string]string{
 		"ts_code":    tsCode,
@@ -294,7 +429,6 @@ func (h *DeepAnalysisHandler) fetchCommodityPrice(ctx context.Context, tsCode, n
 		return CommodityData{}, fmt.Errorf("no data returned for %s", tsCode)
 	}
 
-	// Parse results — items are sorted by trade_date desc
 	items := resp.Data.Items
 	latest := items[0]
 
@@ -313,7 +447,6 @@ func (h *DeepAnalysisHandler) fetchCommodityPrice(ctx context.Context, tsCode, n
 		}
 	}
 
-	// Calculate 5-day and 20-day changes
 	if len(items) >= 5 {
 		if v, ok := items[4][1].(float64); ok && v > 0 {
 			cd.Change5D = (cd.Close - v) / v * 100
@@ -325,7 +458,6 @@ func (h *DeepAnalysisHandler) fetchCommodityPrice(ctx context.Context, tsCode, n
 		}
 	}
 
-	// Determine trend
 	if cd.Change5D > 3 {
 		cd.Trend = "上涨"
 	} else if cd.Change5D < -3 {

@@ -194,18 +194,18 @@ export default function AnalyzePage() {
   const [error, setError] = useState<string | null>(null);
   const [alpha300Open, setAlpha300Open] = useState(false);
   const [scoreHistory, setScoreHistory] = useState<ScoreHistoryResponse | null>(null);
-  const [deepAnalysis, setDeepAnalysis] = useState<{ loading: boolean; report: string | null; error: string | null; abortController: AbortController | null }>(() => {
+  const [deepAnalysis, setDeepAnalysis] = useState<{ loading: boolean; report: string | null; error: string | null; status: string | null; abortController: AbortController | null }>(() => {
     // Load from localStorage on init
     if (code) {
       const saved = localStorage.getItem(`deep_analysis_${code}`);
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          return { loading: false, report: parsed.report, error: null, abortController: null };
+          return { loading: false, report: parsed.report || null, error: null, status: parsed.status || null, abortController: null };
         } catch { /* ignore */ }
       }
     }
-    return { loading: false, report: null, error: null, abortController: null };
+    return { loading: false, report: null, error: null, status: null, abortController: null };
   });
 
   const fetchAnalysis = useCallback(async (stockCode: string) => {
@@ -239,18 +239,18 @@ export default function AnalyzePage() {
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          setDeepAnalysis({ loading: false, report: parsed.report, error: null, abortController: null });
+          setDeepAnalysis({ loading: false, report: parsed.report, error: null, status: parsed.status || null, abortController: null });
         } catch {
-          setDeepAnalysis({ loading: false, report: null, error: null, abortController: null });
+          setDeepAnalysis({ loading: false, report: null, error: null, status: null, abortController: null });
         }
       } else {
-        setDeepAnalysis({ loading: false, report: null, error: null, abortController: null });
+        setDeepAnalysis({ loading: false, report: null, error: null, status: null, abortController: null });
       }
     } else {
       setData(null);
       setError(null);
       setLoading(false);
-      setDeepAnalysis({ loading: false, report: null, error: null, abortController: null });
+      setDeepAnalysis({ loading: false, report: null, error: null, status: null, abortController: null });
     }
   }, [code, fetchAnalysis]);
 
@@ -260,25 +260,65 @@ export default function AnalyzePage() {
 
   const triggerDeepAnalysis = async (stockCode: string) => {
     const abortController = new AbortController();
-    setDeepAnalysis({ loading: true, report: null, error: null, abortController });
+    setDeepAnalysis({ loading: true, report: null, error: null, status: 'starting', abortController });
     try {
-      const res = await analyzeApi.deepAnalysis(stockCode, abortController.signal);
-      if (res.data.ok) {
-        // Save to localStorage
-        localStorage.setItem(`deep_analysis_${stockCode}`, JSON.stringify({
-          report: res.data.report,
-          timestamp: Date.now(),
-        }));
-        setDeepAnalysis({ loading: false, report: res.data.report, error: null, abortController: null });
-      } else {
-        setDeepAnalysis({ loading: false, report: null, error: res.data.error || '分析失败', abortController: null });
+      // Step 1: Start the analysis (returns immediately)
+      const startRes = await analyzeApi.deepAnalysis(stockCode, abortController.signal);
+      if (!startRes.data.ok) {
+        setDeepAnalysis({ loading: false, report: null, error: startRes.data.error || '启动失败', status: null, abortController: null });
+        return;
       }
+
+      // Step 2: Poll for results
+      let pollCount = 0;
+      const poll = setInterval(async () => {
+        pollCount++;
+        try {
+          const statusRes = await analyzeApi.deepAnalysisStatus(stockCode);
+          const data = statusRes.data;
+
+          if (data.status === 'completed' && data.report) {
+            clearInterval(poll);
+            localStorage.setItem(`deep_analysis_${stockCode}`, JSON.stringify({
+              report: data.report,
+              status: 'completed',
+              timestamp: Date.now(),
+            }));
+            setDeepAnalysis({ loading: false, report: data.report, error: null, status: 'completed', abortController: null });
+          } else if (data.status === 'failed') {
+            clearInterval(poll);
+            setDeepAnalysis({ loading: false, report: null, error: data.error || '分析失败', status: null, abortController: null });
+          } else if (abortController.signal.aborted) {
+            clearInterval(poll);
+          } else {
+            // Still running — update status
+            setDeepAnalysis(prev => ({ ...prev, status: data.pct_done || '分析中...' }));
+          }
+
+          // Timeout after 15 minutes (180 polls × 5s)
+          if (pollCount >= 180) {
+            clearInterval(poll);
+            setDeepAnalysis({ loading: false, report: null, error: '分析超时（超过15分钟）', status: null, abortController: null });
+          }
+        } catch {
+          // Network error during poll — keep trying
+          if (pollCount > 60) {
+            clearInterval(poll);
+            setDeepAnalysis({ loading: false, report: null, error: '轮询失败，请重试', status: null, abortController: null });
+          }
+        }
+      }, 5000);
+
+      // Clean up on abort
+      abortController.signal.addEventListener('abort', () => {
+        clearInterval(poll);
+      });
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'CanceledError') {
-        setDeepAnalysis({ loading: false, report: null, error: '已取消', abortController: null });
+        setDeepAnalysis({ loading: false, report: null, error: '已取消', status: null, abortController: null });
       } else {
         const msg = err instanceof Error ? err.message : '深度分析失败';
-        setDeepAnalysis({ loading: false, report: null, error: msg, abortController: null });
+        setDeepAnalysis({ loading: false, report: null, error: msg, status: null, abortController: null });
       }
     }
   };
@@ -505,7 +545,7 @@ export default function AnalyzePage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
-                    取消分析
+                    {deepAnalysis.status && deepAnalysis.status !== 'starting' ? deepAnalysis.status : '取消分析'}
                   </>
                 ) : (
                   '🔬 触发深度分析'
