@@ -47,8 +47,8 @@ CREATE TABLE IF NOT EXISTS tushare_hsgt (
     ggt_sz            NUMERIC(20,4),         -- 港股通(深)流入(百万)
     hgt               NUMERIC(20,4),         -- 沪股通流入(百万)
     sgt               NUMERIC(20,4),         -- 深股通流入(百万)
-    north_money       NUMERIC(20,4),         -- 北向资金合计(百万)
-    south_money       NUMERIC(20,4),         -- 南向资金合计(百万)
+    north_money       NUMERIC(20,4),         -- 北向资金合计(万元) Tushare官方单位
+    south_money       NUMERIC(20,4),         -- 南向资金合计(万元) Tushare官方单位
     PRIMARY KEY (trade_date)
 );
 

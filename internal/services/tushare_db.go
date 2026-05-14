@@ -758,9 +758,8 @@ func (s *TushareDB) FetchHsgtHistory(ctx context.Context, days int) ([]HsgtData,
 			s.logger.Warn("scan hsgt", zap.Error(err))
 			continue
 		}
-		// Tushare moneyflow_hsgt stores values in 百万元; convert to 万元 for downstream consistency
-		h.NorthMoney *= 100
-		h.SouthMoney *= 100
+		// Tushare moneyflow_hsgt returns north_money/south_money in 万元 already
+		// No unit conversion needed — DB stores raw API values
 		h.TradeDate = FormatDate(tradeDate)
 		items = append(items, h)
 	}

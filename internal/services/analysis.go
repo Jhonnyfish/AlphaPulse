@@ -1161,7 +1161,7 @@ func AnalyzeFundamentals(financials []FinancialData) models.FundamentalsAnalysis
 func AnalyzeNorthbound(hsgtData []HsgtData, top10Data []HsgtTop10Data) models.NorthboundAnalysis {
 	a := models.NorthboundAnalysis{}
 
-	// Market-level northbound flow (values in 万元 after conversion from 百万×100)
+	// Market-level northbound flow (values in 万元 from Tushare API)
 	if len(hsgtData) > 0 {
 		a.LatestNetFlow = hsgtData[0].NorthMoney
 		limit := 5
