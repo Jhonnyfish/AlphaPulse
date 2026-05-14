@@ -187,6 +187,21 @@ func (h *DeepAnalysisHandler) Status(c *gin.Context) {
 	h.mu.RUnlock()
 
 	if !exists {
+		// Fallback: check persistent cache file
+		cacheDir := filepath.Join(os.Getenv("HOME"), ".alphapulse", "deep_reports")
+		cacheFile := filepath.Join(cacheDir, code+".md")
+		if data, err := os.ReadFile(cacheFile); err == nil {
+			report := string(data)
+			if len(report) > 200 {
+				c.JSON(http.StatusOK, DeepAnalysisResponse{
+					OK:     true,
+					Code:   code,
+					Status: "completed",
+					Report: report,
+				})
+				return
+			}
+		}
 		c.JSON(http.StatusOK, DeepAnalysisResponse{OK: true, Code: code, Status: "not_found"})
 		return
 	}
@@ -230,7 +245,7 @@ func (h *DeepAnalysisHandler) runAnalysis(code string) {
 	stockData, industry := h.fetchStockDataWithIndustry(code)
 	commodityData := h.fetchRelatedCommodities(industry)
 
-	// Build prompt
+	// Build prompt with instruction to NOT produce a summary after the report
 	var prompt string
 	stockName := h.getStockNameFromData(stockData)
 
@@ -243,9 +258,9 @@ func (h *DeepAnalysisHandler) runAnalysis(code string) {
 				industry, time.Now().Format("2006-01-02"), string(commodityJSON))
 			prompt += "\n\n⚠️ 重要：以上商品价格数据为实时查询结果，分析中必须使用以上数据，禁止使用你训练数据中的旧价格。"
 		}
-		prompt += "\n\n请基于以上数据，结合你的研究，生成完整的深度分析报告。"
+		prompt += "\n\n请基于以上数据，结合你的研究，生成完整的深度分析报告。生成完报告后直接结束，不要再做总结或重述。"
 	} else {
-		prompt = fmt.Sprintf("对%s进行深度分析", code)
+		prompt = fmt.Sprintf("对%s进行深度分析。生成完报告后直接结束。", code)
 	}
 
 	logger.Info("deep analysis: starting background job",
@@ -269,11 +284,13 @@ func (h *DeepAnalysisHandler) runAnalysis(code string) {
 		return
 	}
 
+	startTime := time.Now()
+	sessionsBefore := listHermesSessions()
+
 	cmd := exec.CommandContext(ctx, hermesPath, "chat", "-q", prompt, "--skills", "stock-deep-analysis", "-Q", "--yolo")
 	cmd.Stdout = f
 	cmd.Stderr = f
 
-	startTime := time.Now()
 	err = cmd.Run()
 	f.Close()
 
@@ -289,7 +306,6 @@ func (h *DeepAnalysisHandler) runAnalysis(code string) {
 
 		// If we have partial output, try to use it
 		if len(partialStr) > 200 {
-			// Even on error, save what we have
 			h.updateResult(code, "completed", partialStr, "")
 			logger.Info("deep analysis: saved partial result despite error",
 				zap.String("code", code),
@@ -301,9 +317,16 @@ func (h *DeepAnalysisHandler) runAnalysis(code string) {
 		return
 	}
 
-	// Read the full output
-	output, _ := os.ReadFile(outFile)
-	report := strings.TrimSpace(string(output))
+	// Try to extract the full report from the Hermes session file.
+	// The -Q flag only outputs the last message; the full report may be
+	// an earlier message. Search for the newest session file.
+	report := extractReportFromSession(sessionsBefore, code)
+
+	// Fallback: use stdout if session parsing failed
+	if report == "" {
+		output, _ := os.ReadFile(outFile)
+		report = strings.TrimSpace(string(output))
+	}
 
 	if report == "" {
 		h.updateResult(code, "failed", "", "empty report")
@@ -311,6 +334,9 @@ func (h *DeepAnalysisHandler) runAnalysis(code string) {
 	}
 
 	h.updateResult(code, "completed", report, "")
+
+	// Also persist to cache file for cross-restart persistence
+	h.cacheReport(code, report)
 
 	logger.Info("deep analysis: completed",
 		zap.String("code", code),
@@ -478,4 +504,103 @@ func (h *DeepAnalysisHandler) getStockNameFromData(data string) string {
 		return ""
 	}
 	return result.Name
+}
+
+// listHermesSessions returns a set of session file paths that exist before analysis starts.
+func listHermesSessions() map[string]bool {
+	sessionsDir := filepath.Join(os.Getenv("HOME"), ".hermes", "sessions")
+	entries, err := os.ReadDir(sessionsDir)
+	if err != nil {
+		return nil
+	}
+	seen := make(map[string]bool)
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".json") {
+			seen[entry.Name()] = true
+		}
+	}
+	return seen
+}
+
+// extractReportFromSession finds the newest session file created after the given
+// set of existing sessions, and extracts the longest assistant message as the report.
+func extractReportFromSession(before map[string]bool, code string) string {
+	if before == nil {
+		before = make(map[string]bool)
+	}
+	sessionsDir := filepath.Join(os.Getenv("HOME"), ".hermes", "sessions")
+	entries, err := os.ReadDir(sessionsDir)
+	if err != nil {
+		return ""
+	}
+
+	// Find the newest session file that wasn't there before
+	var newestFile string
+	for _, entry := range entries {
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		if before[name] {
+			continue // was already there before analysis started
+		}
+		if newestFile == "" || entry.Name() > newestFile {
+			newestFile = name
+		}
+	}
+	if newestFile == "" {
+		return ""
+	}
+
+	fullPath := filepath.Join(sessionsDir, newestFile)
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		logger.Warn("failed to read session file", zap.String("file", fullPath), zap.Error(err))
+		return ""
+	}
+
+	var session struct {
+		Messages []struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(data, &session); err != nil {
+		logger.Warn("failed to parse session file", zap.String("file", fullPath), zap.Error(err))
+		return ""
+	}
+
+	// Find the longest assistant message (the actual report, not summaries)
+	var longest string
+	for _, msg := range session.Messages {
+		if msg.Role == "assistant" && len(msg.Content) > len(longest) {
+			longest = msg.Content
+		}
+	}
+
+	if len(longest) < 200 {
+		logger.Warn("report too short from session",
+			zap.String("code", code),
+			zap.Int("length", len(longest)))
+		return ""
+	}
+
+	logger.Info("extracted report from session",
+		zap.String("code", code),
+		zap.String("session_file", newestFile),
+		zap.Int("report_length", len(longest)))
+	return longest
+}
+
+// cacheReport persists the report to a file for cross-restart durability.
+func (h *DeepAnalysisHandler) cacheReport(code, report string) {
+	cacheDir := filepath.Join(os.Getenv("HOME"), ".alphapulse", "deep_reports")
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		logger.Warn("failed to create cache dir", zap.Error(err))
+		return
+	}
+	cacheFile := filepath.Join(cacheDir, code+".md")
+	if err := os.WriteFile(cacheFile, []byte(report), 0644); err != nil {
+		logger.Warn("failed to cache report", zap.Error(err))
+	}
 }
