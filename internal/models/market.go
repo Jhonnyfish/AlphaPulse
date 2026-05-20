@@ -20,8 +20,6 @@ type Quote struct {
 	Amplitude     float64 `json:"amplitude"`
 	LimitUp       float64 `json:"limit_up"`
 	LimitDown     float64 `json:"limit_down"`
-	OuterVol      float64 `json:"outer_vol"`
-	InnerVol      float64 `json:"inner_vol"`
 	UpdatedAt     string  `json:"updated_at"`
 }
 

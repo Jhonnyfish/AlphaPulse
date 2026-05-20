@@ -11,7 +11,6 @@ import {
 
 /* ---- dimension labels ---- */
 const DIM_LABELS: Record<string, string> = {
-  order_flow: '委托流',
   volume_price: '量价',
   valuation: '估值',
   volatility: '波动',

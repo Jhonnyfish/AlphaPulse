@@ -241,38 +241,6 @@ func CalculateOBV(closes, volumes []float64) models.OBVResult {
 
 // ---- 8 Analysis Dimensions ----
 
-func AnalyzeOrderFlow(quote models.Quote) models.OrderFlowAnalysis {
-	outer := quote.OuterVol
-	inner := quote.InnerVol
-	total := outer + inner
-	ratio := 0.0
-	if total > 0 {
-		ratio = outer / total * 100
-	}
-	direction := "数据不足"
-	verdict := "内外盘数据不足，暂不判断"
-	if ratio > 55 {
-		direction = "买方强势"
-		verdict = "外盘明显高于内盘，买方力量占优"
-	} else if ratio >= 50 {
-		direction = "买方略强"
-		verdict = "外盘占比>50%，买方力量略占优"
-	} else if total > 0 && ratio < 45 {
-		direction = "卖方强势"
-		verdict = "内盘明显高于外盘，卖方压力较大"
-	} else if total > 0 {
-		direction = "卖方略强"
-		verdict = "内盘略高于外盘，短线抛压略大"
-	}
-	return models.OrderFlowAnalysis{
-		OuterVol:     outer,
-		InnerVol:     inner,
-		OuterRatio:   round2(ratio),
-		NetDirection: direction,
-		Verdict:      verdict,
-	}
-}
-
 func AnalyzeVolumePrice(quote models.Quote, klines []models.KlinePoint, turnoverRate float64) models.VolumePriceAnalysis {
 	todayVolume := quote.Volume
 	recent := make([]models.KlinePoint, 0, 5)
@@ -1158,7 +1126,8 @@ func AnalyzeFundamentals(financials []FinancialData) models.FundamentalsAnalysis
 
 // AnalyzeNorthbound evaluates northbound capital flow signals.
 // All monetary inputs are expected in 万元.
-func AnalyzeNorthbound(hsgtData []HsgtData, top10Data []HsgtTop10Data) models.NorthboundAnalysis {
+// Falls back to hk_hold (holding change data) when hsgt_top10 has no data for the stock.
+func AnalyzeNorthbound(hsgtData []HsgtData, top10Data []HsgtTop10Data, hkHoldData []HkHoldData) models.NorthboundAnalysis {
 	a := models.NorthboundAnalysis{}
 
 	// Market-level northbound flow (values in 万元 from Tushare API)
@@ -1234,6 +1203,34 @@ func AnalyzeNorthbound(hsgtData []HsgtData, top10Data []HsgtTop10Data) models.No
 			a.StockAction = "未进入十大成交"
 			a.Signal = "无明显信号"
 		}
+	} else if len(hkHoldData) >= 2 {
+		// Fallback to hk_hold: compare most recent two holding data points
+		// hkHoldData is ordered DESC (newest first)
+		latest := hkHoldData[0].Vol
+		prev := hkHoldData[1].Vol
+		changePct := (latest - prev) / prev * 100
+
+		a.StockNetAmount = latest - prev // 持股变动(万股)
+
+		if changePct > 5 {
+			a.StockAction = "持仓增加"
+			a.Signal = "北向持仓增加"
+		} else if changePct > 1 {
+			a.StockAction = "持仓小幅增加"
+			a.Signal = "北向小幅增持"
+		} else if changePct < -5 {
+			a.StockAction = "持仓减少"
+			a.Signal = "北向持仓减少"
+		} else if changePct < -1 {
+			a.StockAction = "持仓小幅减少"
+			a.Signal = "北向小幅减持"
+		} else {
+			a.StockAction = "持仓稳定"
+			a.Signal = "无明显信号"
+		}
+	} else if len(hkHoldData) == 1 {
+		a.StockAction = "仅一笔数据"
+		a.Signal = "无明显信号"
 	} else {
 		a.StockAction = "未进入十大成交"
 		a.Signal = "无明显信号"
@@ -1250,6 +1247,14 @@ func AnalyzeNorthbound(hsgtData []HsgtData, top10Data []HsgtTop10Data) models.No
 		a.Verdict = "北向资金小幅流出，偏负面"
 	case "北向成交活跃":
 		a.Verdict = "北向资金成交活跃，关注度高"
+	case "北向持仓增加":
+		a.Verdict = "北向持股增加，中长期看好"
+	case "北向小幅增持":
+		a.Verdict = "北向持股小幅增加"
+	case "北向持仓减少":
+		a.Verdict = "北向持股减少，外资减仓"
+	case "北向小幅减持":
+		a.Verdict = "北向持股小幅减少"
 	default:
 		a.Verdict = "北向资金无明显信号"
 	}
@@ -1337,16 +1342,6 @@ func AnalyzeMarginDetail(marginData []MarginDetailData) models.MarginAnalysis {
 func BuildSummary(a *models.StockAnalysis) models.AnalysisSummary {
 	score := 50
 	var strengths, risks []string
-
-	// Order flow
-	of := a.OrderFlow
-	if of.NetDirection == "买方强势" || of.NetDirection == "买方略强" {
-		score += 5
-		strengths = append(strengths, "买方力量占优")
-	} else if of.NetDirection == "卖方强势" || of.NetDirection == "卖方略强" {
-		score -= 5
-		risks = append(risks, "内盘抛压较大")
-	}
 
 	// Volume price
 	vp := a.VolumePrice

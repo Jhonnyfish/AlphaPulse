@@ -235,7 +235,7 @@ func TestMapDimensionScore_Technical(t *testing.T) {
 
 func TestMapDimensionScore_ProxyDimensions(t *testing.T) {
 	cand := services.Alpha300Candidate{Score: 55}
-	for _, dim := range []string{"order_flow", "valuation", "sentiment", "sector"} {
+	for _, dim := range []string{"valuation", "sentiment", "sector"} {
 		assert.Equal(t, float64(55), mapDimensionScore(cand, dim),
 			"dimension %q should use Score as proxy", dim)
 	}

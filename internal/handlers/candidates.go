@@ -334,9 +334,6 @@ func mapDimensionScore(cand services.Alpha300Candidate, dimension string) float6
 	case "technical":
 		// Use trend as proxy for technical analysis
 		return normalizeMetric(cand.Trend, -100, 100)
-	case "order_flow":
-		// Use score as proxy
-		return cand.Score
 	case "valuation":
 		// Use score as proxy (Alpha300 already factors in valuation)
 		return cand.Score

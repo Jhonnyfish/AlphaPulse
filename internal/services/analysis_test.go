@@ -103,21 +103,6 @@ func TestCalculateOBV(t *testing.T) {
 	})
 }
 
-func TestAnalyzeOrderFlow(t *testing.T) {
-	t.Run("strong buy", func(t *testing.T) {
-		quote := models.Quote{OuterVol: 6000, InnerVol: 4000}
-		result := AnalyzeOrderFlow(quote)
-		assert.Equal(t, "买方强势", result.NetDirection)
-		assert.InDelta(t, 60.0, result.OuterRatio, 0.01)
-	})
-
-	t.Run("no data", func(t *testing.T) {
-		quote := models.Quote{}
-		result := AnalyzeOrderFlow(quote)
-		assert.Equal(t, "数据不足", result.NetDirection)
-	})
-}
-
 func TestAnalyzeVolumePrice(t *testing.T) {
 	quote := models.Quote{Volume: 10000, ChangePercent: 2.5, Turnover: 5.0}
 	klines := []models.KlinePoint{
@@ -224,7 +209,6 @@ func TestAnalyzeSentiment(t *testing.T) {
 func TestBuildSummary(t *testing.T) {
 	t.Run("bullish", func(t *testing.T) {
 		analysis := &models.StockAnalysis{
-			OrderFlow:   models.OrderFlowAnalysis{NetDirection: "买方强势"},
 			VolumePrice: models.VolumePriceAnalysis{PriceVolumeHarmony: "量价齐升"},
 			Valuation:   models.ValuationAnalysis{PELevel: "合理", PBLevel: "合理"},
 			MoneyFlow:   models.MoneyFlowAnalysis{TodayMainDirection: "流入"},
@@ -240,7 +224,6 @@ func TestBuildSummary(t *testing.T) {
 
 	t.Run("bearish", func(t *testing.T) {
 		analysis := &models.StockAnalysis{
-			OrderFlow:   models.OrderFlowAnalysis{NetDirection: "卖方强势"},
 			VolumePrice: models.VolumePriceAnalysis{PriceVolumeHarmony: "放量下跌"},
 			Valuation:   models.ValuationAnalysis{PELevel: "很高", PBLevel: "很高"},
 			MoneyFlow:   models.MoneyFlowAnalysis{TodayMainDirection: "流出"},

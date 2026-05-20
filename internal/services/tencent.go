@@ -92,8 +92,6 @@ func parseTencentQuote(code, payload string) (models.Quote, error) {
 	pb := parseFloatField(fields, 60, 46)
 	totalMV := parseFloatField(fields, 45, 44)
 	amplitude := parseFloatField(fields, 43)
-	outerVol := parseFloatField(fields, 7)
-	innerVol := parseFloatField(fields, 8)
 	limitUp := parseFloatField(fields, 47)
 	limitDown := parseFloatField(fields, 48)
 
@@ -124,8 +122,6 @@ func parseTencentQuote(code, payload string) (models.Quote, error) {
 		Amplitude:     amplitude,
 		LimitUp:       limitUp,
 		LimitDown:     limitDown,
-		OuterVol:      outerVol,
-		InnerVol:      innerVol,
 		UpdatedAt:     updatedAt,
 	}, nil
 }

@@ -214,7 +214,6 @@ func (h *DocsHandler) Docs(c *gin.Context) {
 			"candidates": 300,
 		},
 		"analysis_dimensions": []string{
-			"order_flow",
 			"volume_price",
 			"valuation",
 			"volatility",

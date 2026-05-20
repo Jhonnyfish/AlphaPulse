@@ -85,13 +85,7 @@ type OBVResult struct {
 
 // ---- 8 Analysis Dimensions ----
 
-type OrderFlowAnalysis struct {
-	OuterVol     float64 `json:"outer_vol"`
-	InnerVol     float64 `json:"inner_vol"`
-	OuterRatio   float64 `json:"outer_ratio"`
-	NetDirection string  `json:"net_direction"`
-	Verdict      string  `json:"verdict"`
-}
+// OrderFlowAnalysis removed - Tencent inner/outer volume data not available via Tushare
 
 type VolumePriceAnalysis struct {
 	TodayChangePct     float64 `json:"today_change_pct"`
@@ -243,7 +237,6 @@ type StockAnalysis struct {
 	Name        string              `json:"name"`
 	Version     string              `json:"version"`
 	Quote       Quote               `json:"quote"`
-	OrderFlow   OrderFlowAnalysis   `json:"order_flow"`
 	VolumePrice VolumePriceAnalysis `json:"volume_price"`
 	Valuation   ValuationAnalysis   `json:"valuation"`
 	Volatility  VolatilityAnalysis  `json:"volatility"`

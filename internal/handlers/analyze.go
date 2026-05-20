@@ -18,8 +18,6 @@ import (
 )
 
 type AnalyzeHandler struct {
-	eastMoney          *services.EastMoneyService
-	tencent            *services.TencentService
 	newsSvc            *services.NewsService
 	tushareDB          *services.TushareDB          // Primary data source, may be nil
 	logger             *zap.Logger
@@ -32,10 +30,8 @@ type AnalyzeHandler struct {
 	announcementsCache *cache.Cache[[]models.Announcement]
 }
 
-func NewAnalyzeHandler(eastMoney *services.EastMoneyService, tencent *services.TencentService, newsSvc *services.NewsService, logger *zap.Logger) *AnalyzeHandler {
+func NewAnalyzeHandler(newsSvc *services.NewsService, logger *zap.Logger) *AnalyzeHandler {
 	return &AnalyzeHandler{
-		eastMoney:          eastMoney,
-		tencent:            tencent,
 		newsSvc:            newsSvc,
 		logger:             logger,
 		quoteCache:         cache.New[models.Quote](),
@@ -139,6 +135,7 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 		fins     []services.FinancialData
 		hsgt     []services.HsgtData
 		top10    []services.HsgtTop10Data
+		hkHold   []services.HkHoldData
 		marginD  []services.MarginDetailData
 		quoteErr, klineErr, flowErr, sectorErr, newsErr, annErr error
 	)
@@ -189,6 +186,7 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 	if h.tushareDB != nil {
 		fins, _ = h.tushareDB.FetchFinancials(ctx, code, 8)
 		top10, _ = h.tushareDB.FetchHsgtTop10ByCode(ctx, code, 10)
+		hkHold, _ = h.tushareDB.FetchHkHoldByCode(ctx, code, 5)
 		marginD, _ = h.tushareDB.FetchMarginDetailHistory(ctx, code, 10)
 		hsgt, _ = h.tushareDB.FetchHsgtHistory(ctx, 10)
 		if sp, err := h.tushareDB.FetchSectorPerformance(ctx, code); err == nil {
@@ -229,7 +227,6 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 		Name:    quote.Name,
 		Version: "3.0",
 		Quote:   quote,
-		OrderFlow:   services.AnalyzeOrderFlow(quote),
 		VolumePrice: services.AnalyzeVolumePrice(quote, klines, turnoverRate),
 		Valuation:   services.AnalyzeValuation(quote),
 		Volatility:  services.AnalyzeVolatility(quote),
@@ -238,18 +235,27 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 		Sector:      services.AnalyzeSector(quote, sectorNames, sectorPerf),
 		Sentiment:   services.AnalyzeSentiment(news, anns),
 		Fundamentals: services.AnalyzeFundamentals(fins),
-		Northbound:  services.AnalyzeNorthbound(hsgt, top10),
+		Northbound:  services.AnalyzeNorthbound(hsgt, top10, hkHold),
 		MarginDetail: services.AnalyzeMarginDetail(marginD),
-		DataSources: map[string]string{
-			"quote":         "tushare",
-			"klines":        "tushare",
-			"money_flow":    "tushare",
-			"sector":        "tushare",
-			"sentiment":     "db/eastmoney",
-			"fundamentals":  "tushare/fina_indicator",
-			"northbound":    "tushare/hsgt",
-			"margin":        "tushare/margin_detail",
-		},
+		DataSources: func() map[string]string {
+			ds := map[string]string{
+				"quote":         "tushare",
+				"klines":        "tushare",
+				"money_flow":    "tushare",
+				"sector":        "tushare",
+				"sentiment":     "db/eastmoney",
+				"fundamentals":  "tushare/fina_indicator",
+				"margin":        "tushare/margin_detail",
+			}
+			if len(top10) > 0 {
+				ds["northbound"] = "tushare/hsgt_top10"
+			} else if len(hkHold) > 0 {
+				ds["northbound"] = "tushare/hk_hold"
+			} else {
+				ds["northbound"] = "tushare/hsgt"
+			}
+			return ds
+		}(),
 		Errors:    errs,
 		FetchedAt: time.Now(),
 	}
@@ -263,7 +269,6 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 	// Record score history (best-effort)
 	if h.scoreHistory != nil {
 		dimScores := map[string]float64{
-			"order_flow":   scoreDimensionFromVerdict(analysis.OrderFlow.Verdict),
 			"volume_price": scoreDimensionFromVerdict(analysis.VolumePrice.Verdict),
 			"valuation":    scoreDimensionFromVerdict(analysis.Valuation.Verdict),
 			"volatility":   scoreDimensionFromVerdict(analysis.Volatility.Verdict),

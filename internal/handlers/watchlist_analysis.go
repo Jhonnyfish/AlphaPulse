@@ -23,8 +23,6 @@ import (
 // WatchlistAnalysisHandler provides watchlist analysis endpoints.
 type WatchlistAnalysisHandler struct {
 	db        *pgxpool.Pool
-	tencent   *services.TencentService
-	eastMoney *services.EastMoneyService
 	tushareDB *services.TushareDB
 	analyze   *AnalyzeHandler
 	log       *zap.Logger
@@ -38,15 +36,11 @@ type WatchlistAnalysisHandler struct {
 // NewWatchlistAnalysisHandler creates a new WatchlistAnalysisHandler.
 func NewWatchlistAnalysisHandler(
 	db *pgxpool.Pool,
-	tencent *services.TencentService,
-	eastMoney *services.EastMoneyService,
 	analyze *AnalyzeHandler,
 	log *zap.Logger,
 ) *WatchlistAnalysisHandler {
 	return &WatchlistAnalysisHandler{
 		db:           db,
-		tencent:      tencent,
-		eastMoney:    eastMoney,
 		analyze:      analyze,
 		log:          log,
 		scoring:      services.NewScoringEngine(),
@@ -207,9 +201,7 @@ func (h *WatchlistAnalysisHandler) Heatmap(c *gin.Context) {
 			if h.tushareDB != nil {
 				quote, err = h.tushareDB.FetchQuoteFromDB(context.Background(), cd)
 			}
-			if err != nil || quote.Price <= 0 {
-				quote, err = h.tencent.FetchQuote(context.Background(), cd)
-			}
+
 			if err != nil {
 				h.log.Debug("heatmap: fetch quote failed", zap.String("code", cd), zap.Error(err))
 				items[idx] = HeatmapItem{Code: services.StockCode6(cd), Name: cd}
@@ -327,21 +319,7 @@ func (h *WatchlistAnalysisHandler) Sectors(c *gin.Context) {
 					return
 				}
 			}
-			// Fallback to EastMoney
-			sectors, err := h.eastMoney.FetchStockSectors(context.Background(), cd)
-			if err != nil {
-				h.log.Debug("sectors: fetch failed", zap.String("code", cd), zap.Error(err))
-				results[idx] = codeSectors{code: cd, sectors: []string{"未分类"}}
-				return
-			}
-			names := make([]string, 0, len(sectors))
-			for _, s := range sectors {
-				names = append(names, s.Name)
-			}
-			if len(names) == 0 {
-				names = []string{"未分类"}
-			}
-			results[idx] = codeSectors{code: cd, sectors: names}
+			results[idx] = codeSectors{code: cd, sectors: []string{"未分类"}}
 		}(i, code)
 	}
 	wg.Wait()
@@ -732,7 +710,6 @@ func (h *WatchlistAnalysisHandler) analyzeForRankingWithStrategy(ctx context.Con
 
 	// Compute dimension scores (0-100)
 	dimScoresMap := make(map[string]float64)
-	dimScoresMap["order_flow"] = scoreDimension(analysis.OrderFlow.Verdict, analysis.OrderFlow.OuterRatio > 55)
 	dimScoresMap["volume_price"] = scoreDimensionVP(analysis.VolumePrice)
 	dimScoresMap["valuation"] = scoreDimensionValuation(analysis.Valuation)
 	dimScoresMap["volatility"] = scoreDimension(analysis.Volatility.Verdict, false)
@@ -746,7 +723,6 @@ func (h *WatchlistAnalysisHandler) analyzeForRankingWithStrategy(ctx context.Con
 
 	// Build dimension scores struct for scoring engine
 	dimScores := services.DimensionScores{
-		OrderFlow:    dimScoresMap["order_flow"],
 		VolumePrice:  dimScoresMap["volume_price"],
 		Valuation:    dimScoresMap["valuation"],
 		Volatility:   dimScoresMap["volatility"],
@@ -1084,6 +1060,14 @@ func scoreDimensionNorthbound(nb models.NorthboundAnalysis) float64 {
 		return 70
 	case "北向成交一般":
 		return 55
+	case "北向持仓增加":
+		return 75
+	case "北向小幅增持":
+		return 60
+	case "北向持仓减少":
+		return 25
+	case "北向小幅减持":
+		return 40
 	default:
 		return 50
 	}

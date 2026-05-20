@@ -8,7 +8,6 @@ interface RawAnalyzeResponse {
   name: string;
   fetched_at: string;
   quote: Record<string, unknown>;
-  order_flow: { verdict: string; [k: string]: unknown };
   volume_price: { verdict: string; turnover_level?: string; [k: string]: unknown };
   valuation: { verdict: string; pe_level?: string; pb_level?: string; [k: string]: unknown };
   volatility: { verdict: string; amplitude_level?: string; [k: string]: unknown };
@@ -74,7 +73,6 @@ function transformResponse(raw: RawAnalyzeResponse): AnalyzeResult {
   const strengths = s.strengths ?? [];
   const risks = s.risks ?? [];
   const dims: { name: string; score: number; detail: string; rawData?: Record<string, unknown> }[] = [
-    { name: 'order_flow',   score: levelToScore(raw.order_flow.net_direction as string),   detail: raw.order_flow.verdict, rawData: raw.order_flow as Record<string, unknown> },
     { name: 'volume_price', score: levelToScore(raw.volume_price.turnover_level),          detail: raw.volume_price.verdict, rawData: raw.volume_price as Record<string, unknown> },
     { name: 'valuation',    score: levelToScore(raw.valuation.pe_level),                   detail: raw.valuation.verdict, rawData: raw.valuation as Record<string, unknown> },
     { name: 'volatility',   score: levelToScore(raw.volatility.amplitude_level),           detail: raw.volatility.verdict, rawData: raw.volatility as Record<string, unknown> },
@@ -115,7 +113,6 @@ import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import { Search, TrendingUp, TrendingDown, Star, Activity, BarChart3, Shield, Zap, AlertCircle, RefreshCw } from 'lucide-react';
 
 const DIMENSION_LABELS: Record<string, string> = {
-  order_flow: '订单流',
   volume_price: '量价',
   valuation: '估值',
   volatility: '波动率',
@@ -129,7 +126,6 @@ const DIMENSION_LABELS: Record<string, string> = {
 };
 
 const DIMENSION_ICONS: Record<string, React.ElementType> = {
-  order_flow: BarChart3,
   volume_price: Activity,
   valuation: Shield,
   volatility: Zap,
@@ -262,10 +258,23 @@ export default function AnalyzePage() {
     const abortController = new AbortController();
     setDeepAnalysis({ loading: true, report: null, error: null, status: 'starting', abortController });
     try {
-      // Step 1: Start the analysis (returns immediately)
-      const startRes = await analyzeApi.deepAnalysis(stockCode, abortController.signal);
-      if (!startRes.data.ok) {
-        setDeepAnalysis({ loading: false, report: null, error: startRes.data.error || '启动失败', status: null, abortController: null });
+      // Step 1: Start the analysis (returns immediately), with retry
+      let startRes;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          startRes = await analyzeApi.deepAnalysis(stockCode, abortController.signal);
+          break;
+        } catch (err: unknown) {
+          if (attempt === 0 && !abortController.signal.aborted) {
+            // Retry once after 2s
+            await new Promise(r => setTimeout(r, 2000));
+            continue;
+          }
+          throw err;
+        }
+      }
+      if (!startRes!.data.ok) {
+        setDeepAnalysis({ loading: false, report: null, error: startRes!.data.error || '启动失败', status: null, abortController: null });
         return;
       }
 
@@ -317,7 +326,8 @@ export default function AnalyzePage() {
       if (err instanceof Error && err.name === 'CanceledError') {
         setDeepAnalysis({ loading: false, report: null, error: '已取消', status: null, abortController: null });
       } else {
-        const msg = err instanceof Error ? err.message : '深度分析失败';
+        const rawMsg = err instanceof Error ? err.message : '深度分析失败';
+        const msg = rawMsg === 'Network Error' ? '网络连接失败，请检查网络后重试' : rawMsg;
         setDeepAnalysis({ loading: false, report: null, error: msg, status: null, abortController: null });
       }
     }
@@ -645,12 +655,7 @@ function DimensionCard({ name, score, detail, rawData }: { name: string; score: 
   // Extract key metrics from raw data
   const metrics: { label: string; value: string; color?: string }[] = [];
   if (rawData) {
-    if (name === 'order_flow') {
-      if (rawData.outer_vol && Number(rawData.outer_vol) > 0) metrics.push({ label: '外盘', value: formatVolume(Number(rawData.outer_vol)) });
-      if (rawData.inner_vol && Number(rawData.inner_vol) > 0) metrics.push({ label: '内盘', value: formatVolume(Number(rawData.inner_vol)) });
-      if (rawData.outer_ratio && Number(rawData.outer_ratio) > 0) metrics.push({ label: '外盘比', value: `${Number(rawData.outer_ratio).toFixed(1)}%`, color: Number(rawData.outer_ratio) > 55 ? '#ef4444' : undefined });
-      if (rawData.net_direction) metrics.push({ label: '方向', value: String(rawData.net_direction), color: rawData.net_direction === '外盘占优' ? '#ef4444' : '#22c55e' });
-    } else if (name === 'volume_price') {
+    if (name === 'volume_price') {
       if (rawData.today_change_pct && Number(rawData.today_change_pct) !== 0) metrics.push({ label: '涨跌幅', value: `${Number(rawData.today_change_pct).toFixed(2)}%`, color: Number(rawData.today_change_pct) > 0 ? '#ef4444' : '#22c55e' });
       if (rawData.volume_ratio && Number(rawData.volume_ratio) > 0) metrics.push({ label: '量比', value: Number(rawData.volume_ratio).toFixed(2), color: Number(rawData.volume_ratio) > 1.5 ? '#ef4444' : undefined });
       if (rawData.turnover && Number(rawData.turnover) > 0) metrics.push({ label: '换手率', value: `${Number(rawData.turnover).toFixed(2)}%` });

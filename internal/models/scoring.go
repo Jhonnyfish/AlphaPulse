@@ -24,7 +24,6 @@ const (
 
 // DimensionWeights holds the weight for each analysis dimension.
 type DimensionWeights struct {
-	OrderFlow    float64 `json:"order_flow"`    // 委托流
 	VolumePrice  float64 `json:"volume_price"`  // 量价
 	Valuation    float64 `json:"valuation"`     // 估值
 	Volatility   float64 `json:"volatility"`    // 波动
@@ -41,14 +40,13 @@ type DimensionWeights struct {
 func DefaultScoringModel() ScoringModel {
 	// Default weights - technical and money flow weighted higher for short-term
 	defaultWeights := DimensionWeights{
-		OrderFlow:    0.05, // 5% - 内外盘信号较弱
-		VolumePrice:  0.12, // 12% - 量价关系重要
+		VolumePrice:  0.14, // 14% - 量价关系重要
 		Valuation:    0.08, // 8% - 估值中长期重要
 		Volatility:   0.05, // 5% - 波动率辅助
-		MoneyFlow:    0.15, // 15% - 资金流向核心
-		Technical:    0.15, // 15% - 技术面核心
+		MoneyFlow:    0.16, // 16% - 资金流向核心
+		Technical:    0.16, // 16% - 技术面核心
 		Sector:       0.08, // 8% - 板块轮动
-		Sentiment:    0.07, // 7% - 情绪面
+		Sentiment:    0.08, // 8% - 情绪面
 		Fundamentals: 0.12, // 12% - 基本面中长期
 		Northbound:   0.08, // 8% - 北向资金
 		Margin:       0.05, // 5% - 融资融券
@@ -57,12 +55,11 @@ func DefaultScoringModel() ScoringModel {
 
 	// Short-term (5-day) - emphasize technical, money flow, volume
 	shortTerm := DimensionWeights{
-		OrderFlow:    0.08,
-		VolumePrice:  0.18,
+		VolumePrice:  0.22,
 		Valuation:    0.03,
 		Volatility:   0.08,
-		MoneyFlow:    0.20,
-		Technical:    0.20,
+		MoneyFlow:    0.22,
+		Technical:    0.22,
 		Sector:       0.05,
 		Sentiment:    0.05,
 		Fundamentals: 0.03,
@@ -72,14 +69,13 @@ func DefaultScoringModel() ScoringModel {
 
 	// Medium-term (20-day) - balanced
 	mediumTerm := DimensionWeights{
-		OrderFlow:    0.05,
-		VolumePrice:  0.12,
+		VolumePrice:  0.14,
 		Valuation:    0.10,
 		Volatility:   0.05,
-		MoneyFlow:    0.15,
-		Technical:    0.15,
+		MoneyFlow:    0.16,
+		Technical:    0.16,
 		Sector:       0.10,
-		Sentiment:    0.08,
+		Sentiment:    0.09,
 		Fundamentals: 0.10,
 		Northbound:   0.05,
 		Margin:       0.05,
@@ -87,27 +83,25 @@ func DefaultScoringModel() ScoringModel {
 
 	// Long-term (60-day) - emphasize fundamentals, valuation
 	longTerm := DimensionWeights{
-		OrderFlow:    0.02,
-		VolumePrice:  0.08,
+		VolumePrice:  0.09,
 		Valuation:    0.18,
 		Volatility:   0.03,
 		MoneyFlow:    0.08,
 		Technical:    0.10,
 		Sector:       0.12,
 		Sentiment:    0.05,
-		Fundamentals: 0.22,
+		Fundamentals: 0.23,
 		Northbound:   0.07,
 		Margin:       0.05,
 	}
 
 	// Momentum strategy - emphasize technical, money flow, volume
 	momentumStrategy := DimensionWeights{
-		OrderFlow:    0.08,
-		VolumePrice:  0.20,
+		VolumePrice:  0.24,
 		Valuation:    0.03,
 		Volatility:   0.08,
-		MoneyFlow:    0.22,
-		Technical:    0.22,
+		MoneyFlow:    0.24,
+		Technical:    0.24,
 		Sector:       0.05,
 		Sentiment:    0.04,
 		Fundamentals: 0.03,
@@ -117,29 +111,27 @@ func DefaultScoringModel() ScoringModel {
 
 	// Value strategy - emphasize fundamentals, valuation
 	valueStrategy := DimensionWeights{
-		OrderFlow:    0.02,
 		VolumePrice:  0.05,
-		Valuation:    0.25,
+		Valuation:    0.26,
 		Volatility:   0.03,
 		MoneyFlow:    0.05,
 		Technical:    0.08,
 		Sector:       0.12,
 		Sentiment:    0.05,
-		Fundamentals: 0.28,
+		Fundamentals: 0.29,
 		Northbound:   0.05,
 		Margin:       0.02,
 	}
 
 	// Balanced strategy - equal emphasis
 	balancedStrategy := DimensionWeights{
-		OrderFlow:    0.05,
-		VolumePrice:  0.12,
+		VolumePrice:  0.14,
 		Valuation:    0.12,
 		Volatility:   0.05,
-		MoneyFlow:    0.12,
-		Technical:    0.12,
+		MoneyFlow:    0.13,
+		Technical:    0.13,
 		Sector:       0.10,
-		Sentiment:    0.10,
+		Sentiment:    0.11,
 		Fundamentals: 0.12,
 		Northbound:   0.05,
 		Margin:       0.05,

@@ -20,7 +20,6 @@ func NewScoringEngine() *ScoringEngine {
 
 // DimensionScores holds the raw 0-100 score for each dimension.
 type DimensionScores struct {
-	OrderFlow    float64
 	VolumePrice  float64
 	Valuation    float64
 	Volatility   float64
@@ -90,8 +89,7 @@ func (e *ScoringEngine) computeWeightedScore(
 	scores DimensionScores,
 	weights models.DimensionWeights,
 ) float64 {
-	total := scores.OrderFlow*weights.OrderFlow +
-		scores.VolumePrice*weights.VolumePrice +
+	total := scores.VolumePrice*weights.VolumePrice +
 		scores.Valuation*weights.Valuation +
 		scores.Volatility*weights.Volatility +
 		scores.MoneyFlow*weights.MoneyFlow +
@@ -115,12 +113,6 @@ func (e *ScoringEngine) computeConfidence(a *models.StockAnalysis) models.Confid
 		name    string
 		checkFn func() float64
 	}{
-		{"order_flow", func() float64 {
-			if a.OrderFlow.Verdict == "数据不足" || a.OrderFlow.Verdict == "" {
-				return 0
-			}
-			return 100
-		}},
 		{"volume_price", func() float64 {
 			if a.VolumePrice.VolumeRatio == 0 {
 				return 30
@@ -219,7 +211,6 @@ func (e *ScoringEngine) computeContributions(
 
 	// Each contribution = (score - 50) * weight
 	// This shows how much each dimension moves the score from neutral (50)
-	contribs["order_flow"] = math.Round((scores.OrderFlow-50)*weights.OrderFlow*10) / 10
 	contribs["volume_price"] = math.Round((scores.VolumePrice-50)*weights.VolumePrice*10) / 10
 	contribs["valuation"] = math.Round((scores.Valuation-50)*weights.Valuation*10) / 10
 	contribs["volatility"] = math.Round((scores.Volatility-50)*weights.Volatility*10) / 10
