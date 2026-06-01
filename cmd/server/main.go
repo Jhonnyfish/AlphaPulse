@@ -53,7 +53,7 @@ func main() {
 	}
 
 	ctx := context.Background()
-	migrationPath := filepath.Join("migrations", "001_initial.sql")
+	migrationPath := filepath.Join("migrations")
 	db, err := database.New(ctx, cfg, migrationPath)
 	if err != nil {
 		log.Fatalf("connect database: %v", err)
@@ -88,7 +88,7 @@ func main() {
 	screenerHandler := handlers.NewScreenerHandler(alpha300Cache, db)
 	scoreHistoryHandler := handlers.NewScoreHistoryHandler(db)
 	patternScannerHandler := handlers.NewPatternScannerHandler(eastMoneyService, tencentService, db)
-	analyzeHandler := handlers.NewAnalyzeHandler(eastMoneyService, tencentService, newsService, logger.L())
+	analyzeHandler := handlers.NewAnalyzeHandler(newsService, logger.L())
 	analyzeHandler.SetScoreHistory(scoreHistoryHandler)
 	trendHandler := handlers.NewTrendHandler(eastMoneyService, tencentService, db, logger.L())
 	compareHandler := handlers.NewCompareHandler(eastMoneyService, tencentService)
@@ -97,10 +97,10 @@ func main() {
 	strategiesHandler := handlers.NewStrategiesHandler(db)
 	customAlertsHandler := handlers.NewCustomAlertsHandler(db, tencentService)
 	stockNotesHandler := handlers.NewStockNotesHandler(db)
-	fundFlowHandler := handlers.NewFundFlowHandler(eastMoneyService, logger.L())
+	fundFlowHandler := handlers.NewFundFlowHandler(logger.L())
 	sectorRotationHandler := handlers.NewSectorRotationHandler(eastMoneyService, tushareSectorService, db, logger.L())
 	investmentPlansHandler := handlers.NewInvestmentPlansHandler(logger.L())
-	watchlistAnalysisHandler := handlers.NewWatchlistAnalysisHandler(db, tencentService, eastMoneyService, analyzeHandler, logger.L())
+	watchlistAnalysisHandler := handlers.NewWatchlistAnalysisHandler(db, analyzeHandler, logger.L())
 	perfTracker := services.NewPerfTracker()
 	systemHandler := handlers.NewSystemHandler(db, cfg.AppVersion, time.Now(), marketHandler.CacheStats(), perfTracker)
 	signalHandler := handlers.NewSignalHandler(alpha300Cache, tencentService, eastMoneyService, logger.L())
@@ -110,6 +110,7 @@ func main() {
 	docsHandler := handlers.NewDocsHandler()
 	dashboardHandler := handlers.NewDashboardHandler(db, tencentService, eastMoneyService, tushareSectorService, watchlistHandler, logger.L())
 	deepAnalysisHandler := handlers.NewDeepAnalysisHandler()
+	syncHandler := handlers.NewSyncHandler(db, cfg, logger.L(), nil, eastMoneyService, marketHandler.CacheStats())
 	watchlistHandler.SetAlpha300(alpha300Cache)
 		watchlistHandler.SetOnChange(watchlistAnalysisHandler.InvalidateRankingCache)
 		watchlistHandler.SetOnChange(patternScannerHandler.InvalidateCache)
@@ -130,6 +131,7 @@ func main() {
 		portfolioHandler.SetTushareDB(tushareDB)
 		deepAnalysisHandler.SetTushareService(tushareSvc)
 
+
 		// Initial sync if tables are empty
 		if !tushareDB.HasData(context.Background()) {
 			go func() {
@@ -146,6 +148,9 @@ func main() {
 	} else if cfg.TushareEnabled {
 		logger.L().Warn("Tushare enabled but no token provided")
 	}
+	// DB access for portfolio holding lookups in analyze
+	analyzeHandler.SetDB(db)
+	analyzeHandler.SetRealtime(tencentService, eastMoneyService)
 
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -377,13 +382,13 @@ func main() {
 			log.Printf("[scheduler] alpha300 sync failed: %v", err)
 		}
 	})
-	scheduler.AddDailyJob("daily-report", 18, 30, func() {
+	scheduler.AddDailyJob("daily-report", 21, 30, func() {
 		log.Println("[scheduler] generating daily report...")
 		reportsHandler.GenerateDailyReportAuto()
 	})
-		// Tushare daily sync at 18:00 (Tushare data usually ready by 17:30)
+		// Tushare daily sync at 18:00 (data stable by this time)
 		if tushareDB != nil {
-			scheduler.AddDailyJob("tushare-daily-sync", 18, 0, func() {
+			scheduler.AddDailyJob("tushare-daily-sync", 21, 0, func() {
 				log.Println("[scheduler] tushare daily sync...")
 				syncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 				defer cancel()
@@ -392,8 +397,8 @@ func main() {
 				ts.RunDaily(syncCtx)
 			})
 			// Retry at 20:00 in case Tushare data wasn't ready at 18:00
-			scheduler.AddDailyJob("tushare-daily-retry", 20, 0, func() {
-				log.Println("[scheduler] tushare daily retry (in case 18:00 missed data)...")
+			scheduler.AddDailyJob("tushare-daily-retry", 23, 0, func() {
+				log.Println("[scheduler] tushare daily retry (in case 21:00 missed data)...")
 				syncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 				defer cancel()
 				tushareSvc := services.NewTushareService(cfg.TushareToken, cfg.HTTPTimeout)
@@ -402,7 +407,7 @@ func main() {
 			})
 		}
 		// Pre-fetch watchlist news at 18:10 so ranking reads from DB
-		scheduler.AddDailyJob("watchlist-news-sync", 18, 10, func() {
+		scheduler.AddDailyJob("watchlist-news-sync", 21, 10, func() {
 			log.Println("[scheduler] syncing watchlist news to DB...")
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 			defer cancel()
@@ -432,7 +437,7 @@ func main() {
 			log.Printf("[scheduler] watchlist news sync done for %d stocks", len(codes))
 		})
 		// Pre-compute ranking at 18:15 so users see results instantly
-		scheduler.AddDailyJob("ranking-precompute", 18, 15, func() {
+		scheduler.AddDailyJob("ranking-precompute", 21, 15, func() {
 			watchlistAnalysisHandler.PreComputeRanking()
 		})
 	scheduler.AddDailyJob("news-cleanup", 3, 0, func() {
@@ -445,10 +450,20 @@ func main() {
 	})
 	defer scheduler.StopAll()
 
+	// Wire scheduler into SyncHandler for runtime config changes
+	syncHandler.SetScheduler(scheduler)
+	syncHandler.ApplySchedulerConfig(context.Background())
+
 	// Scheduler status API
 	api.GET("/system/scheduler", authMiddleware, func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true, "jobs": scheduler.Status()})
 	})
+
+	// Data sync endpoints (manual trigger + config)
+	api.POST("/system/sync", authMiddleware, syncHandler.TriggerSync)
+	api.GET("/system/sync/status", authMiddleware, syncHandler.SyncStatus)
+	api.GET("/system/sync/config", authMiddleware, syncHandler.GetSyncConfig)
+	api.PUT("/system/sync/config", authMiddleware, syncHandler.UpdateSyncConfig)
 
 	// Watchlist sync (Alpha300 pool)
 	watchlistGroup.POST("/sync", watchlistHandler.Sync)

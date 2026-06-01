@@ -2,14 +2,11 @@
 .env
 .env.*
 
-# Compiled binary
-server
-alphapulse
-alphapulse-server
-stock-quote-service
-
-# Builds
-*.apk
+# Compiled binaries
+/server
+/alphapulse
+/alphapulse-server
+bin/
 
 # IDE
 .idea/
@@ -19,28 +16,15 @@ stock-quote-service
 
 # OS
 .DS_Store
-bin/
 
 # Node
 node_modules/
 
-# OpenSpec
-openspec/changes/
-/frontend/.venv
-/.codex
-/.claude
-/.hermes
-/frontend/android
+# Next.js
+web/.next/
 
-# Test artifacts
-test_debug*.py
-test_frontend.py
-test_screenshots/
-*.backup
+# Claude Code
+.claude/
 
-# Debug/Test files
-test_screenshots/
-frontend/playwright-report/
-frontend/daily_report_debug.png
-frontend/public/daily_report_debug.png
-*.backup
+# Logs
+*.log

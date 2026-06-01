@@ -273,47 +273,64 @@ func (h *DeepAnalysisHandler) runAnalysis(code string) {
 	defer cancel()
 
 	hermesPath := "/home/finn/.local/bin/hermes"
-
-	// Write output to a temp file so partial results persist
-	tmpDir := os.TempDir()
-	outFile := filepath.Join(tmpDir, fmt.Sprintf("alphapulse_deep_%s_%s.txt", code, time.Now().Format("150405")))
-	f, err := os.Create(outFile)
-	if err != nil {
-		logger.Error("deep analysis: failed to create output file", zap.Error(err))
-		h.updateResult(code, "failed", "", "failed to create output file")
-		return
-	}
-
 	startTime := time.Now()
 	sessionsBefore := listHermesSessions()
 
-	cmd := exec.CommandContext(ctx, hermesPath, "chat", "-q", prompt, "--skills", "stock-deep-analysis", "-Q", "--yolo")
-	cmd.Stdout = f
-	cmd.Stderr = f
+	var lastErr error
+	var lastOutFile string
+	maxAttempts := 2
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		// Write output to a temp file so partial results persist
+		tmpDir := os.TempDir()
+		outFile := filepath.Join(tmpDir, fmt.Sprintf("alphapulse_deep_%s_%s_%d.txt", code, time.Now().Format("150405"), attempt))
+		lastOutFile = outFile
+		f, err := os.Create(outFile)
+		if err != nil {
+			logger.Error("deep analysis: failed to create output file", zap.Error(err))
+			h.updateResult(code, "failed", "", "failed to create output file")
+			return
+		}
 
-	err = cmd.Run()
-	f.Close()
+		cmd := exec.CommandContext(ctx, hermesPath, "chat", "-q", prompt, "--skills", "stock-deep-analysis", "-Q", "--yolo")
+		cmd.Stdout = f
+		cmd.Stderr = f
 
-	if err != nil {
-		// Read partial output from file
+		runErr := cmd.Run()
+		f.Close()
+
+		if runErr == nil {
+			// Success — read result from file
+			break
+		}
+
+		lastErr = runErr
+		// Read partial output
 		partial, _ := os.ReadFile(outFile)
 		partialStr := strings.TrimSpace(string(partial))
-		logger.Error("deep analysis: hermes agent failed",
+		logger.Warn("deep analysis: hermes attempt failed",
 			zap.String("code", code),
-			zap.Error(err),
-			zap.String("output_file", outFile),
+			zap.Int("attempt", attempt),
+			zap.Error(runErr),
 			zap.Int("partial_output_len", len(partialStr)))
 
-		// If we have partial output, try to use it
+		// If we have substantial partial output, use it
 		if len(partialStr) > 200 {
 			h.updateResult(code, "completed", partialStr, "")
 			logger.Info("deep analysis: saved partial result despite error",
 				zap.String("code", code),
 				zap.Int("length", len(partialStr)),
 				zap.Duration("elapsed", time.Since(startTime)))
-		} else {
-			h.updateResult(code, "failed", "", fmt.Sprintf("analysis error after %.0f min: %v", time.Since(startTime).Minutes(), err))
+			return
 		}
+
+		if attempt < maxAttempts {
+			logger.Info("deep analysis: retrying in 5s...", zap.String("code", code))
+			time.Sleep(5 * time.Second)
+		}
+	}
+
+	if lastErr != nil {
+		h.updateResult(code, "failed", "", fmt.Sprintf("analysis error after %.0f min (%d attempts): %v", time.Since(startTime).Minutes(), maxAttempts, lastErr))
 		return
 	}
 
@@ -324,7 +341,7 @@ func (h *DeepAnalysisHandler) runAnalysis(code string) {
 
 	// Fallback: use stdout if session parsing failed
 	if report == "" {
-		output, _ := os.ReadFile(outFile)
+		output, _ := os.ReadFile(lastOutFile)
 		report = strings.TrimSpace(string(output))
 	}
 

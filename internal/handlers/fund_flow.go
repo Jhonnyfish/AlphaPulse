@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,16 +18,14 @@ import (
 
 // FundFlowHandler handles fund flow / money flow endpoints.
 type FundFlowHandler struct {
-	eastMoney *services.EastMoneyService
 	tushareDB *services.TushareDB
 	logger    *zap.Logger
 	flowCache *alphacache.Cache[[]models.MoneyFlowDay]
 }
 
 // NewFundFlowHandler creates a new FundFlowHandler.
-func NewFundFlowHandler(eastMoney *services.EastMoneyService, logger *zap.Logger) *FundFlowHandler {
+func NewFundFlowHandler(logger *zap.Logger) *FundFlowHandler {
 	return &FundFlowHandler{
-		eastMoney: eastMoney,
 		logger:    logger,
 		flowCache: alphacache.New[[]models.MoneyFlowDay](),
 	}
@@ -84,47 +83,23 @@ func (h *FundFlowHandler) Flow(c *gin.Context) {
 		return
 	}
 
-	// Try TushareDB first (primary local data source)
-	if h.tushareDB != nil {
-		flows, err := h.tushareDB.FetchMoneyFlow(c.Request.Context(), code, days)
-		if err == nil && len(flows) > 0 {
-			h.flowCache.Set(cacheKey, flows, 5*time.Minute)
-			c.JSON(http.StatusOK, gin.H{
-				"code":   code6,
-				"items":  flows,
-				"source": "tushare",
-				"cached": false,
-			})
-			return
-		}
-		h.logger.Warn("tushare money flow failed, falling back to eastmoney",
-			zap.String("code", code6), zap.Error(err))
+	if h.tushareDB == nil {
+		writeAppError(c, apperrors.Internal(fmt.Errorf("data source unavailable")))
+		return
 	}
 
-	// Fallback to EastMoney
-	flows, err := h.eastMoney.FetchMoneyFlow(c.Request.Context(), normalized, days)
+	flows, err := h.tushareDB.FetchMoneyFlow(c.Request.Context(), code, days)
 	if err != nil {
-		h.logger.Warn("failed to fetch money flow, returning degraded response",
-			zap.String("code", code6),
-			zap.Error(err),
-		)
-		c.JSON(http.StatusOK, gin.H{
-			"code":     code6,
-			"items":    []models.MoneyFlowDay{},
-			"source":   "eastmoney",
-			"cached":   false,
-			"degraded": true,
-			"message":  "upstream data temporarily unavailable",
-		})
+		h.logger.Warn("tushare money flow failed", zap.String("code", code6), zap.Error(err))
+		writeAppError(c, apperrors.Internal(fmt.Errorf("failed to fetch money flow data")))
 		return
 	}
 
 	h.flowCache.Set(cacheKey, flows, 5*time.Minute)
-
 	c.JSON(http.StatusOK, gin.H{
 		"code":   code6,
 		"items":  flows,
-		"source": "eastmoney",
+		"source": "tushare",
 		"cached": false,
 	})
 }

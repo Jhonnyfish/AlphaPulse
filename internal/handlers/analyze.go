@@ -15,18 +15,22 @@ import (
 	"alphapulse/internal/services"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type AnalyzeHandler struct {
 	newsSvc            *services.NewsService
-	tushareDB          *services.TushareDB          // Primary data source, may be nil
+	tushareDB          *services.TushareDB        // Primary data source, may be nil
+	tencent            *services.TencentService   // Real-time quote fallback
+	eastMoney          *services.EastMoneyService // Near-real-time kline fallback
+	db                 *pgxpool.Pool              // DB for portfolio lookups, may be nil
 	logger             *zap.Logger
 	scoreHistory       *ScoreHistoryHandler
 	quoteCache         *cache.Cache[models.Quote]
-	klineCache       *cache.Cache[[]models.KlinePoint]
-	flowCache        *cache.Cache[[]models.MoneyFlowDay]
-	sectorsCache     *cache.Cache[[]models.StockSector]
-	newsCache        *cache.Cache[[]models.NewsItem]
+	klineCache         *cache.Cache[[]models.KlinePoint]
+	flowCache          *cache.Cache[[]models.MoneyFlowDay]
+	sectorsCache       *cache.Cache[[]models.StockSector]
+	newsCache          *cache.Cache[[]models.NewsItem]
 	announcementsCache *cache.Cache[[]models.Announcement]
 }
 
@@ -51,6 +55,17 @@ func (h *AnalyzeHandler) SetScoreHistory(sh *ScoreHistoryHandler) {
 // SetTushareDB sets the Tushare local database service as primary data source.
 func (h *AnalyzeHandler) SetTushareDB(db *services.TushareDB) {
 	h.tushareDB = db
+}
+
+// SetDB sets the database pool for portfolio lookups.
+func (h *AnalyzeHandler) SetDB(pool *pgxpool.Pool) {
+	h.db = pool
+}
+
+// SetRealtime sets the real-time data services for live quote/kline fallback.
+func (h *AnalyzeHandler) SetRealtime(tencent *services.TencentService, em *services.EastMoneyService) {
+	h.tencent = tencent
+	h.eastMoney = em
 }
 
 // @Summary      8维度综合分析
@@ -126,17 +141,17 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 
 	// Fetch all data sources concurrently
 	var (
-		quote    models.Quote
-		klines   []models.KlinePoint
-		flows    []models.MoneyFlowDay
-		sectors  []models.StockSector
-		news     []models.NewsItem
-		anns     []models.Announcement
-		fins     []services.FinancialData
-		hsgt     []services.HsgtData
-		top10    []services.HsgtTop10Data
-		hkHold   []services.HkHoldData
-		marginD  []services.MarginDetailData
+		quote                                                   models.Quote
+		klines                                                  []models.KlinePoint
+		flows                                                   []models.MoneyFlowDay
+		sectors                                                 []models.StockSector
+		news                                                    []models.NewsItem
+		anns                                                    []models.Announcement
+		fins                                                    []services.FinancialData
+		hsgt                                                    []services.HsgtData
+		top10                                                   []services.HsgtTop10Data
+		hkHold                                                  []services.HkHoldData
+		marginD                                                 []services.MarginDetailData
 		quoteErr, klineErr, flowErr, sectorErr, newsErr, annErr error
 	)
 
@@ -223,29 +238,29 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 
 	// Run 8 analysis dimensions
 	analysis := models.StockAnalysis{
-		Code:    services.StockCode6(code),
-		Name:    quote.Name,
-		Version: "3.0",
-		Quote:   quote,
-		VolumePrice: services.AnalyzeVolumePrice(quote, klines, turnoverRate),
-		Valuation:   services.AnalyzeValuation(quote),
-		Volatility:  services.AnalyzeVolatility(quote),
-		MoneyFlow:   services.AnalyzeMoneyFlow(flows),
-		Technical:   services.AnalyzeTechnical(klines),
-		Sector:      services.AnalyzeSector(quote, sectorNames, sectorPerf),
-		Sentiment:   services.AnalyzeSentiment(news, anns),
+		Code:         services.StockCode6(code),
+		Name:         quote.Name,
+		Version:      "3.0",
+		Quote:        quote,
+		VolumePrice:  services.AnalyzeVolumePrice(quote, klines, turnoverRate),
+		Valuation:    services.AnalyzeValuation(quote),
+		Volatility:   services.AnalyzeVolatility(quote),
+		MoneyFlow:    services.AnalyzeMoneyFlow(flows),
+		Technical:    services.AnalyzeTechnical(klines),
+		Sector:       services.AnalyzeSector(quote, sectorNames, sectorPerf),
+		Sentiment:    services.AnalyzeSentiment(news, anns),
 		Fundamentals: services.AnalyzeFundamentals(fins),
-		Northbound:  services.AnalyzeNorthbound(hsgt, top10, hkHold),
+		Northbound:   services.AnalyzeNorthbound(hsgt, top10, hkHold),
 		MarginDetail: services.AnalyzeMarginDetail(marginD),
 		DataSources: func() map[string]string {
 			ds := map[string]string{
-				"quote":         "tushare",
-				"klines":        "tushare",
-				"money_flow":    "tushare",
-				"sector":        "tushare",
-				"sentiment":     "db/eastmoney",
-				"fundamentals":  "tushare/fina_indicator",
-				"margin":        "tushare/margin_detail",
+				"quote":        "tencent/tushare",
+				"klines":       "tushare/eastmoney",
+				"money_flow":   "tushare",
+				"sector":       "tushare",
+				"sentiment":    "db/eastmoney",
+				"fundamentals": "tushare/fina_indicator",
+				"margin":       "tushare/margin_detail",
 			}
 			if len(top10) > 0 {
 				ds["northbound"] = "tushare/hsgt_top10"
@@ -265,6 +280,56 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 	// Run trend analysis
 	trendAnalyzer := services.NewTrendAnalyzer()
 	analysis.TrendAnalysis = trendAnalyzer.AnalyzeTrend(analysis.Technical, analysis.VolumePrice, analysis.Quote.Price)
+
+	// Trading signals: buy zone, T-suggestion, intraday forecast
+	atr14 := services.ComputeATR(klines, 14)
+
+	// Look up portfolio holding for this stock
+	holdingQty := 0
+	holdingCost := 0.0
+	if h.db != nil {
+		var qty int
+		var cost float64
+		err := h.db.QueryRow(ctx,
+			"SELECT quantity, cost_price FROM portfolio WHERE code = $1 LIMIT 1", code).Scan(&qty, &cost)
+		if err == nil && qty > 0 {
+			holdingQty = qty
+			holdingCost = cost
+			pnlPct := 0.0
+			if cost > 0 {
+				pnlPct = (analysis.Quote.Price - cost) / cost * 100
+			}
+			analysis.Holding = &models.HoldingInfo{
+				Quantity:    qty,
+				CostPrice:   cost,
+				MarketValue: float64(qty) * analysis.Quote.Price,
+				PnL:         float64(qty) * (analysis.Quote.Price - cost),
+				PnLPct:      pnlPct,
+			}
+		}
+	}
+
+	if atr14 > 0 {
+		analysis.BuyZone = services.AnalyzeBuyZone(
+			analysis.TrendAnalysis.SupportResistance,
+			analysis.Technical,
+			analysis.Quote,
+			atr14,
+		)
+		analysis.TSuggestion = services.AnalyzeTSuggestion(
+			analysis.Quote,
+			analysis.Technical,
+			klines,
+			atr14,
+			holdingQty,
+			holdingCost,
+		)
+		analysis.IntradayForecast = services.AnalyzeIntradayForecast(
+			klines,
+			analysis.Quote,
+			atr14,
+		)
+	}
 
 	// Record score history (best-effort)
 	if h.scoreHistory != nil {
@@ -291,7 +356,17 @@ func (h *AnalyzeHandler) fetchQuote(ctx context.Context, code string) (models.Qu
 		return cached, nil
 	}
 
-	// Try TushareDB first (primary local data source)
+	// Try real-time Tencent quote first (during trading hours this is live)
+	if h.tencent != nil {
+		quote, err := h.tencent.FetchQuote(ctx, code)
+		if err == nil && quote.Price > 0 {
+			h.quoteCache.Set(code, quote, 5*time.Second)
+			return quote, nil
+		}
+		h.logger.Warn("tencent quote failed, falling back", zap.String("code", code), zap.Error(err))
+	}
+
+	// Fallback: TushareDB (end-of-day data)
 	if h.tushareDB != nil {
 		quote, err := h.tushareDB.FetchQuoteFromDB(ctx, code)
 		if err == nil && quote.Price > 0 {
@@ -301,7 +376,7 @@ func (h *AnalyzeHandler) fetchQuote(ctx context.Context, code string) (models.Qu
 		h.logger.Warn("tushare quote failed", zap.String("code", code), zap.Error(err))
 	}
 
-	return models.Quote{}, fmt.Errorf("quote not available from TushareDB for %s", code)
+	return models.Quote{}, fmt.Errorf("quote not available for %s", code)
 }
 
 func (h *AnalyzeHandler) fetchKlines(ctx context.Context, code string) ([]models.KlinePoint, error) {
@@ -309,17 +384,27 @@ func (h *AnalyzeHandler) fetchKlines(ctx context.Context, code string) ([]models
 		return cached, nil
 	}
 
-	// Try TushareDB first (primary local data source)
+	// Try TushareDB first (local data, fast)
 	if h.tushareDB != nil {
 		klines, err := h.tushareDB.FetchKline(ctx, code, 60)
 		if err == nil && len(klines) > 0 {
 			h.klineCache.Set(code, klines, 60*time.Second)
 			return klines, nil
 		}
-		h.logger.Warn("tushare kline failed", zap.String("code", code), zap.Error(err))
+		h.logger.Warn("tushare kline failed, falling back", zap.String("code", code), zap.Error(err))
 	}
 
-	return nil, fmt.Errorf("klines not available from TushareDB for %s", code)
+	// Fallback: EastMoney (near-real-time, includes today's bar)
+	if h.eastMoney != nil {
+		klines, err := h.eastMoney.FetchKline(ctx, code, 60)
+		if err == nil && len(klines) > 0 {
+			h.klineCache.Set(code, klines, 60*time.Second)
+			return klines, nil
+		}
+		h.logger.Warn("eastmoney kline failed", zap.String("code", code), zap.Error(err))
+	}
+
+	return nil, fmt.Errorf("klines not available for %s", code)
 }
 
 func (h *AnalyzeHandler) fetchFlow(ctx context.Context, code string) ([]models.MoneyFlowDay, error) {

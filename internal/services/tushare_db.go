@@ -55,6 +55,14 @@ type HsgtTop10Data struct {
 	SellAmount float64 `json:"sell_amount"`
 }
 
+// HkHoldData holds per-stock Hong Kong Stock Connect northbound holdings data.
+// vol: 持股数量(万股), ratio: 占流通A股(%)
+type HkHoldData struct {
+	TradeDate string  `json:"trade_date"`
+	Vol       float64 `json:"vol"`   // 持股数量(万股)
+	Ratio     float64 `json:"ratio"` // 占流通A股(%)
+}
+
 // MarginDetailData holds per-stock margin detail data.
 type MarginDetailData struct {
 	TradeDate string  `json:"trade_date"`
@@ -78,6 +86,7 @@ type TushareDB struct {
 	financialsCache  *cache.Cache[[]FinancialData]
 	hsgtCache        *cache.Cache[[]HsgtData]
 	hsgtTop10Cache   *cache.Cache[[]HsgtTop10Data]
+	hkHoldCache      *cache.Cache[[]HkHoldData]
 	marginDetailCache *cache.Cache[[]MarginDetailData]
 }
 
@@ -94,6 +103,7 @@ func NewTushareDB(db *pgxpool.Pool, log *zap.Logger) *TushareDB {
 		financialsCache:    cache.New[[]FinancialData](),
 		hsgtCache:          cache.New[[]HsgtData](),
 		hsgtTop10Cache:     cache.New[[]HsgtTop10Data](),
+		hkHoldCache:        cache.New[[]HkHoldData](),
 		marginDetailCache:  cache.New[[]MarginDetailData](),
 	}
 }
@@ -862,5 +872,50 @@ func (s *TushareDB) FetchMarginDetailHistory(ctx context.Context, code string, l
 	}
 
 	s.marginDetailCache.Set(cacheKey, items, 10*time.Minute)
+	return items, nil
+}
+
+// ==================== HK Holdings (hk_hold) ====================
+
+// FetchHkHoldByCode fetches northbound holding history for a specific stock from local DB.
+func (s *TushareDB) FetchHkHoldByCode(ctx context.Context, code string, limit int) ([]HkHoldData, error) {
+	tsCode := ToTsCode(code)
+	cacheKey := fmt.Sprintf("hk_hold:%s:%d", tsCode, limit)
+
+	if cached, ok := s.hkHoldCache.Get(cacheKey); ok {
+		return cached, nil
+	}
+
+	query := `
+		SELECT trade_date, vol, COALESCE(ratio, 0)
+		FROM tushare_hk_hold
+		WHERE ts_code = $1
+		ORDER BY trade_date DESC
+		LIMIT $2
+	`
+
+	rows, err := s.db.Query(ctx, query, tsCode, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query tushare_hk_hold: %w", err)
+	}
+	defer rows.Close()
+
+	var items []HkHoldData
+	for rows.Next() {
+		var h HkHoldData
+		var tradeDate string
+		if err := rows.Scan(&tradeDate, &h.Vol, &h.Ratio); err != nil {
+			s.logger.Warn("scan hk_hold", zap.Error(err))
+			continue
+		}
+		h.TradeDate = FormatDate(tradeDate)
+		items = append(items, h)
+	}
+
+	if len(items) == 0 {
+		return nil, fmt.Errorf("no hk_hold data for %s", code)
+	}
+
+	s.hkHoldCache.Set(cacheKey, items, 30*time.Minute)
 	return items, nil
 }

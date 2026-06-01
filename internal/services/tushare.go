@@ -985,6 +985,48 @@ func (s *TushareService) FetchMarginDetail(ctx context.Context, tradeDate, tsCod
 	return result, nil
 }
 
+// ========== Hong Kong Stock Connect Holdings (hk_hold) ==========
+
+// HkHoldRow represents a row from the hk_hold API.
+type HkHoldRow struct {
+	TsCode    string
+	TradeDate string
+	Vol       float64 // 持股数量(万股)
+	Ratio     float64 // 占流通A股(%)
+}
+
+// FetchHkHold fetches northbound holdings data for a stock from Tushare.
+// Note: This API has ~1-2 month data delay. Recent dates may return empty.
+func (s *TushareService) FetchHkHold(ctx context.Context, tsCode, startDate, endDate string) ([]HkHoldRow, error) {
+	params := map[string]string{}
+	if tsCode != "" {
+		params["ts_code"] = tsCode
+	}
+	if startDate != "" {
+		params["start_date"] = startDate
+	}
+	if endDate != "" {
+		params["end_date"] = endDate
+	}
+
+	resp, err := s.Query(ctx, "hk_hold", params, "ts_code,trade_date,vol,ratio")
+	if err != nil {
+		return nil, err
+	}
+
+	rows := parseRows(resp)
+	result := make([]HkHoldRow, 0, len(rows))
+	for _, r := range rows {
+		result = append(result, HkHoldRow{
+			TsCode:    strVal(r, "ts_code"),
+			TradeDate: strVal(r, "trade_date"),
+			Vol:       floatVal(r, "vol"),
+			Ratio:     floatVal(r, "ratio"),
+		})
+	}
+	return result, nil
+}
+
 // ========== Helper functions ==========
 
 func int64Val(r Row, key string) int64 {

@@ -247,9 +247,86 @@ type StockAnalysis struct {
 	Fundamentals   FundamentalsAnalysis   `json:"fundamentals"`
 	Northbound     NorthboundAnalysis     `json:"northbound"`
 	MarginDetail   MarginAnalysis         `json:"margin_detail"`
-	TrendAnalysis  TrendAnalysis          `json:"trend_analysis"`
-	Summary        AnalysisSummary        `json:"summary"`
+	TrendAnalysis    TrendAnalysis          `json:"trend_analysis"`
+	BuyZone          *BuyZoneAnalysis       `json:"buy_zone,omitempty"`
+	TSuggestion      *TSuggestionAnalysis   `json:"t_suggestion,omitempty"`
+	IntradayForecast *IntradayForecast      `json:"intraday_forecast,omitempty"`
+	Holding          *HoldingInfo           `json:"holding,omitempty"`
+	Summary          AnalysisSummary        `json:"summary"`
 	DataSources map[string]string   `json:"data_sources"`
 	Errors      map[string]string   `json:"errors"`
 	FetchedAt   time.Time           `json:"fetched_at"`
+}
+
+// ---- Trading signal models ----
+
+// BuyZone represents a single buy price zone.
+type BuyZone struct {
+	Method       string  `json:"method"`
+	UpperBound   float64 `json:"upper_bound"`
+	LowerBound   float64 `json:"lower_bound"`
+	OptimalEntry float64 `json:"optimal_entry"`
+	StopLoss     float64 `json:"stop_loss"`
+	SafetyScore  float64 `json:"safety_score"`
+}
+
+// BuyZoneAnalysis holds multiple buy zone suggestions.
+type BuyZoneAnalysis struct {
+	Zones   []BuyZone `json:"zones"`
+	Optimal *BuyZone  `json:"optimal"`
+	Verdict string    `json:"verdict"`
+}
+
+// TSuggestionAnalysis holds a T+0 round-trip trading suggestion.
+type TSuggestionAnalysis struct {
+	Type              string   `json:"type"`
+	Action            string   `json:"action"`
+	EntryPrice        float64  `json:"entry_price"`
+	TargetPrice       float64  `json:"target_price"`
+	StopLoss          float64  `json:"stop_loss"`
+	Reason            string   `json:"reason"`
+	Confidence        float64  `json:"confidence"`
+	SignalScore       float64  `json:"signal_score"`
+	TQuantity         int      `json:"t_quantity"`
+	PositionRatio     float64  `json:"position_ratio"`
+	TriggerPct        float64  `json:"trigger_pct"`
+	ExpectedProfitPct float64  `json:"expected_profit_pct"`
+	MaxLossPct        float64  `json:"max_loss_pct"`
+	RiskReward        float64  `json:"risk_reward"`
+	ExecutionTip      string   `json:"execution_tip,omitempty"`
+	SignalDetails     []string `json:"signal_details,omitempty"`
+	RiskNotes         []string `json:"risk_notes,omitempty"`
+	// Condition order fields
+	ConditionBuy  *ConditionOrder `json:"condition_buy,omitempty"`
+	ConditionSell *ConditionOrder `json:"condition_sell,omitempty"`
+}
+
+// ConditionOrder represents a specific conditional order for T+0 trading.
+type ConditionOrder struct {
+	Direction     string  `json:"direction"`      // "买入" / "卖出"
+	TriggerPrice  float64 `json:"trigger_price"`  // 触发价
+	TriggerDesc   string  `json:"trigger_desc"`   // 触发条件描述
+	OrderPrice    float64 `json:"order_price"`    // 委托价
+	OrderType     string  `json:"order_type"`     // "限价委托"
+	QuantityRatio string  `json:"quantity_ratio"` // "底仓的1/3" / "底仓的1/2"
+	StopPrice     float64 `json:"stop_price"`     // 止损/止盈触发价
+	StopDesc      string  `json:"stop_desc"`      // 止损/止盈描述
+	Note          string  `json:"note"`           // 操作备注
+}
+
+// IntradayForecast holds predicted daily high/low and current zone.
+type IntradayForecast struct {
+	PredictedHigh float64 `json:"predicted_high"`
+	PredictedLow  float64 `json:"predicted_low"`
+	CurrentZone   string  `json:"current_zone"`
+	ZonePct       float64 `json:"zone_pct"`
+}
+
+// HoldingInfo holds the user's portfolio position for the analyzed stock.
+type HoldingInfo struct {
+	Quantity    int     `json:"quantity"`
+	CostPrice   float64 `json:"cost_price"`
+	MarketValue float64 `json:"market_value"`
+	PnL         float64 `json:"pnl"`
+	PnLPct      float64 `json:"pnl_pct"`
 }
