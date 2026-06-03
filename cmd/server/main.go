@@ -236,6 +236,7 @@ func main() {
 	analyzeGroup := api.Group("/analyze")
 	analyzeGroup.Use(authMiddleware)
 	analyzeGroup.GET("", analyzeHandler.Analyze)
+	analyzeGroup.GET("/intraday-forecast-accuracy", analyzeHandler.IntradayForecastAccuracy)
 
 	trendGroup := api.Group("")
 	trendGroup.Use(authMiddleware)
@@ -464,6 +465,8 @@ func main() {
 	api.GET("/system/sync/status", authMiddleware, syncHandler.SyncStatus)
 	api.GET("/system/sync/config", authMiddleware, syncHandler.GetSyncConfig)
 	api.PUT("/system/sync/config", authMiddleware, syncHandler.UpdateSyncConfig)
+	api.POST("/system/sync/backfill", authMiddleware, syncHandler.TriggerBackfill)
+	api.POST("/system/sync/backfill-stock", authMiddleware, syncHandler.BackfillStock)
 
 	// Watchlist sync (Alpha300 pool)
 	watchlistGroup.POST("/sync", watchlistHandler.Sync)

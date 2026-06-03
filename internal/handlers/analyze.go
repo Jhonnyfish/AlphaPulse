@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -281,8 +282,10 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 	trendAnalyzer := services.NewTrendAnalyzer()
 	analysis.TrendAnalysis = trendAnalyzer.AnalyzeTrend(analysis.Technical, analysis.VolumePrice, analysis.Quote.Price)
 
-	// Trading signals: buy zone, T-suggestion, intraday forecast
+	// Trading signals: buy zone, T-suggestion, intraday forecast, patterns, short-term score
 	atr14 := services.ComputeATR(klines, 14)
+	patterns := services.DetectPatterns(klines)
+	analysis.PatternAnalysis = services.AnalyzePatternSignals(patterns)
 
 	// Look up portfolio holding for this stock
 	holdingQty := 0
@@ -324,12 +327,34 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 			holdingQty,
 			holdingCost,
 		)
+		// Extract support/resistance for forecast
+		support := 0.0
+		resistance := 0.0
+		sr := analysis.TrendAnalysis.SupportResistance
+		if sr.Support1 > 0 {
+			support = sr.Support1
+		}
+		if sr.Resistance1 > 0 {
+			resistance = sr.Resistance1
+		}
 		analysis.IntradayForecast = services.AnalyzeIntradayForecast(
 			klines,
 			analysis.Quote,
 			atr14,
+			patterns,
+			support,
+			resistance,
 		)
 	}
+	analysis.ShortTermScore = services.AnalyzeShortTermScore(
+		analysis.Quote,
+		analysis.Technical,
+		analysis.VolumePrice,
+		analysis.MoneyFlow,
+		analysis.TrendAnalysis,
+		analysis.PatternAnalysis,
+		analysis.IntradayForecast,
+	)
 
 	// Record score history (best-effort)
 	if h.scoreHistory != nil {
@@ -380,30 +405,29 @@ func (h *AnalyzeHandler) fetchQuote(ctx context.Context, code string) (models.Qu
 }
 
 func (h *AnalyzeHandler) fetchKlines(ctx context.Context, code string) ([]models.KlinePoint, error) {
-	if cached, ok := h.klineCache.Get(code); ok {
-		return cached, nil
-	}
+	return h.fetchKlinesN(ctx, code, 60)
+}
 
-	// Try TushareDB first (local data, fast)
+// fetchKlinesN loads `days` daily klines, using the same source precedence
+// as fetchKlines but bypassing the cache (since the cache key is per-code
+// without a days dimension).
+func (h *AnalyzeHandler) fetchKlinesN(ctx context.Context, code string, days int) ([]models.KlinePoint, error) {
 	if h.tushareDB != nil {
-		klines, err := h.tushareDB.FetchKline(ctx, code, 60)
+		klines, err := h.tushareDB.FetchKline(ctx, code, days)
 		if err == nil && len(klines) > 0 {
-			h.klineCache.Set(code, klines, 60*time.Second)
 			return klines, nil
 		}
-		h.logger.Warn("tushare kline failed, falling back", zap.String("code", code), zap.Error(err))
+		h.logger.Warn("tushare kline failed, falling back",
+			zap.String("code", code), zap.Int("days", days), zap.Error(err))
 	}
-
-	// Fallback: EastMoney (near-real-time, includes today's bar)
 	if h.eastMoney != nil {
-		klines, err := h.eastMoney.FetchKline(ctx, code, 60)
+		klines, err := h.eastMoney.FetchKline(ctx, code, days)
 		if err == nil && len(klines) > 0 {
-			h.klineCache.Set(code, klines, 60*time.Second)
 			return klines, nil
 		}
-		h.logger.Warn("eastmoney kline failed", zap.String("code", code), zap.Error(err))
+		h.logger.Warn("eastmoney kline failed",
+			zap.String("code", code), zap.Int("days", days), zap.Error(err))
 	}
-
 	return nil, fmt.Errorf("klines not available for %s", code)
 }
 
@@ -684,4 +708,99 @@ func containsSubstring(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// IntradayForecastAccuracyResponse wraps the backtest result with metadata.
+type IntradayForecastAccuracyResponse struct {
+	OK       bool                              `json:"ok"`
+	Code     string                            `json:"code"`
+	Days     int                               `json:"days"`
+	Accuracy *services.IntradayForecastAccuracy `json:"accuracy"`
+}
+
+// IntradayForecastAccuracy runs a historical accuracy backtest for the
+// intraday high/low prediction on the given stock.
+//
+// @Summary      日内预测命中率回测
+// @Description  对最近 N 个交易日逐日回放 AnalyzeIntradayForecast，对比预测区间和实际高低点，输出命中率/偏差/可靠性等级
+// @Tags         analyze
+// @Produce      json
+// @Param        code  query   string  true   "股票代码"
+// @Param        days  query   int     false  "回测交易日数（默认 120，最大 250）"  default(120)
+// @Success      200   {object}  IntradayForecastAccuracyResponse
+// @Router       /analyze/intraday-forecast-accuracy [get]
+func (h *AnalyzeHandler) IntradayForecastAccuracy(c *gin.Context) {
+	code := strings.TrimSpace(c.Query("code"))
+	if code == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "missing code"})
+		return
+	}
+
+	days := 120
+	if d := strings.TrimSpace(c.Query("days")); d != "" {
+		if n, err := strconv.Atoi(d); err == nil && n > 0 {
+			days = n
+		}
+	}
+	if days > 500 {
+		days = 500
+	}
+
+	// Fetch with headroom: BacktestIntradayForecast needs `days` evaluable days
+	// plus a 30-bar warmup, but data sources often return fewer rows than
+	// requested (new listings, suspensions, DB gaps). Asking for `days + 60`
+	// gives the backtest room to clamp down to whatever's actually available
+	// instead of failing the whole request.
+	klines, err := h.fetchKlinesN(c.Request.Context(), code, days+60)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+
+	acc := services.BacktestIntradayForecast(klines, days)
+	if acc == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"ok":    false,
+			"error": "insufficient history for backtest (need > 30 bars)",
+		})
+		return
+	}
+
+	// Optional from/to date filter (YYYY-MM-DD). Both inclusive. Filters the
+	// returned `details` array without changing the aggregate metrics (which
+	// are computed over the full window). When both bounds are given the
+	// frontend table view can show just the requested slice.
+	from := strings.TrimSpace(c.Query("from"))
+	to := strings.TrimSpace(c.Query("to"))
+	if from != "" || to != "" {
+		acc.Details = filterDetailsByDate(acc.Details, from, to)
+	}
+
+	c.JSON(http.StatusOK, IntradayForecastAccuracyResponse{
+		OK:       true,
+		Code:     code,
+		Days:     days,
+		Accuracy: acc,
+	})
+}
+
+// filterDetailsByDate returns a copy of details containing only entries with
+// Date in [from, to] (inclusive). Empty bounds are treated as unbounded.
+// Date comparison is lexicographic on the YYYY-MM-DD format, which sorts
+// identically to chronological order — no parsing needed.
+func filterDetailsByDate(details []services.IntradayForecastDay, from, to string) []services.IntradayForecastDay {
+	if len(details) == 0 && from == "" && to == "" {
+		return details
+	}
+	out := make([]services.IntradayForecastDay, 0, len(details))
+	for _, d := range details {
+		if from != "" && d.Date < from {
+			continue
+		}
+		if to != "" && d.Date > to {
+			continue
+		}
+		out = append(out, d)
+	}
+	return out
 }

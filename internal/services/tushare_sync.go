@@ -537,7 +537,7 @@ func (s *TushareSync) SyncTopList(ctx context.Context, tradeDate string) error {
 		}
 		name := strings.ReplaceAll(r.Name, "'", "''")
 		reason := strings.ReplaceAll(r.Reason, "'", "''")
-		batch.WriteString(fmt.Sprintf("('%s','%s','%s',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'%s')",
+		batch.WriteString(fmt.Sprintf("('%s','%s','%s',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'%s')",
 			r.TradeDate, r.TsCode, name,
 			floatStr(r.Close), floatStr(r.PctChange), floatStr(r.TurnoverRate),
 			floatStr(r.Amount), floatStr(r.LSell), floatStr(r.LBuy), floatStr(r.LAmount),
@@ -854,6 +854,64 @@ func (s *TushareSync) RunBackfill(ctx context.Context, startDate, endDate string
 
 	log.Printf("[tushare-backfill] completed")
 	return nil
+}
+
+// BackfillStockKlines fetches historical daily klines for a single stock
+// and upserts them into tushare_daily. Much faster than RunBackfill when
+// you only need data for one stock (one API call instead of hundreds).
+func (s *TushareSync) BackfillStockKlines(ctx context.Context, code string, months int) (int, error) {
+	tsCode := ToTsCode(code)
+	if tsCode == "" {
+		return 0, fmt.Errorf("invalid stock code: %s", code)
+	}
+	if months <= 0 {
+		months = 6
+	}
+	if months > 24 {
+		months = 24
+	}
+
+	startDate := time.Now().AddDate(0, -months, 0).Format("20060102")
+	endDate := time.Now().Format("20060102")
+
+	log.Printf("[backfill-stock] fetching klines for %s from %s to %s", tsCode, startDate, endDate)
+	start := time.Now()
+
+	rows, err := s.ts.FetchDaily(ctx, tsCode, startDate, endDate)
+	if err != nil {
+		return 0, fmt.Errorf("fetch daily for %s: %w", tsCode, err)
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+
+	batch := &strings.Builder{}
+	for i, r := range rows {
+		if i > 0 {
+			batch.WriteString(",")
+		}
+		batch.WriteString(fmt.Sprintf("('%s','%s',%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+			r.TsCode, r.TradeDate,
+			floatStr(r.Open), floatStr(r.High), floatStr(r.Low), floatStr(r.Close),
+			floatStr(r.PreClose), floatStr(r.Change), floatStr(r.PctChg),
+			floatStr(r.Vol), floatStr(r.Amount)))
+	}
+
+	query := fmt.Sprintf(`
+		INSERT INTO tushare_daily (ts_code, trade_date, open, high, low, close, pre_close, change, pct_chg, vol, amount)
+		VALUES %s
+		ON CONFLICT (ts_code, trade_date) DO NOTHING
+	`, batch.String())
+
+	tag, err := s.db.Exec(ctx, query)
+	if err != nil {
+		return 0, fmt.Errorf("insert daily: %w", err)
+	}
+
+	inserted := int(tag.RowsAffected())
+	log.Printf("[backfill-stock] %s: fetched %d rows, inserted %d new in %v",
+		tsCode, len(rows), inserted, time.Since(start))
+	return inserted, nil
 }
 
 // SyncNews syncs news data for all watchlist stocks from EastMoney to DB.

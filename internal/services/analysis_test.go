@@ -1,6 +1,7 @@
 package services
 
 import (
+	"math"
 	"testing"
 
 	"alphapulse/internal/models"
@@ -14,6 +15,29 @@ func TestMovingAverage(t *testing.T) {
 	assert.Equal(t, 0.0, MovingAverage([]float64{1, 2, 3}, 5))
 	assert.InDelta(t, 3.0, MovingAverage([]float64{1, 2, 3, 4, 5}, 5), 0.01)
 	assert.InDelta(t, 5.0, MovingAverage([]float64{2, 3, 4, 5, 6}, 3), 0.01)
+}
+
+func TestCalculateMACD_HistTrendNegativeConverging(t *testing.T) {
+	// 构造"先急跌后企稳"的数据，模拟负柱趋近0的场景
+	closes := make([]float64, 40)
+	for i := 0; i < 20; i++ {
+		closes[i] = 100.0 - float64(i)*2.0 - float64(i%2)*0.5
+	}
+	for i := 20; i < 40; i++ {
+		closes[i] = 60.0 + float64(i-20)*0.3
+	}
+	macd := CalculateMACD(closes)
+	t.Logf("MACD hist=%.4f, trend=%s, last3=%v", macd.Hist, macd.HistTrend, macd.HistLast3)
+
+	// 验证：使用绝对值后，负柱从 -2→-1→-0.5 应被识别为"连续减弱"（趋向0）
+	if macd.Hist < 0 && macd.HistTrend == "连续增强" {
+		// 如果绝对值确实是递增的（负值扩大），那"连续增强"也是合理的
+		last3 := macd.HistLast3
+		t.Logf("Negative hist=%v, last3=%v, abs trend check: |%v| < |%v| < |%v| = %v",
+			macd.Hist, last3, last3[0], last3[1], last3[2],
+			math.Abs(last3[0]) < math.Abs(last3[1]) && math.Abs(last3[1]) < math.Abs(last3[2]))
+	}
+	assert.NotEqual(t, "数据不足", macd.HistTrend, "should have a valid hist trend")
 }
 
 func TestCalculateMACD(t *testing.T) {

@@ -154,12 +154,12 @@ type TechnicalAnalysis struct {
 	BollBandwidth  float64   `json:"boll_bandwidth"`
 	BollPosition   string    `json:"boll_position"`
 	// Multi-period confirmation (weekly)
-	WeeklyMACD     string    `json:"weekly_macd"`
-	WeeklyRSI      float64   `json:"weekly_rsi"`
-	WeeklyRSILevel string    `json:"weekly_rsi_level"`
-	WeeklyMA       string    `json:"weekly_ma"`
-	PeriodAlign    string    `json:"period_align"` // 日周共振/日强周弱/日弱周强/日周背离
-	Verdict        string    `json:"verdict"`
+	WeeklyMACD     string  `json:"weekly_macd"`
+	WeeklyRSI      float64 `json:"weekly_rsi"`
+	WeeklyRSILevel string  `json:"weekly_rsi_level"`
+	WeeklyMA       string  `json:"weekly_ma"`
+	PeriodAlign    string  `json:"period_align"` // 日周共振/日强周弱/日弱周强/日周背离
+	Verdict        string  `json:"verdict"`
 }
 
 type SectorAnalysis struct {
@@ -233,29 +233,31 @@ type MarginAnalysis struct {
 
 // StockAnalysis is the full response for /api/analyze
 type StockAnalysis struct {
-	Code        string              `json:"code"`
-	Name        string              `json:"name"`
-	Version     string              `json:"version"`
-	Quote       Quote               `json:"quote"`
-	VolumePrice VolumePriceAnalysis `json:"volume_price"`
-	Valuation   ValuationAnalysis   `json:"valuation"`
-	Volatility  VolatilityAnalysis  `json:"volatility"`
-	MoneyFlow   MoneyFlowAnalysis   `json:"money_flow"`
-	Technical   TechnicalAnalysis   `json:"technical"`
-	Sector      SectorAnalysis      `json:"sector"`
-	Sentiment      SentimentAnalysis      `json:"sentiment"`
-	Fundamentals   FundamentalsAnalysis   `json:"fundamentals"`
-	Northbound     NorthboundAnalysis     `json:"northbound"`
-	MarginDetail   MarginAnalysis         `json:"margin_detail"`
-	TrendAnalysis    TrendAnalysis          `json:"trend_analysis"`
-	BuyZone          *BuyZoneAnalysis       `json:"buy_zone,omitempty"`
-	TSuggestion      *TSuggestionAnalysis   `json:"t_suggestion,omitempty"`
-	IntradayForecast *IntradayForecast      `json:"intraday_forecast,omitempty"`
-	Holding          *HoldingInfo           `json:"holding,omitempty"`
-	Summary          AnalysisSummary        `json:"summary"`
-	DataSources map[string]string   `json:"data_sources"`
-	Errors      map[string]string   `json:"errors"`
-	FetchedAt   time.Time           `json:"fetched_at"`
+	Code             string               `json:"code"`
+	Name             string               `json:"name"`
+	Version          string               `json:"version"`
+	Quote            Quote                `json:"quote"`
+	VolumePrice      VolumePriceAnalysis  `json:"volume_price"`
+	Valuation        ValuationAnalysis    `json:"valuation"`
+	Volatility       VolatilityAnalysis   `json:"volatility"`
+	MoneyFlow        MoneyFlowAnalysis    `json:"money_flow"`
+	Technical        TechnicalAnalysis    `json:"technical"`
+	Sector           SectorAnalysis       `json:"sector"`
+	Sentiment        SentimentAnalysis    `json:"sentiment"`
+	Fundamentals     FundamentalsAnalysis `json:"fundamentals"`
+	Northbound       NorthboundAnalysis   `json:"northbound"`
+	MarginDetail     MarginAnalysis       `json:"margin_detail"`
+	TrendAnalysis    TrendAnalysis        `json:"trend_analysis"`
+	BuyZone          *BuyZoneAnalysis     `json:"buy_zone,omitempty"`
+	TSuggestion      *TSuggestionAnalysis `json:"t_suggestion,omitempty"`
+	IntradayForecast *IntradayForecast    `json:"intraday_forecast,omitempty"`
+	PatternAnalysis  *PatternAnalysis     `json:"pattern_analysis,omitempty"`
+	ShortTermScore   *ShortTermScore      `json:"short_term_score,omitempty"`
+	Holding          *HoldingInfo         `json:"holding,omitempty"`
+	Summary          AnalysisSummary      `json:"summary"`
+	DataSources      map[string]string    `json:"data_sources"`
+	Errors           map[string]string    `json:"errors"`
+	FetchedAt        time.Time            `json:"fetched_at"`
 }
 
 // ---- Trading signal models ----
@@ -318,8 +320,73 @@ type ConditionOrder struct {
 type IntradayForecast struct {
 	PredictedHigh float64 `json:"predicted_high"`
 	PredictedLow  float64 `json:"predicted_low"`
-	CurrentZone   string  `json:"current_zone"`
-	ZonePct       float64 `json:"zone_pct"`
+	// ±1σ confidence bands derived from recent TR std-dev. ~68% of trading
+	// days should see the actual high fall in [PredictedHighDown, PredictedHighUp]
+	// (and analogously for the low). Tight bands → high-confidence forecast;
+	// wide bands → low-confidence, treat the central number skeptically.
+	PredictedHighUp   float64 `json:"predicted_high_up,omitempty"`
+	PredictedHighDown float64 `json:"predicted_high_down,omitempty"`
+	PredictedLowUp    float64 `json:"predicted_low_up,omitempty"`
+	PredictedLowDown  float64 `json:"predicted_low_down,omitempty"`
+	SigmaHigh         float64 `json:"sigma_high,omitempty"`
+	SigmaLow          float64 `json:"sigma_low,omitempty"`
+	// Median high/low — P50 of the historical up/down excursion distribution.
+	// ~50% of trading days will reach this level. Use these for "high fill
+	// rate" condition orders when you must transact today at a tolerable
+	// price. Contrast with PredictedHigh (P83, only 17% of days reach it).
+	PredictedHighMedian float64 `json:"predicted_high_median,omitempty"`
+	PredictedLowMedian  float64 `json:"predicted_low_median,omitempty"`
+	CurrentZone         string  `json:"current_zone"`
+	ZonePct             float64 `json:"zone_pct"`
+	Bias                string  `json:"bias,omitempty"`        // "bullish" / "bearish" / "neutral"
+	BiasReason          string  `json:"bias_reason,omitempty"` // e.g. "锤子线+放量突破"
+	BiasStrength        float64 `json:"bias_strength,omitempty"` // sum of pattern confidences, capped at 2.5
+	SupportLevel        float64 `json:"support_level,omitempty"`
+	ResistLevel         float64 `json:"resist_level,omitempty"`
+}
+
+// PatternSignal represents a detected K-line, chart, or volume pattern.
+type PatternSignal struct {
+	Pattern     string  `json:"pattern"`
+	Category    string  `json:"category"`   // "kline" / "chart" / "volume"
+	Direction   string  `json:"direction"`  // "bullish" / "bearish" / "neutral"
+	Confidence  float64 `json:"confidence"` // 0-1
+	Date        string  `json:"date"`
+	Description string  `json:"description"`
+}
+
+// PatternAnalysis summarizes detected K-line and chart patterns.
+type PatternAnalysis struct {
+	Signals       []PatternSignal `json:"signals"`
+	KlineSignals  []PatternSignal `json:"kline_signals,omitempty"`
+	ChartSignals  []PatternSignal `json:"chart_signals,omitempty"`
+	VolumeSignals []PatternSignal `json:"volume_signals,omitempty"`
+	Primary       *PatternSignal  `json:"primary,omitempty"`
+	BullishCount  int             `json:"bullish_count"`
+	BearishCount  int             `json:"bearish_count"`
+	NeutralCount  int             `json:"neutral_count"`
+	NetBias       string          `json:"net_bias"`
+	ScoreImpact   float64         `json:"score_impact"`
+	Verdict       string          `json:"verdict"`
+}
+
+// ScoreComponent explains one component of the short-term score.
+type ScoreComponent struct {
+	Name   string  `json:"name"`
+	Score  float64 `json:"score"`
+	Weight float64 `json:"weight"`
+	Reason string  `json:"reason"`
+}
+
+// ShortTermScore holds a 1-5 day tactical score.
+type ShortTermScore struct {
+	Score      float64          `json:"score"`
+	Grade      string           `json:"grade"`
+	Signal     string           `json:"signal"`
+	Components []ScoreComponent `json:"components"`
+	Reasons    []string         `json:"reasons,omitempty"`
+	Risks      []string         `json:"risks,omitempty"`
+	Verdict    string           `json:"verdict"`
 }
 
 // HoldingInfo holds the user's portfolio position for the analyzed stock.

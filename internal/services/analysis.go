@@ -73,10 +73,14 @@ func CalculateMACD(closes []float64) models.MACDResult {
 		}
 	}
 
+	// HistTrend 使用绝对值比较，确保方向一致性：
+	//   正柱（hist>0）：绝对值增大=动量增强，绝对值减小=动量减弱
+	//   负柱（hist<0）：绝对值增大=动量增强（空方扩大），绝对值减小=动量减弱（空方收敛）
 	histTrend := "震荡"
-	if last3[0] < last3[1] && last3[1] < last3[2] {
+	abs0, abs1, abs2 := math.Abs(last3[0]), math.Abs(last3[1]), math.Abs(last3[2])
+	if abs0 < abs1 && abs1 < abs2 {
 		histTrend = "连续增强"
-	} else if last3[0] > last3[1] && last3[1] > last3[2] {
+	} else if abs0 > abs1 && abs1 > abs2 {
 		histTrend = "连续减弱"
 	}
 

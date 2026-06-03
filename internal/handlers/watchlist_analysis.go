@@ -58,7 +58,9 @@ func (h *WatchlistAnalysisHandler) SetTushareDB(db *services.TushareDB) {
 // InvalidateRankingCache clears the ranking cache so the next request re-analyzes.
 // Called when the watchlist changes (add/remove/sync).
 func (h *WatchlistAnalysisHandler) InvalidateRankingCache() {
-	h.rankingCache.Delete("all")
+	for _, key := range []string{"all", "all_default", "all_momentum", "all_value", "all_balanced"} {
+		h.rankingCache.Delete(key)
+	}
 	h.log.Info("ranking cache invalidated due to watchlist change")
 }
 

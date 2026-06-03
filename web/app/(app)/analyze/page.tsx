@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { analysisApi, searchApi } from "@/lib/api-client";
-import type { StockAnalysis, DeepAnalysisResponse, ScoreHistoryResponse, SearchSuggestion } from "@/lib/types";
+import type { StockAnalysis, DeepAnalysisResponse, ScoreHistoryResponse, SearchSuggestion, IntradayForecastAccuracy, OrderLevelStat } from "@/lib/types";
+import BacktestSection from "./BacktestSection";
 import { DIM_LABELS, formatPct, formatPrice, formatVolume, formatMoney } from "@/lib/constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Search, Loader2, Brain, TrendingUp, TrendingDown, BarChart3,
   ChevronDown, ChevronRight, Activity, Clock, X,
@@ -60,6 +62,13 @@ export default function AnalyzePage() {
   // Score history
   const [history, setHistory] = useState<ScoreHistoryResponse | null>(null);
 
+  // Intraday-forecast accuracy (lazy-fetched on demand)
+  const [forecastAccuracy, setForecastAccuracy] = useState<IntradayForecastAccuracy | null>(null);
+  const [forecastAccuracyLoading, setForecastAccuracyLoading] = useState(false);
+  const [forecastAccuracyError, setForecastAccuracyError] = useState("");
+  const [forecastAccuracyRequested, setForecastAccuracyRequested] = useState(false);
+  const [accuracyDays, setAccuracyDays] = useState(120);
+
   // Search suggestions & search history
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [showSugg, setShowSugg] = useState(false);
@@ -71,6 +80,27 @@ export default function AnalyzePage() {
     setSearchHistory(loadHistory());
   }, []);
 
+  // refetchAccuracy re-runs the backtest with the current date-range state.
+  // Used both for the initial fetch and when the user changes the window.
+  const refetchAccuracy = useCallback(async (
+    c: string,
+    days: number,
+    from: string,
+    to: string,
+  ) => {
+    setForecastAccuracyRequested(true);
+    setForecastAccuracyLoading(true);
+    setForecastAccuracyError("");
+    try {
+      const acc = await analysisApi.intradayForecastAccuracy(c, { days, from: from || undefined, to: to || undefined });
+      setForecastAccuracy(acc);
+    } catch (e: any) {
+      setForecastAccuracyError(e?.message || "回测失败");
+    } finally {
+      setForecastAccuracyLoading(false);
+    }
+  }, []);
+
   const doAnalyze = useCallback(async (c: string) => {
     if (!c) return;
     setLoading(true);
@@ -78,18 +108,27 @@ export default function AnalyzePage() {
     setData(null);
     setHistory(null);
     setDeepStatus(null);
+    // Reset accuracy state for the new ticker.
+    setForecastAccuracy(null);
+    setForecastAccuracyError("");
+    setForecastAccuracyLoading(false);
+    setForecastAccuracyRequested(false);
     try {
       const res = await analysisApi.analyze(c);
       setData(res);
       saveHistory(c, res.name);
       setSearchHistory(loadHistory());
       analysisApi.scoreHistory(c).then(setHistory).catch(() => {});
+      // Only fetch accuracy if the ticker actually has an intraday forecast.
+      if (res.intraday_forecast) {
+        refetchAccuracy(c, accuracyDays, "", "");
+      }
     } catch (err: any) {
       setError(err.message || "分析失败");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [accuracyDays, refetchAccuracy]);
 
   // Auto-analyze if code param present
   useEffect(() => {
@@ -346,116 +385,286 @@ export default function AnalyzePage() {
             </Card>
           )}
 
-          {/* Trading signals: buy zone + T-suggestion + intraday forecast */}
-          {(data.buy_zone || data.t_suggestion || data.intraday_forecast) && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Buy Zone */}
-              {data.buy_zone && (
-                <Card>
-                  <CardHeader className="pb-2 pt-4 px-4">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">买入区间</CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4">
-                    <div className="space-y-2">
-                      {data.buy_zone.zones.map((z, i) => (
-                        <div key={`${z.method}-${i}`} className="flex flex-col gap-0.5 text-xs">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium">{z.method}</span>
-                            <Badge variant="outline" className="text-[10px]">
-                              安全 {z.safety_score.toFixed(0)}
-                            </Badge>
-                          </div>
-                          <div className="flex justify-between text-muted-foreground font-mono tabular-nums">
-                            <span>{z.lower_bound.toFixed(2)}</span>
-                            <span>~</span>
-                            <span>{z.upper_bound.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between text-muted-foreground">
-                            <span>最优 {z.optimal_entry.toFixed(2)}</span>
-                            <span>止损 {z.stop_loss.toFixed(2)}</span>
-                          </div>
-                        </div>
-                      ))}
-                      {data.buy_zone.verdict && (
-                        <p className="text-xs text-muted-foreground pt-1">{data.buy_zone.verdict}</p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* T-suggestion */}
-              {data.t_suggestion && (
-                <Card className="md:col-span-2">
-                  <CardHeader className="pb-2 pt-4 px-4">
-                    <div className="flex items-center gap-2">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">做T建议</CardTitle>
+          {/* Trading plan */}
+          <Card className="border-primary/20">
+            <CardHeader className="pb-2 pt-4 px-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-primary" />
+                  <CardTitle className="text-sm font-medium">交易计划</CardTitle>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {data.t_suggestion ? (
+                    <>
                       <Badge variant="outline">{data.t_suggestion.type}</Badge>
-                      <span className="text-xs text-muted-foreground">{data.t_suggestion.action}</span>
-                      {data.t_suggestion.confidence > 0 && (
-                        <Badge variant="secondary" className="text-[10px] ml-auto">
-                          置信度 {data.t_suggestion.confidence.toFixed(0)}%
-                        </Badge>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4">
-                    <div className="space-y-3">
-                      {data.t_suggestion.reason && (
-                        <p className="text-xs text-muted-foreground">{data.t_suggestion.reason}</p>
-                      )}
-                      {/* Condition orders */}
-                      {data.t_suggestion.condition_buy && (
-                        <ConditionOrderCard order={data.t_suggestion.condition_buy} step={1} />
-                      )}
-                      {data.t_suggestion.condition_sell && (
-                        <ConditionOrderCard order={data.t_suggestion.condition_sell} step={2} />
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+                      <Badge variant="secondary" className="text-[10px]">
+                        置信度 {data.t_suggestion.confidence.toFixed(0)}%
+                      </Badge>
+                    </>
+                  ) : (
+                    <Badge variant="outline">未生成做T</Badge>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <Tabs defaultValue="t" className="gap-3">
+                <TabsList className="w-full justify-start overflow-x-auto">
+                  <TabsTrigger value="t" className="min-w-20">
+                    <TrendingUp className="h-3.5 w-3.5" />
+                    做T
+                  </TabsTrigger>
+                  <TabsTrigger value="buy" className="min-w-24">
+                    <TrendingDown className="h-3.5 w-3.5" />
+                    买入区间
+                  </TabsTrigger>
+                  <TabsTrigger value="day" className="min-w-24">
+                    <Clock className="h-3.5 w-3.5" />
+                    日内预测
+                  </TabsTrigger>
+                  <TabsTrigger value="pattern" className="min-w-24">
+                    <BarChart3 className="h-3.5 w-3.5" />
+                    形态评分
+                  </TabsTrigger>
+                </TabsList>
 
-              {/* Intraday forecast */}
-              {data.intraday_forecast && (
-                <Card>
-                  <CardHeader className="pb-2 pt-4 px-4">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">日内预测</CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4">
+                <TabsContent value="t" className="mt-0">
+                  {data.t_suggestion ? (
                     <div className="space-y-3">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">预测低</span>
-                        <span className="font-mono tabular-nums">{data.intraday_forecast.predicted_low.toFixed(2)}</span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium">{data.t_suggestion.action}</span>
+                        {data.t_suggestion.reason && (
+                          <span className="text-xs text-muted-foreground">{data.t_suggestion.reason}</span>
+                        )}
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">预测高</span>
-                        <span className="font-mono tabular-nums">{data.intraday_forecast.predicted_high.toFixed(2)}</span>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1 rounded-md bg-muted/40 p-2">
+                        <TMetric l="T仓" v={data.t_suggestion.t_quantity > 0 ? `${data.t_suggestion.t_quantity}股` : "—"} />
+                        <TMetric l="仓位" v={data.t_suggestion.position_ratio > 0 ? `${data.t_suggestion.position_ratio.toFixed(0)}%` : "—"} />
+                        <TMetric l="收益/风险" v={data.t_suggestion.risk_reward > 0 ? data.t_suggestion.risk_reward.toFixed(2) : "—"} />
+                        <TMetric l="触发阈值" v={data.t_suggestion.trigger_pct > 0 ? `±${data.t_suggestion.trigger_pct.toFixed(2)}%` : "—"} />
+                        <TMetric l="目标收益" v={data.t_suggestion.expected_profit_pct > 0 ? formatPct(data.t_suggestion.expected_profit_pct) : "—"} />
+                        <TMetric l="最大回撤" v={data.t_suggestion.max_loss_pct > 0 ? `-${data.t_suggestion.max_loss_pct.toFixed(2)}%` : "—"} />
+                        <TMetric l="信号分" v={data.t_suggestion.signal_score > 0 ? data.t_suggestion.signal_score.toFixed(0) : "—"} />
+                        <TMetric l="止损" v={data.t_suggestion.stop_loss > 0 ? data.t_suggestion.stop_loss.toFixed(2) : "—"} />
                       </div>
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>当前位置</span>
-                          <span>{data.intraday_forecast.zone_pct.toFixed(0)}%</span>
+                      {data.t_suggestion.signal_details && data.t_suggestion.signal_details.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {data.t_suggestion.signal_details.slice(0, 4).map((detail) => (
+                            <Badge key={detail} variant="secondary" className="text-[10px] font-normal">
+                              {detail}
+                            </Badge>
+                          ))}
                         </div>
-                        <div className="h-2 rounded-full bg-muted overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-foreground/50 transition-all"
-                            style={{ width: `${Math.max(2, Math.min(100, data.intraday_forecast.zone_pct))}%` }}
+                      )}
+                      {data.t_suggestion.risk_notes && data.t_suggestion.risk_notes.length > 0 && (
+                        <div className="space-y-1">
+                          {data.t_suggestion.risk_notes.slice(0, 3).map((note) => (
+                            <p key={note} className="text-[11px] text-amber-700 dark:text-amber-300">{note}</p>
+                          ))}
+                        </div>
+                      )}
+                      {data.t_suggestion.execution_tip && (
+                        <p className="text-[11px] text-muted-foreground">{data.t_suggestion.execution_tip}</p>
+                      )}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {data.t_suggestion.condition_buy && (
+                          <ConditionOrderCard order={data.t_suggestion.condition_buy} step={1} />
+                        )}
+                        {data.t_suggestion.condition_sell && (
+                          <ConditionOrderCard order={data.t_suggestion.condition_sell} step={2} />
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <EmptyTradePanel
+                      title="未检测到可执行做T计划"
+                      description={data.holding ? "当前信号未达到做T触发条件，先按买入区间和日内位置观察。" : "当前股票未匹配到持仓，暂不生成T仓数量和条件单。"}
+                    />
+                  )}
+                </TabsContent>
+
+                <TabsContent value="buy" className="mt-0">
+                  {data.buy_zone ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {data.buy_zone.zones.map((z, i) => (
+                          <div key={`${z.method}-${i}`} className="rounded-md border bg-background p-3 text-xs">
+                            <div className="mb-2 flex items-center justify-between">
+                              <span className="font-medium">{z.method}</span>
+                              <Badge variant="outline" className="text-[10px]">
+                                安全 {z.safety_score.toFixed(0)}
+                              </Badge>
+                            </div>
+                            <div className="flex justify-between text-muted-foreground font-mono tabular-nums">
+                              <span>{z.lower_bound.toFixed(2)}</span>
+                              <span>~</span>
+                              <span>{z.upper_bound.toFixed(2)}</span>
+                            </div>
+                            <div className="mt-1 flex justify-between text-muted-foreground">
+                              <span>最优 {z.optimal_entry.toFixed(2)}</span>
+                              <span>止损 {z.stop_loss.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {data.buy_zone.verdict && (
+                        <p className="text-xs text-muted-foreground">{data.buy_zone.verdict}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <EmptyTradePanel title="买入区间暂不可用" description="ATR、支撑位或布林带数据不足，暂不展示价格区间。" />
+                  )}
+                </TabsContent>
+
+                <TabsContent value="day" className="mt-0">
+                  {data.intraday_forecast ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-4">
+                        <div className="grid grid-cols-2 gap-2">
+                          <ForecastBox
+                            label="预测低"
+                            value={data.intraday_forecast.predicted_low}
+                            upBand={data.intraday_forecast.predicted_low_up}
+                            downBand={data.intraday_forecast.predicted_low_down}
+                            sigma={data.intraday_forecast.sigma_low}
+                          />
+                          <ForecastBox
+                            label="预测高"
+                            value={data.intraday_forecast.predicted_high}
+                            upBand={data.intraday_forecast.predicted_high_up}
+                            downBand={data.intraday_forecast.predicted_high_down}
+                            sigma={data.intraday_forecast.sigma_high}
                           />
                         </div>
-                        <div className="flex justify-between text-[10px] text-muted-foreground">
-                          <span>低</span>
-                          <span>高</span>
+                        <div className="space-y-2 self-center">
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>当前位置</span>
+                            <span>{data.intraday_forecast.zone_pct.toFixed(0)}%</span>
+                          </div>
+                          <div className="h-3 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-primary transition-all"
+                              style={{ width: `${Math.max(2, Math.min(100, data.intraday_forecast.zone_pct))}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-[10px] text-muted-foreground">
+                            <span>低位</span>
+                            <span>{data.intraday_forecast.current_zone === "lower" ? "偏低区域" : data.intraday_forecast.current_zone === "upper" ? "偏高区域" : "中间区域"}</span>
+                            <span>高位</span>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1 rounded-md bg-muted/40 p-2">
+                            <TMetric l="偏向" v={formatBias(data.intraday_forecast.bias)} />
+                            <TMetric l="偏向强度" v={formatBiasStrength(data.intraday_forecast.bias_strength, data.intraday_forecast.bias)} />
+                            <TMetric l="支撑" v={data.intraday_forecast.support_level ? data.intraday_forecast.support_level.toFixed(2) : "—"} />
+                            <TMetric l="压力" v={data.intraday_forecast.resist_level ? data.intraday_forecast.resist_level.toFixed(2) : "—"} />
+                            <div className="col-span-2 md:col-span-4">
+                              <TMetric l="理由" v={data.intraday_forecast.bias_reason || "—"} />
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        区间: {data.intraday_forecast.current_zone === "lower" ? "偏低区域" : data.intraday_forecast.current_zone === "upper" ? "偏高区域" : "中间区域"}
-                      </div>
+                      {forecastAccuracyRequested && (
+                        <ForecastAccuracyPanel
+                          accuracy={forecastAccuracy}
+                          loading={forecastAccuracyLoading}
+                          error={forecastAccuracyError}
+                        />
+                      )}
+                      <OrderSuggestionPanel
+                        fc={data.intraday_forecast}
+                        accuracy={forecastAccuracy}
+                        isHolding={!!data.holding}
+                      />
                     </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+                  ) : (
+                    <EmptyTradePanel title="日内预测暂不可用" description="K线或昨收数据不足，暂不展示日内高低点预测。" />
+                  )}
+                </TabsContent>
+
+                <TabsContent value="pattern" className="mt-0">
+                  <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
+                    {data.short_term_score ? (
+                      <div className="rounded-md border bg-background p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">短线综合评分</span>
+                          <Badge variant="secondary">{data.short_term_score.grade}</Badge>
+                        </div>
+                        <div className="mt-2 flex items-end gap-2">
+                          <span className="font-mono text-3xl font-semibold tabular-nums">{data.short_term_score.score.toFixed(0)}</span>
+                          <span className="pb-1 text-sm text-muted-foreground">{data.short_term_score.signal}</span>
+                        </div>
+                        <p className="mt-2 text-xs text-muted-foreground">{data.short_term_score.verdict}</p>
+                        <div className="mt-3 space-y-1">
+                          {data.short_term_score.components.map((c) => (
+                            <div key={c.name} className="grid grid-cols-[72px_1fr_36px] items-center gap-2 text-xs">
+                              <span className="text-muted-foreground">{c.name}</span>
+                              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                                <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(2, Math.min(100, c.score))}%` }} />
+                              </div>
+                              <span className="font-mono text-right tabular-nums">{c.score.toFixed(0)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <EmptyTradePanel title="短线评分暂不可用" description="技术、量价或资金数据不足，暂不输出综合评分。" />
+                    )}
+
+                    {data.pattern_analysis ? (
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline">{formatBias(data.pattern_analysis.net_bias)}</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            多 {data.pattern_analysis.bullish_count} / 空 {data.pattern_analysis.bearish_count} / 中性 {data.pattern_analysis.neutral_count}
+                          </span>
+                          <span className="text-xs text-muted-foreground">评分影响 {data.pattern_analysis.score_impact.toFixed(0)}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{data.pattern_analysis.verdict}</p>
+                        {data.pattern_analysis.signals.length > 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {data.pattern_analysis.signals.slice(0, 6).map((p) => (
+                              <div key={`${p.category}-${p.pattern}-${p.date}`} className="rounded-md border bg-background p-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium">{p.pattern}</span>
+                                  <PatternDirectionBadge direction={p.direction} />
+                                  <Badge variant="outline" className="text-[10px] ml-auto">{formatPatternCategory(p.category)}</Badge>
+                                </div>
+                                <p className="mt-1 text-[11px] text-muted-foreground">{p.description}</p>
+                                <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
+                                  <span>{p.date || "—"}</span>
+                                  <span>置信度 {(p.confidence * 100).toFixed(0)}%</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <EmptyTradePanel title="暂无明确形态" description="最近K线未识别出高置信度K线组合、双底双顶、头肩、三角或旗形。" />
+                        )}
+                      </div>
+                    ) : (
+                      <EmptyTradePanel title="形态识别暂不可用" description="K线数量不足，暂不输出形态识别结果。" />
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+
+          {/* Backtest section */}
+          {forecastAccuracyRequested && (
+            <BacktestSection
+              accuracy={forecastAccuracy}
+              loading={forecastAccuracyLoading}
+              error={forecastAccuracyError}
+              days={accuracyDays}
+              onDaysChange={(d) => {
+                setAccuracyDays(d);
+                if (code) refetchAccuracy(code, d, "", "");
+              }}
+              onApplyRange={() => {
+                if (code) refetchAccuracy(code, accuracyDays, "", "");
+              }}
+            />
           )}
 
           {/* Dimension cards */}
@@ -741,6 +950,663 @@ function KV({ l, v }: { l: string; v: string }) {
   );
 }
 
+function TMetric({ l, v }: { l: string; v: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2 text-xs min-w-0">
+      <span className="text-muted-foreground shrink-0">{l}</span>
+      <span className="font-mono tabular-nums text-right truncate">{v}</span>
+    </div>
+  );
+}
+
+// ForecastBox renders a predicted high or low with its ±1σ confidence band.
+// Visual conventions:
+//   - central value large
+//   - ±σ shown as small subtext (e.g., "±0.45")
+//   - full range shown as a tiny muted line (e.g., "49.05 — 49.95")
+//   - sigma hidden when zero / undefined
+function ForecastBox({
+  label,
+  value,
+  upBand,
+  downBand,
+  sigma,
+}: {
+  label: string;
+  value: number;
+  upBand?: number;
+  downBand?: number;
+  sigma?: number;
+}) {
+  const hasSigma = sigma !== undefined && sigma > 0;
+  const sigmaStr = hasSigma ? `±${sigma.toFixed(2)}` : "";
+  const rangeStr =
+    upBand !== undefined && downBand !== undefined
+      ? `${downBand.toFixed(2)} — ${upBand.toFixed(2)}`
+      : "";
+
+  return (
+    <div className="rounded-md border bg-background p-3">
+      <div className="flex items-baseline justify-between">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        {hasSigma && (
+          <span className="text-[10px] text-muted-foreground" title="预测不确定性 (1σ)">
+            σ {sigmaStr}
+          </span>
+        )}
+      </div>
+      <div className="mt-1 font-mono text-lg tabular-nums">{value.toFixed(2)}</div>
+      {rangeStr && (
+        <div className="mt-0.5 text-[10px] text-muted-foreground tabular-nums" title="±1σ 置信区间">
+          {rangeStr}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// formatBiasStrength turns the bias_strength number into a label that reflects
+// the confidence-weighted sum of patterns driving the bias.
+//   < 0.5 : "弱" (single low-confidence pattern)
+//   < 1.0 : "中"
+//   < 1.5 : "强"
+//   ≥ 1.5 : "极强 (共振)"
+function formatBiasStrength(strength: number | undefined, bias: string | undefined): string {
+  if (strength === undefined || strength <= 0 || bias === "neutral" || bias === undefined) {
+    return "—";
+  }
+  let tier: string;
+  switch (true) {
+    case strength >= 1.5:
+      tier = "极强";
+      break;
+    case strength >= 1.0:
+      tier = "强";
+      break;
+    case strength >= 0.5:
+      tier = "中";
+      break;
+    default:
+      tier = "弱";
+  }
+  return `${tier} (${strength.toFixed(2)})`;
+}
+
+function EmptyTradePanel({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="rounded-md border border-dashed bg-muted/20 p-4">
+      <div className="text-sm font-medium">{title}</div>
+      <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Intraday-forecast historical accuracy panel
+// ──────────────────────────────────────────────
+// Shows empirical hit rates for the day-range forecast so the user can decide
+// whether to trust today's predicted_high / predicted_low for sell timing.
+// Backtest comes from /api/analyze/intraday-forecast-accuracy (Go side:
+// services.BacktestIntradayForecast, no look-ahead).
+
+const ACCURACY_DAYS_WINDOW = 30; // how many recent days to render in the heatmap
+
+function reliabilityMeta(r: string): { label: string; className: string } {
+  switch (r) {
+    case "high_confidence":
+      return { label: "高可信", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" };
+    case "moderate":
+      return { label: "中等", className: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" };
+    default:
+      return { label: "低可信", className: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300" };
+  }
+}
+
+function hitStatusColor(highHit: boolean, lowHit: boolean, bothWide: boolean): string {
+  // Priority: both central hit → green; wide-only hit → amber; miss → rose.
+  if (highHit && lowHit) return "bg-emerald-500";
+  if (bothWide) return "bg-amber-400";
+  return "bg-rose-500";
+}
+
+function AccuracyHeatmap({ details }: { details: NonNullable<IntradayForecastAccuracy["details"]> }) {
+  // Show last ACCURACY_DAYS_WINDOW days, oldest → newest, left to right.
+  const recent = details.slice(-ACCURACY_DAYS_WINDOW);
+  if (recent.length === 0) return null;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-1">
+        <span className="w-8 text-[10px] text-muted-foreground">高</span>
+        <div className="flex flex-1 gap-[2px]">
+          {recent.map((d, i) => (
+            <div
+              key={`h-${i}-${d.date}`}
+              className={`h-3 flex-1 rounded-[2px] ${hitStatusColor(d.high_in_range, true, d.high_in_wide_range)}`}
+              title={`${d.date} · 预测高 ${d.predicted_high.toFixed(2)} · 实际高 ${d.actual_high.toFixed(2)} · ${d.high_in_range ? "命中" : d.high_in_wide_range ? "宽区间命中" : "偏离"}`}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="w-8 text-[10px] text-muted-foreground">低</span>
+        <div className="flex flex-1 gap-[2px]">
+          {recent.map((d, i) => (
+            <div
+              key={`l-${i}-${d.date}`}
+              className={`h-3 flex-1 rounded-[2px] ${hitStatusColor(true, d.low_in_range, d.low_in_wide_range)}`}
+              title={`${d.date} · 预测低 ${d.predicted_low.toFixed(2)} · 实际低 ${d.actual_low.toFixed(2)} · ${d.low_in_range ? "命中" : d.low_in_wide_range ? "宽区间命中" : "偏离"}`}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-0.5">
+        <span>{recent[0].date}</span>
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-emerald-500" />命中</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-amber-400" />宽区间</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-rose-500" />偏离</span>
+        </div>
+        <span>{recent[recent.length - 1].date}</span>
+      </div>
+    </div>
+  );
+}
+
+function ForecastAccuracyPanel({
+  accuracy,
+  loading,
+  error,
+}: {
+  accuracy: IntradayForecastAccuracy | null;
+  loading: boolean;
+  error: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (loading) {
+    return (
+      <div className="mt-3 rounded-md border bg-muted/20 p-3">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          正在回测日内预测历史命中率…
+        </div>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="mt-3 rounded-md border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
+        历史命中率暂不可用：{error}
+      </div>
+    );
+  }
+  if (!accuracy) return null;
+
+  const meta = reliabilityMeta(accuracy.reliability);
+  const details = accuracy.details ?? [];
+  const lowReliability = accuracy.reliability === "low_confidence";
+
+  return (
+    <div className="mt-3 rounded-md border bg-background">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+      >
+        <div className="flex items-center gap-2">
+          {open ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+          <span className="text-xs font-medium">历史命中率</span>
+          <Badge variant="outline" className={`text-[10px] border-0 ${meta.className}`}>{meta.label}</Badge>
+          <span className="text-[10px] text-muted-foreground">· {accuracy.days_evaluated} 个交易日</span>
+        </div>
+        <span className="text-[10px] text-muted-foreground font-mono tabular-nums">
+          中央 {(accuracy.both_in_range_pct * 100).toFixed(0)}% · 宽区间 {(accuracy.both_in_wide_range_pct * 100).toFixed(0)}%
+        </span>
+      </button>
+
+      {open && (
+        <div className="space-y-3 border-t px-3 py-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1 rounded-md bg-muted/40 p-2">
+            <TMetric l="中央命中率" v={`${(accuracy.both_in_range_pct * 100).toFixed(1)}%`} />
+            <TMetric l="宽区间命中率" v={`${(accuracy.both_in_wide_range_pct * 100).toFixed(1)}%`} />
+            <TMetric l="平均 σ" v={accuracy.avg_sigma > 0 ? accuracy.avg_sigma.toFixed(2) : "—"} />
+            <TMetric l="平均宽度" v={accuracy.avg_range_width_pct > 0 ? `${(accuracy.avg_range_width_pct * 100).toFixed(2)}%` : "—"} />
+            <TMetric l="高价命中" v={`${(accuracy.high_in_range_pct * 100).toFixed(1)}%`} />
+            <TMetric l="低价命中" v={`${(accuracy.low_in_range_pct * 100).toFixed(1)}%`} />
+            <TMetric
+              l="高价偏离"
+              v={accuracy.avg_high_miss_pct !== 0 ? `${(accuracy.avg_high_miss_pct * 100).toFixed(2)}%` : "—"}
+            />
+            <TMetric
+              l="低价偏离"
+              v={accuracy.avg_low_miss_pct !== 0 ? `${(accuracy.avg_low_miss_pct * 100).toFixed(2)}%` : "—"}
+            />
+          </div>
+
+          {details.length > 0 && (
+            <div>
+              <div className="mb-1.5 text-[10px] text-muted-foreground">
+                近 {Math.min(ACCURACY_DAYS_WINDOW, details.length)} 天命中分布
+              </div>
+              <AccuracyHeatmap details={details} />
+            </div>
+          )}
+
+          {lowReliability && (
+            <div className="rounded-md border border-rose-300/60 bg-rose-50 dark:border-rose-800/60 dark:bg-rose-950/30 p-2">
+              <p className="text-[11px] text-rose-700 dark:text-rose-300">
+                ⚠ 此预测历史中央命中率低于 55%，请勿单独用于决策。建议结合其他信号（形态、买卖区间、趋势）综合判断。
+              </p>
+            </div>
+          )}
+          {!lowReliability && accuracy.reliability === "moderate" && (
+            <p className="text-[11px] text-muted-foreground">
+              提示：中等可信度下日内预测可作为参考，但不建议作为唯一卖出触发条件。
+            </p>
+          )}
+          {accuracy.reliability === "high_confidence" && (
+            <p className="text-[11px] text-emerald-700 dark:text-emerald-300">
+              ✓ 历史命中率 ≥ 70%，日内预测可信度较高，可作为日内卖出时点的辅助依据。
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Today's order-suggestion panel
+// ──────────────────────────────────────────────
+// Maps the empirical-quantile forecast into concrete price levels with
+// fill-probability annotations and a bias-aware recommendation, so the user
+// can decide where to place today's condition orders without doing the
+// percentile math in their head.
+//
+// Fill-probability semantics:
+//   "成交概率 X%" = historically, X% of trading days saw the price reach this
+//   level intraday. So a sell limit at P83 (17% fill rate) only fills ~17%
+//   of the time, but at the top of the predicted range. A sell at P50 (50%)
+//   fills half the time at a mid-range price.
+//
+// Levels come from the backend's empirical excursion distribution:
+//   P50  → predicted_high_median / predicted_low_median  (~50% fill)
+//   P83  → predicted_high / predicted_low                (~17% fill, ceiling/floor)
+//   P95  → predicted_high_up / predicted_low_down        (~5% fill, spike)
+
+type SellLevel = { price: number; fillPct: number; tag: string; useCase: string; empFillPct?: number; empPnlPct?: number; empFills?: number; empWinRate?: number; empCumPnl?: number };
+type BuyLevel = { price: number; fillPct: number; tag: string; useCase: string; empFillPct?: number; empPnlPct?: number; empFills?: number; empWinRate?: number; empCumPnl?: number };
+
+function enrichWithStats<T extends { tag: string }>(
+  levels: T[],
+  orderStats: OrderLevelStat[] | undefined,
+  side: "sell" | "buy",
+): T[] {
+  if (!orderStats) return levels;
+  return levels.map((lv) => {
+    const stat = orderStats.find((s) => s.side === side && s.tag === lv.tag);
+    if (!stat) return lv;
+    return {
+      ...lv,
+      empFillPct: stat.empirical_fill_pct,
+      empPnlPct: stat.avg_pnl_pct,
+      empFills: stat.fills,
+      empWinRate: stat.win_rate,
+      empCumPnl: stat.cumulative_pnl_pct,
+    };
+  });
+}
+
+function buildSellLevels(fc: NonNullable<StockAnalysis["intraday_forecast"]>): SellLevel[] {
+  const levels: SellLevel[] = [];
+  if (fc.predicted_high_median && fc.predicted_high_median > 0) {
+    levels.push({
+      price: fc.predicted_high_median,
+      fillPct: 50,
+      tag: "中位",
+      useCase: "稳健成交 · 半数日子触达，价格一般",
+    });
+  }
+  if (fc.predicted_high > 0) {
+    levels.push({
+      price: fc.predicted_high,
+      fillPct: 17,
+      tag: "预测高",
+      useCase: "优质成交 · 日内冲高时成交",
+    });
+  }
+  if (fc.predicted_high_up && fc.predicted_high_up > 0) {
+    levels.push({
+      price: fc.predicted_high_up,
+      fillPct: 5,
+      tag: "上限",
+      useCase: "极端冲高 · 涨停边缘/异常波动",
+    });
+  }
+  // Sort descending by price (highest first).
+  return levels.sort((a, b) => b.price - a.price);
+}
+
+function buildBuyLevels(fc: NonNullable<StockAnalysis["intraday_forecast"]>): BuyLevel[] {
+  const levels: BuyLevel[] = [];
+  if (fc.predicted_low_median && fc.predicted_low_median > 0) {
+    levels.push({
+      price: fc.predicted_low_median,
+      fillPct: 50,
+      tag: "中位",
+      useCase: "稳健成交 · 半数日子触达，价格一般",
+    });
+  }
+  if (fc.predicted_low > 0) {
+    levels.push({
+      price: fc.predicted_low,
+      fillPct: 17,
+      tag: "预测低",
+      useCase: "优质抄底 · 日内探底时成交",
+    });
+  }
+  if (fc.predicted_low_down && fc.predicted_low_down > 0) {
+    levels.push({
+      price: fc.predicted_low_down,
+      fillPct: 5,
+      tag: "下限",
+      useCase: "暴跌接刀 · 异常下探/利空",
+    });
+  }
+  // Sort ascending by price (lowest first).
+  return levels.sort((a, b) => a.price - b.price);
+}
+
+function biasRecommendation(
+  bias: string | undefined,
+  biasStrength: number | undefined,
+  zonePct: number,
+  reliability: "high_confidence" | "moderate" | "low_confidence" | undefined,
+  isHolding: boolean,
+): { primary: string; secondary?: string; tone: "info" | "warn" | "danger" } {
+  const strong = (biasStrength ?? 0) >= 1.0;
+  const inUpper = zonePct >= 70;
+  const inLower = zonePct <= 30;
+  const lowRel = reliability === "low_confidence";
+
+  if (lowRel) {
+    return {
+      primary: "历史命中率偏低，不建议基于此预测单独挂条件单。",
+      secondary: "若需交易请结合其他信号（形态评分、买卖区间、趋势），并严格设止损。",
+      tone: "danger",
+    };
+  }
+
+  if (isHolding) {
+    if (bias === "bullish" || inUpper) {
+      const reason = inUpper ? "价格已进入预测高位区" : "形态偏多";
+      return {
+        primary: `${reason}，优先挂卖。建议 50% 仓位挂「预测高」，50% 挂「上限」等冲高。`,
+        secondary: strong ? "偏向强烈，可适当加大挂单比例。" : undefined,
+        tone: "info",
+      };
+    }
+    if (bias === "bearish") {
+      return {
+        primary: "形态偏空，建议挂卖但价格不宜过高。建议挂「中位」或「预测高」先锁住成交。",
+        secondary: "若不想立即减仓，至少设止损在「下限」下方。",
+        tone: "warn",
+      };
+    }
+    return {
+      primary: "无明显偏向，建议分批挂卖：中位 + 预测高 各 50%。",
+      tone: "info",
+    };
+  }
+
+  // Not holding
+  if (bias === "bullish") {
+    if (inLower) {
+      return {
+        primary: "形态偏多且价格在预测低位区，是入场点。可挂「预测低」买入，止损「下限」下方。",
+        tone: "info",
+      };
+    }
+    return {
+      primary: "形态偏多但价格已离开低位区。可挂「预测低」或「中位」等回踩，止损「下限」下方。",
+      tone: "info",
+    };
+  }
+  if (bias === "bearish") {
+    return {
+      primary: "形态偏空，不建议新仓买入。若必须建仓，挂「下限」接刀且严格止损。",
+      tone: "warn",
+    };
+  }
+  return {
+    primary: "无明显偏向，可挂「预测低」试单，止损「下限」下方 1%。",
+    tone: "info",
+  };
+}
+
+function OrderSuggestionPanel({
+  fc,
+  accuracy,
+  isHolding,
+}: {
+  fc: NonNullable<StockAnalysis["intraday_forecast"]>;
+  accuracy: IntradayForecastAccuracy | null;
+  isHolding: boolean;
+}) {
+  const [open, setOpen] = useState(true);
+  const rawSells = buildSellLevels(fc);
+  const rawBuys = buildBuyLevels(fc);
+  // Enrich with empirical stats from the backtest.
+  const sells = enrichWithStats(rawSells, accuracy?.order_stats, "sell");
+  const buys = enrichWithStats(rawBuys, accuracy?.order_stats, "buy");
+  const reliability = accuracy?.reliability;
+  const rec = biasRecommendation(fc.bias, fc.bias_strength, fc.zone_pct, reliability, isHolding);
+
+  const toneClasses: Record<typeof rec.tone, string> = {
+    info: "border-sky-300/60 bg-sky-50 dark:border-sky-800/60 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200",
+    warn: "border-amber-300/60 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200",
+    danger: "border-rose-300/60 bg-rose-50 dark:border-rose-800/60 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200",
+  };
+
+  return (
+    <div className="mt-3 rounded-md border bg-background">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+      >
+        <div className="flex items-center gap-2">
+          {open ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+          <span className="text-xs font-medium">今日挂单参考</span>
+          <span className="text-[10px] text-muted-foreground">· 6 档价位 + 历史回测</span>
+        </div>
+        <span className="text-[10px] text-muted-foreground">点击{open ? "收起" : "展开"}</span>
+      </button>
+
+      {open && (
+        <div className="space-y-3 border-t px-3 py-3">
+          {/* Bias-aware recommendation banner */}
+          <div className={`rounded-md border p-2 text-[11px] leading-relaxed ${toneClasses[rec.tone]}`}>
+            <div className="font-medium">{rec.primary}</div>
+            {rec.secondary && <div className="mt-0.5 opacity-90">{rec.secondary}</div>}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Sell levels */}
+            <div className="rounded-md border bg-background">
+              <div className="flex items-center justify-between border-b px-2 py-1.5">
+                <span className="text-[11px] font-medium">卖出挂单</span>
+                <span className="text-[10px] text-muted-foreground">高 → 低</span>
+              </div>
+              <div className="divide-y">
+                {sells.map((lv, i) => {
+                  const fillBar = Math.min(100, lv.fillPct * 2);
+                  const empPct = lv.empFillPct !== undefined ? (lv.empFillPct * 100).toFixed(0) : null;
+                  const pnlPct = lv.empPnlPct !== undefined ? (lv.empPnlPct * 100).toFixed(2) : null;
+                  const pnlPos = lv.empPnlPct !== undefined && lv.empPnlPct > 0;
+                  return (
+                    <div key={`s-${i}`} className="px-2 py-2">
+                      <div className="flex items-baseline justify-between">
+                        <span className="font-mono text-base tabular-nums">{lv.price.toFixed(2)}</span>
+                        <span className="text-[10px] text-muted-foreground">{lv.tag}</span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
+                          <div className="h-full rounded-full bg-primary" style={{ width: `${fillBar}%` }} />
+                        </div>
+                        <span className="text-[10px] font-mono tabular-nums text-right" style={{ minWidth: "5.5rem" }}>
+                          理论 {lv.fillPct}%
+                          {empPct !== null && <span className="text-muted-foreground ml-1">实际 {empPct}%</span>}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-[10px] text-muted-foreground">{lv.useCase}</div>
+                      {(pnlPct !== null || lv.empCumPnl !== undefined) && (
+                        <div className="mt-1 grid grid-cols-3 gap-1 text-[10px] rounded bg-muted/40 px-1.5 py-1">
+                          <div>
+                            <div className="text-muted-foreground">成交日</div>
+                            <div className={pnlPos ? "text-emerald-700 dark:text-emerald-300 font-mono tabular-nums" : "text-rose-700 dark:text-rose-300 font-mono tabular-nums"}>
+                              {pnlPct !== null ? `${pnlPos ? "+" : ""}${pnlPct}%` : "—"}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground">胜率</div>
+                            <div className="font-mono tabular-nums">
+                              {lv.empWinRate !== undefined ? `${(lv.empWinRate * 100).toFixed(0)}%` : "—"}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground">累计</div>
+                            <div className={(lv.empCumPnl ?? 0) >= 0 ? "text-emerald-700 dark:text-emerald-300 font-mono tabular-nums" : "text-rose-700 dark:text-rose-300 font-mono tabular-nums"}>
+                              {lv.empCumPnl !== undefined
+                                ? `${lv.empCumPnl >= 0 ? "+" : ""}${(lv.empCumPnl * 100).toFixed(2)}%`
+                                : "—"}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Buy levels */}
+            <div className="rounded-md border bg-background">
+              <div className="flex items-center justify-between border-b px-2 py-1.5">
+                <span className="text-[11px] font-medium">买入挂单</span>
+                <span className="text-[10px] text-muted-foreground">低 → 高</span>
+              </div>
+              <div className="divide-y">
+                {buys.map((lv, i) => {
+                  const fillBar = Math.min(100, lv.fillPct * 2);
+                  const empPct = lv.empFillPct !== undefined ? (lv.empFillPct * 100).toFixed(0) : null;
+                  const pnlPct = lv.empPnlPct !== undefined ? (lv.empPnlPct * 100).toFixed(2) : null;
+                  const pnlPos = lv.empPnlPct !== undefined && lv.empPnlPct > 0;
+                  const stopLoss = lv.tag === "预测低" && fc.predicted_low_down && fc.predicted_low_down > 0
+                    ? (fc.predicted_low_down * 0.99).toFixed(2)
+                    : null;
+                  return (
+                    <div key={`b-${i}`} className="px-2 py-2">
+                      <div className="flex items-baseline justify-between">
+                        <span className="font-mono text-base tabular-nums">{lv.price.toFixed(2)}</span>
+                        <span className="text-[10px] text-muted-foreground">{lv.tag}</span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
+                          <div className="h-full rounded-full bg-primary" style={{ width: `${fillBar}%` }} />
+                        </div>
+                        <span className="text-[10px] font-mono tabular-nums text-right" style={{ minWidth: "5.5rem" }}>
+                          理论 {lv.fillPct}%
+                          {empPct !== null && <span className="text-muted-foreground ml-1">实际 {empPct}%</span>}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-[10px] text-muted-foreground">
+                        {lv.useCase}
+                        {stopLoss && (
+                          <span className="ml-1 text-rose-700 dark:text-rose-300">· 止损 {stopLoss}</span>
+                        )}
+                      </div>
+                      {(pnlPct !== null || lv.empCumPnl !== undefined) && (
+                        <div className="mt-1 grid grid-cols-3 gap-1 text-[10px] rounded bg-muted/40 px-1.5 py-1">
+                          <div>
+                            <div className="text-muted-foreground">成交日</div>
+                            <div className={pnlPos ? "text-emerald-700 dark:text-emerald-300 font-mono tabular-nums" : "text-rose-700 dark:text-rose-300 font-mono tabular-nums"}>
+                              {pnlPct !== null ? `${pnlPos ? "+" : ""}${pnlPct}%` : "—"}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground">胜率</div>
+                            <div className="font-mono tabular-nums">
+                              {lv.empWinRate !== undefined ? `${(lv.empWinRate * 100).toFixed(0)}%` : "—"}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground">累计</div>
+                            <div className={(lv.empCumPnl ?? 0) >= 0 ? "text-emerald-700 dark:text-emerald-300 font-mono tabular-nums" : "text-rose-700 dark:text-rose-300 font-mono tabular-nums"}>
+                              {lv.empCumPnl !== undefined
+                                ? `${lv.empCumPnl >= 0 ? "+" : ""}${(lv.empCumPnl * 100).toFixed(2)}%`
+                                : "—"}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="text-[10px] text-muted-foreground leading-relaxed">
+            理论 = 分位数构建概率；实际 = 近期回测中真实触达比例。
+            「成交日」= 触达日的平均相对盈亏（卖出对比昨收，买入对比今收），正值代表挂单价比不挂单更好。
+            预测每日盘前更新，盘中不要重算；任何挂单都建议设止损。
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatBias(bias?: string) {
+  switch (bias) {
+    case "bullish":
+      return "偏多";
+    case "bearish":
+      return "偏空";
+    case "mixed":
+      return "多空混合";
+    case "neutral":
+      return "中性";
+    default:
+      return "—";
+  }
+}
+
+function formatPatternCategory(category: string) {
+  switch (category) {
+    case "kline":
+      return "K线";
+    case "chart":
+      return "图形";
+    case "volume":
+      return "量价";
+    default:
+      return category || "—";
+  }
+}
+
+function PatternDirectionBadge({ direction }: { direction: string }) {
+  if (direction === "bullish") {
+    return <Badge variant="secondary" className="text-[10px]">看多</Badge>;
+  }
+  if (direction === "bearish") {
+    return <Badge variant="destructive" className="text-[10px]">看空</Badge>;
+  }
+  return <Badge variant="outline" className="text-[10px]">中性</Badge>;
+}
+
 function ConditionOrderCard({ order, step }: { order: { direction: string; trigger_price: number; trigger_desc: string; order_price: number; order_type: string; quantity_ratio: string; stop_price: number; stop_desc: string; note: string }; step: number }) {
   const isPending = order.note === "待触发";
   return (
@@ -748,7 +1614,7 @@ function ConditionOrderCard({ order, step }: { order: { direction: string; trigg
       <div className="flex items-center gap-2">
         <Badge variant="secondary" className="text-[10px]">步骤{step}</Badge>
         <Badge variant="outline">{order.direction}</Badge>
-        <span className="text-[10px] text-muted-foreground ml-auto">
+        <span className="text-[10px] text-muted-foreground ml-auto text-right leading-tight">
           {order.order_type} · {order.quantity_ratio}
           {isPending && <span className="ml-1 opacity-60">（待触发）</span>}
         </span>
@@ -758,7 +1624,7 @@ function ConditionOrderCard({ order, step }: { order: { direction: string; trigg
         <KV l="触发价" v={order.trigger_price.toFixed(2)} />
       </div>
       <p className="text-[11px] text-muted-foreground">{order.trigger_desc}</p>
-      <div className="flex items-center gap-1 text-[11px]">
+      <div className="flex flex-wrap items-center gap-1 text-[11px]">
         <span className="text-muted-foreground">止损:</span>
         <span className="font-mono tabular-nums">{order.stop_price.toFixed(2)}</span>
         <span className="text-muted-foreground ml-2">{order.stop_desc}</span>

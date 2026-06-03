@@ -86,7 +86,7 @@ func ScoreFromKlines(klines []models.KlinePoint) (int, map[string]interface{}) {
 		macdSignal = 1
 	}
 	macdHistTrend := 0
-	if macd.HistTrend == "连续增强" {
+	if macd.HistTrend == "连续增强" && macd.Hist > 0 {
 		macdHistTrend = 1
 	}
 	rsiState := 0
@@ -166,7 +166,15 @@ func RunBacktest(ctx context.Context, eastMoney *EastMoneyService, code string, 
 	}
 
 	var trades []BacktestTrade
+	skipUntil := -1
+	const (
+		commissionBuy  = 0.0005 // 0.05% 买入佣金
+		commissionSell = 0.0005 // 0.05% 卖出佣金 + 0.05% 印花税
+	)
 	for i := startIdx; i < len(klines)-3; i++ {
+		if i <= skipUntil {
+			continue
+		}
 		score, _ := ScoreFromKlines(klines[:i+1])
 		if score >= 70 {
 			buy := klines[i]
@@ -175,7 +183,10 @@ func RunBacktest(ctx context.Context, eastMoney *EastMoneyService, code string, 
 			sellPrice := sell.Close
 			retPct := 0.0
 			if buyPrice > 0 {
-				retPct = (sellPrice - buyPrice) / buyPrice * 100
+				// T+3 交易成本：买入佣金 + 卖出佣金印花税
+				costAdjustedBuy := buyPrice * (1 + commissionBuy)
+				costAdjustedSell := sellPrice * (1 - commissionSell)
+				retPct = (costAdjustedSell - costAdjustedBuy) / costAdjustedBuy * 100
 			}
 			trades = append(trades, BacktestTrade{
 				SignalDate:  buy.Date,
@@ -186,6 +197,7 @@ func RunBacktest(ctx context.Context, eastMoney *EastMoneyService, code string, 
 				Score:       score,
 				ReturnPct:   math.Round(retPct*100) / 100,
 			})
+			skipUntil = i + 3 // 跳过持仓期，避免重叠交易
 		}
 	}
 

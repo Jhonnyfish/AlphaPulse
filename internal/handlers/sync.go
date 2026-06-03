@@ -157,6 +157,104 @@ func (h *SyncHandler) SyncStatus(c *gin.Context) {
 	})
 }
 
+// TriggerBackfill handles POST /api/system/sync/backfill — starts a historical
+// data backfill. Accepts optional ?months=N query param (default 6, max 24).
+func (h *SyncHandler) TriggerBackfill(c *gin.Context) {
+	h.mu.RLock()
+	if h.status.Status == "running" {
+		h.mu.RUnlock()
+		c.JSON(http.StatusConflict, gin.H{"ok": false, "error": "sync already running"})
+		return
+	}
+	h.mu.RUnlock()
+
+	if h.cfg.TushareToken == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Tushare not configured"})
+		return
+	}
+
+	months := 6
+	if m := c.Query("months"); m != "" {
+		if n, err := strconv.Atoi(m); err == nil && n > 0 && n <= 24 {
+			months = n
+		}
+	}
+
+	now := time.Now()
+	h.mu.Lock()
+	h.status = SyncStatusInfo{Status: "running", StartedAt: &now}
+	h.mu.Unlock()
+
+	go h.runBackfill(months)
+
+	h.log.Info("historical backfill triggered", zap.Int("months", months))
+	c.JSON(http.StatusOK, gin.H{"ok": true, "status": "running", "months": months})
+}
+
+func (h *SyncHandler) runBackfill(months int) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	endDate := time.Now().Format("20060102")
+	startDate := time.Now().AddDate(0, -months, 0).Format("20060102")
+
+	tushareSvc := services.NewTushareService(h.cfg.TushareToken, h.cfg.HTTPTimeout)
+	ts := services.NewTushareSync(tushareSvc, h.eastMoneySvc, h.db, h.log)
+	if err := ts.RunBackfill(ctx, startDate, endDate); err != nil {
+		h.log.Error("backfill failed", zap.Error(err))
+	}
+
+	// Clear caches
+	for name, s := range h.cacheMap {
+		if cl, ok := s.(cache.Clearer); ok {
+			n := cl.Clear()
+			h.log.Info("cache cleared after backfill", zap.String("cache", name), zap.Int("entries", n))
+		}
+	}
+
+	h.mu.Lock()
+	now := time.Now()
+	h.status = SyncStatusInfo{Status: "completed", StartedAt: h.status.StartedAt, FinishedAt: &now}
+	h.mu.Unlock()
+	h.log.Info("historical backfill completed")
+}
+
+// BackfillStock handles POST /api/system/sync/backfill-stock — backfills kline
+// data for a single stock. Body: {"code":"600519","months":6}. Only one API call.
+func (h *SyncHandler) BackfillStock(c *gin.Context) {
+	var req struct {
+		Code   string `json:"code"`
+		Months int    `json:"months"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Code == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "code is required"})
+		return
+	}
+	if req.Months <= 0 {
+		req.Months = 6
+	}
+
+	if h.cfg.TushareToken == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Tushare not configured"})
+		return
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		tushareSvc := services.NewTushareService(h.cfg.TushareToken, h.cfg.HTTPTimeout)
+		ts := services.NewTushareSync(tushareSvc, h.eastMoneySvc, h.db, h.log)
+		inserted, err := ts.BackfillStockKlines(ctx, req.Code, req.Months)
+		if err != nil {
+			h.log.Error("stock backfill failed", zap.String("code", req.Code), zap.Error(err))
+		} else {
+			h.log.Info("stock backfill done", zap.String("code", req.Code), zap.Int("inserted", inserted))
+		}
+	}()
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "status": "running", "code": req.Code, "months": req.Months})
+}
+
 // GetSyncConfig handles GET /api/system/sync/config — returns current cron config.
 func (h *SyncHandler) GetSyncConfig(c *gin.Context) {
 	resp := SyncConfigResponse{

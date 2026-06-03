@@ -396,82 +396,39 @@ func detectChartPatterns(klines []models.KlinePoint, code, name string) []Patter
 	window := maxI(3, n/15)
 	lowPivots, highPivots := findPivots(closes, window)
 
-	// --- Double Bottom (双底) ---
-	if len(lowPivots) >= 2 {
-		for i := 0; i < len(lowPivots)-1; i++ {
-			for j := i + 1; j < len(lowPivots); j++ {
-				idx1, val1 := lowPivots[i].idx, lowPivots[i].val
-				idx2, val2 := lowPivots[j].idx, lowPivots[j].val
-				if abs(val1-val2) < tolerance && absInt(idx2-idx1) >= 5 {
-					// Check for a peak between them
-					peakVal := 0.0
-					found := false
-					for _, hp := range highPivots {
-						if hp.idx > idx1 && hp.idx < idx2 {
-							if hp.val > peakVal {
-								peakVal = hp.val
-							}
-							found = true
-						}
-					}
-					if found && peakVal > val1+tolerance {
-						conf := minF(0.9, 0.6+(1-abs(val1-val2)/tolerance)*0.3)
-						results = append(results, PatternResult{
-							Pattern:    "双底",
-							Category:   "chart",
-							Direction:  "bullish",
-							Confidence: round2(conf),
-							Date:       lastDate,
-							Description: fmt.Sprintf("W底形态，两个低点约%.2f，颈线%.2f，看涨反转", val1, peakVal),
-							Code:       code,
-							Name:       name,
-						})
-						break
-					}
-				}
-			}
-			if hasPattern(results, "双底") {
-				break
-			}
+	// Double Bottom / Double Top — strict Wikipedia/Bulkowski criteria.
+	// Delegates to the canonical implementation in services package.
+	if len(klines) >= 25 {
+		// Build pvt slices from local pivots to bridge to services helpers.
+		svcHigh := toServicesPivots(highPivots)
+		svcLow := toServicesPivots(lowPivots)
+		if sig := services.DetectDoubleBottomStrict(klines, closes, svcHigh, svcLow, tolerance); sig != nil {
+			results = append(results, PatternResult{
+				Pattern: sig.Pattern, Category: sig.Category, Direction: sig.Direction,
+				Confidence: sig.Confidence, Date: sig.Date, Description: sig.Description,
+				Code: code, Name: name,
+			})
 		}
-	}
-
-	// --- Double Top (双顶) ---
-	if len(highPivots) >= 2 {
-		for i := 0; i < len(highPivots)-1; i++ {
-			for j := i + 1; j < len(highPivots); j++ {
-				idx1, val1 := highPivots[i].idx, highPivots[i].val
-				idx2, val2 := highPivots[j].idx, highPivots[j].val
-				if abs(val1-val2) < tolerance && absInt(idx2-idx1) >= 5 {
-					troughVal := val1 * 2 // large initial value
-					found := false
-					for _, lp := range lowPivots {
-						if lp.idx > idx1 && lp.idx < idx2 {
-							if lp.val < troughVal {
-								troughVal = lp.val
-							}
-							found = true
-						}
-					}
-					if found && troughVal < val1-tolerance {
-						conf := minF(0.9, 0.6+(1-abs(val1-val2)/tolerance)*0.3)
-						results = append(results, PatternResult{
-							Pattern:    "双顶",
-							Category:   "chart",
-							Direction:  "bearish",
-							Confidence: round2(conf),
-							Date:       lastDate,
-							Description: fmt.Sprintf("M顶形态，两个高点约%.2f，颈线%.2f，看跌反转", val1, troughVal),
-							Code:       code,
-							Name:       name,
-						})
-						break
-					}
-				}
-			}
-			if hasPattern(results, "双顶") {
-				break
-			}
+		if sig := services.DetectDoubleTopStrict(klines, closes, svcHigh, svcLow, tolerance); sig != nil {
+			results = append(results, PatternResult{
+				Pattern: sig.Pattern, Category: sig.Category, Direction: sig.Direction,
+				Confidence: sig.Confidence, Date: sig.Date, Description: sig.Description,
+				Code: code, Name: name,
+			})
+		}
+		if sig := services.DetectHeadShouldersTopStrict(klines, closes, svcHigh, svcLow, tolerance); sig != nil {
+			results = append(results, PatternResult{
+				Pattern: sig.Pattern, Category: sig.Category, Direction: sig.Direction,
+				Confidence: sig.Confidence, Date: sig.Date, Description: sig.Description,
+				Code: code, Name: name,
+			})
+		}
+		if sig := services.DetectHeadShouldersBottomStrict(klines, closes, svcHigh, svcLow, tolerance); sig != nil {
+			results = append(results, PatternResult{
+				Pattern: sig.Pattern, Category: sig.Category, Direction: sig.Direction,
+				Confidence: sig.Confidence, Date: sig.Date, Description: sig.Description,
+				Code: code, Name: name,
+			})
 		}
 	}
 
@@ -683,6 +640,16 @@ func detectVolumePatterns(klines []models.KlinePoint, code, name string) []Patte
 type pivot struct {
 	idx int
 	val float64
+}
+
+// toServicesPivots converts the local pivot slice to services.Pivot so the
+// strict detectors in package services can be reused from this handler.
+func toServicesPivots(local []pivot) []services.Pivot {
+	out := make([]services.Pivot, len(local))
+	for i, p := range local {
+		out[i] = services.Pivot{Idx: p.idx, Val: p.val}
+	}
+	return out
 }
 
 func findPivots(data []float64, window int) (mins, maxs []pivot) {

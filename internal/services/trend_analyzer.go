@@ -73,15 +73,25 @@ func (ta *TrendAnalyzer) analyzeTrendStage(
 		signals = append(signals, "MACD空头")
 	}
 
-	// 3. MACD Histogram Trend (weight: 15)
+	// 3. MACD Histogram Trend (weight: 15) — 带符号判断
 	maxScore += 15
 	switch tech.MACD_HistTrend {
 	case "连续增强":
-		score += 15
-		signals = append(signals, "MACD柱状连续增强")
+		if tech.MACD_Hist > 0 {
+			score += 15
+			signals = append(signals, "MACD柱状连续增强，多头动量加速")
+		} else {
+			score -= 15
+			signals = append(signals, "MACD柱状连续增强，空头动量加速")
+		}
 	case "连续减弱":
-		score -= 5
-		signals = append(signals, "MACD柱状连续减弱")
+		if tech.MACD_Hist > 0 {
+			score -= 5
+			signals = append(signals, "MACD柱状连续减弱，多头动能趋缓")
+		} else {
+			score += 5
+			signals = append(signals, "MACD柱状连续减弱，空头动能趋缓")
+		}
 	case "转强":
 		score += 10
 		signals = append(signals, "MACD柱状转强")
@@ -90,21 +100,21 @@ func (ta *TrendAnalyzer) analyzeTrendStage(
 		signals = append(signals, "MACD柱状转弱")
 	}
 
-	// 4. RSI Level (weight: 15)
+	// 4. RSI Level (weight: 15) — 趋势跟踪视角
 	maxScore += 15
 	switch tech.RSI_Level {
 	case "超买":
-		score -= 10
-		signals = append(signals, "RSI超买")
-	case "偏强":
-		score += 10
-		signals = append(signals, "RSI偏强")
+		score += 15
+		signals = append(signals, "RSI超买，趋势强劲")
+	case "中性偏强":
+		score += 8
+		signals = append(signals, "RSI中性偏强")
 	case "超卖":
-		score += 10
-		signals = append(signals, "RSI超卖")
-	case "偏弱":
-		score -= 10
-		signals = append(signals, "RSI偏弱")
+		score -= 15
+		signals = append(signals, "RSI超卖，趋势疲弱")
+	case "中性偏弱":
+		score -= 8
+		signals = append(signals, "RSI中性偏弱")
 	default:
 		score += 0
 	}

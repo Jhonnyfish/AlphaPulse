@@ -336,6 +336,16 @@ export interface StockAnalysis {
     stop_loss: number;
     reason: string;
     confidence: number;
+    signal_score: number;
+    t_quantity: number;
+    position_ratio: number;
+    trigger_pct: number;
+    expected_profit_pct: number;
+    max_loss_pct: number;
+    risk_reward: number;
+    execution_tip?: string;
+    signal_details?: string[];
+    risk_notes?: string[];
     condition_buy?: {
       direction: string;
       trigger_price: number;
@@ -362,8 +372,53 @@ export interface StockAnalysis {
   intraday_forecast?: {
     predicted_high: number;
     predicted_low: number;
+    // ±1σ confidence bands — when present, the actual high/low should fall
+    // in [predicted_high_down, predicted_high_up] / [predicted_low_down, predicted_low_up]
+    // ~68% of the time. Tight band = high-confidence forecast.
+    predicted_high_up?: number;
+    predicted_high_down?: number;
+    predicted_low_up?: number;
+    predicted_low_down?: number;
+    /** P50 of historical up/down excursions. ~50% of days reach this level — use for high-fill-rate orders. */
+    predicted_high_median?: number;
+    predicted_low_median?: number;
+    sigma_high?: number;
+    sigma_low?: number;
     current_zone: string;
     zone_pct: number;
+    bias?: string;
+    bias_reason?: string;
+    /** Sum of pattern confidences driving the bias (0 = none, >1.5 = strong consensus). */
+    bias_strength?: number;
+    support_level?: number;
+    resist_level?: number;
+  };
+  pattern_analysis?: {
+    signals: PatternSignal[];
+    kline_signals?: PatternSignal[];
+    chart_signals?: PatternSignal[];
+    volume_signals?: PatternSignal[];
+    primary?: PatternSignal;
+    bullish_count: number;
+    bearish_count: number;
+    neutral_count: number;
+    net_bias: string;
+    score_impact: number;
+    verdict: string;
+  };
+  short_term_score?: {
+    score: number;
+    grade: string;
+    signal: string;
+    components: {
+      name: string;
+      score: number;
+      weight: number;
+      reason: string;
+    }[];
+    reasons?: string[];
+    risks?: string[];
+    verdict: string;
   };
   summary: AnalysisSummary;
   data_sources: Record<string, string>;
@@ -376,6 +431,74 @@ export interface StockAnalysis {
     pnl: number;
     pnl_pct: number;
   };
+}
+
+export interface PatternSignal {
+  pattern: string;
+  category: string;
+  direction: string;
+  confidence: number;
+  date: string;
+  description: string;
+}
+
+// ---- Intraday Forecast Accuracy ----
+export interface IntradayForecastDay {
+  date: string;
+  prev_close: number;
+  predicted_high: number;
+  predicted_low: number;
+  predicted_high_up: number;        // P95 of up excursion
+  predicted_low_down: number;       // P5 of down excursion
+  predicted_high_median?: number;   // P50 of up excursion
+  predicted_low_median?: number;    // P50 of down excursion
+  predicted_mid: number;
+  actual_high: number;
+  actual_low: number;
+  actual_close: number;
+  high_in_range: boolean;           // actual_high ≤ predicted_high
+  low_in_range: boolean;            // actual_low ≥ predicted_low
+  both_in_range: boolean;
+  high_in_wide_range: boolean;      // actual_high ≤ predicted_high_up
+  low_in_wide_range: boolean;       // actual_low ≥ predicted_low_down
+  both_in_wide_range: boolean;
+  bias: string;
+  bias_strength: number;
+  zone: string;
+}
+
+export interface IntradayForecastAccuracy {
+  days_evaluated: number;
+  both_in_range_pct: number;     // central band hit rate
+  high_in_range_pct: number;
+  low_in_range_pct: number;
+  both_in_wide_range_pct: number; // ±1σ hit rate
+  high_in_wide_range_pct: number;
+  low_in_wide_range_pct: number;
+  avg_high_miss_pct: number;     // E[(actual-predicted)/predicted] over high-miss days
+  avg_low_miss_pct: number;
+  avg_range_width: number;
+  avg_range_width_pct: number;
+  avg_wide_width: number;
+  avg_wide_width_pct: number;
+  avg_sigma: number;
+  /** "high_confidence" ≥70%, "moderate" ≥55%, "low_confidence" <55% */
+  reliability: "high_confidence" | "moderate" | "low_confidence";
+  order_stats?: OrderLevelStat[];
+  details?: IntradayForecastDay[];
+}
+
+export interface OrderLevelStat {
+  side: "sell" | "buy";
+  tag: string;                // "上限" / "预测高" / "中位" / "预测低" / "下限"
+  theoretical_fill_pct: number; // expected fill rate (5%/17%/50%)
+  empirical_fill_pct: number;   // actual fill rate over backtest window
+  fills: number;                // days the order filled
+  sample_size: number;          // days considered
+  avg_fill_price: number;       // avg price when filled ≈ limit price
+  avg_pnl_pct: number;          // avg intraday P&L % when filled
+  win_rate: number;             // % of filled days with positive P&L
+  cumulative_pnl_pct: number;   // geometric compounded return over the window
 }
 
 // ---- Deep Analysis ----

@@ -45,6 +45,7 @@ import type {
   StockAnalysis,
   DeepAnalysisResponse,
   ScoreHistoryResponse,
+  IntradayForecastAccuracy,
   SearchSuggestion,
   SyncStatus,
   SyncConfig,
@@ -130,6 +131,31 @@ export const analysisApi = {
     apiFetch<DeepAnalysisResponse>(`/deep-analysis/status/${code}`),
   scoreHistory: (code: string) =>
     apiFetch<ScoreHistoryResponse>(`/score-history/${code}`),
+  intradayForecastAccuracy: async (
+    code: string,
+    opts: { days?: number; from?: string; to?: string } = {},
+  ): Promise<IntradayForecastAccuracy> => {
+    const days = opts.days ?? 120;
+    const params = new URLSearchParams({
+      code,
+      days: String(days),
+    });
+    if (opts.from) params.set("from", opts.from);
+    if (opts.to) params.set("to", opts.to);
+    // Backend wraps the payload as { ok, code, days, accuracy: {...} }.
+    // Unwrap here so the caller gets the flat accuracy object.
+    const wrapped = await apiFetch<{
+      ok: boolean;
+      code: string;
+      days: number;
+      accuracy: IntradayForecastAccuracy | null;
+      error?: string;
+    }>(`/analyze/intraday-forecast-accuracy?${params.toString()}`);
+    if (!wrapped.ok || !wrapped.accuracy) {
+      throw new Error(wrapped.error || "回测数据不可用");
+    }
+    return wrapped.accuracy;
+  },
 };
 
 // ---- Data Sync ----
@@ -163,4 +189,19 @@ export const portfolioApi = {
     }),
   delete: (id: string) =>
     apiFetch<{ ok: boolean }>(`/portfolio/${id}`, { method: "DELETE" }),
+};
+
+// ---- Watchlist ----
+export const watchlistApi = {
+  add: (code: string, name?: string, group_name?: string) =>
+    apiFetch<{ stock: { code: string; name: string } }>("/watchlist", {
+      method: "POST",
+      body: JSON.stringify({ code, name: name || "", group_name: group_name || "default" }),
+    }),
+  delete: (code: string) =>
+    apiFetch<{ ok: boolean }>(`/watchlist/${code}`, { method: "DELETE" }),
+  sync: () =>
+    apiFetch<{ ok: boolean; added: number }>("/watchlist/sync", {
+      method: "POST",
+    }),
 };
