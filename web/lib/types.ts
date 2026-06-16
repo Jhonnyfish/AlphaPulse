@@ -393,6 +393,33 @@ export interface StockAnalysis {
     support_level?: number;
     resist_level?: number;
   };
+  defensive_strategy?: {
+    action: "HOLD" | "REDUCE" | "CLEAR" | "WAIT" | "BUILD" | "RESTORE";
+    action_label: string;
+    risk_score: number;
+    alpha_score: number;
+    risk_level: string;
+    current_position_pct: number;
+    target_position_pct: number;
+    allow_intraday_orders: boolean;
+    reason: string;
+    execution_tip: string;
+    risk_notes?: string[];
+  };
+  strategy_options?: {
+    id: string;
+    name: string;
+    style: string;
+    action: "HOLD" | "REDUCE" | "CLEAR" | "WAIT" | "BUILD" | "RESTORE";
+    action_label: string;
+    target_position_pct: number;
+    min_position_pct: number;
+    expected_use: string;
+    reason: string;
+    execution_tip: string;
+    risk_notes?: string[];
+    recommended: boolean;
+  }[];
   pattern_analysis?: {
     signals: PatternSignal[];
     kline_signals?: PatternSignal[];
@@ -496,9 +523,9 @@ export interface OrderLevelStat {
   fills: number;                // days the order filled
   sample_size: number;          // days considered
   avg_fill_price: number;       // avg price when filled ≈ limit price
-  avg_pnl_pct: number;          // avg intraday P&L % when filled
+  avg_pnl_pct: number;          // avg execution improvement % vs close when filled
   win_rate: number;             // % of filled days with positive P&L
-  cumulative_pnl_pct: number;   // geometric compounded return over the window
+  cumulative_pnl_pct: number;   // geometric compounded improvement over filled days
 }
 
 // ---- Deep Analysis ----
@@ -579,4 +606,129 @@ export interface PortfolioPositionEnriched extends PortfolioPosition {
   total_cost: number;
   pnl: number;
   pnl_pct: number;
+}
+
+// ---- Strategy Backtest Engine ----
+
+export interface DailySignal {
+  date: string;
+  action: "BUY" | "SELL" | "HOLD";
+  price: number;
+  position_pct: number;
+  score: number;
+  reason: string;
+  trade_id?: string;
+}
+
+export interface StrategyTrade {
+  trade_id: string;
+  buy_date: string;
+  buy_price: number;
+  buy_score: number;
+  sell_date: string;
+  sell_price: number;
+  sell_reason: string;
+  holding_days: number;
+  return_pct: number;
+  position_pct: number;
+}
+
+export interface EquityPoint {
+  date: string;
+  equity: number;
+  in_position: boolean;
+}
+
+export interface StrategyResult {
+  code: string;
+  name?: string;
+  days: number;
+  daily_signals?: DailySignal[];
+  trades: StrategyTrade[];
+  equity_curve: EquityPoint[];
+  benchmark_curve: EquityPoint[];
+  strategy_return_pct: number;
+  buy_hold_return_pct: number;
+  sharpe_ratio: number;
+  max_drawdown_pct: number;
+  win_rate: number;
+  avg_holding_days: number;
+  total_trades: number;
+  signal_efficiency: number;
+  error?: string;
+}
+
+// ---- T+0 Backtest ----
+
+export interface TBacktestDay {
+  date: string;
+  signal_type: string; // "正T" / "反T" / "观望"
+  entry_price: number;
+  target_price: number;
+  stop_loss: number;
+  signal_score: number;
+  t_quantity: number;
+  actual_high: number;
+  actual_low: number;
+  actual_close: number;
+  executed: boolean;
+  exit_price: number;
+  exit_reason: string; // "target" / "stop" / "close" / ""
+  profit_pct: number;
+  profit_abs: number; // yuan
+}
+
+export interface TBacktestResult {
+  code: string;
+  days_evaluated: number;
+  holding_qty: number;
+  holding_cost: number;
+  details: TBacktestDay[];
+  total_trades: number;
+  win_count: number;
+  win_rate: number;
+  avg_profit_pct: number;
+  avg_loss_pct: number;
+  cumulative_pct: number;
+  max_drawdown_pct: number;
+  positive_t_trades: number;
+  positive_t_win_rate: number;
+  reverse_t_trades: number;
+  reverse_t_win_rate: number;
+  watch_days: number;
+  equity_curve: EquityPoint[];
+  benchmark_curve: EquityPoint[];
+  t_overlay_pct: number;
+  buy_hold_return_pct: number;
+  enhanced_return_pct: number;
+  personality?: StockPersonality;
+  error?: string;
+}
+
+export interface StockPersonality {
+  // Volatility
+  atr_pct: number;
+  avg_daily_range: number;
+  range_cv: number;
+  avg_gap_pct: number;
+  // T Suitability
+  t_suitability: number;
+  t_space_pct: number;
+  commission_ratio: number;
+  recommended_t: string; // "正T" / "反T" / "均可" / "不适合"
+  // Trend
+  trend_bias: string; // "上涨" / "下跌" / "震荡"
+  trend_strength: number;
+  mean_reversion_pct: number;
+  up_day_pct: number;
+  // T History
+  positive_t_advantage: number;
+  best_signal_window: string;
+  avg_signal_interval: number;
+  // Volume
+  avg_volume: number;
+  volume_cv: number;
+  // Summary
+  tags: string[];
+  summary: string;
 }

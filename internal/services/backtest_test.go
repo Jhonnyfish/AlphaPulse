@@ -39,6 +39,35 @@ func TestScoreFromKlines_ScoreRange(t *testing.T) {
 	assert.LessOrEqual(t, score, 100)
 }
 
+func TestRiskFromKlines_DowntrendHigherThanUptrend(t *testing.T) {
+	uptrend := makeUptrendKlines(80, 50.0, 0.5, 500000)
+	downtrend := makeDowntrendKlines(80, 100.0, 0.8, 500000)
+
+	upRisk, upDims := RiskFromKlines(uptrend)
+	downRisk, downDims := RiskFromKlines(downtrend)
+
+	t.Logf("up risk=%d dims=%v", upRisk, upDims)
+	t.Logf("down risk=%d dims=%v", downRisk, downDims)
+	assert.Greater(t, downRisk, upRisk)
+	assert.GreaterOrEqual(t, downRisk, 50)
+	assert.LessOrEqual(t, upRisk, 35)
+}
+
+func TestBuildDefensiveStrategy_TargetPositionTracksRisk(t *testing.T) {
+	uptrend := makeUptrendKlines(80, 50.0, 0.5, 500000)
+	downtrend := makeDowntrendKlines(80, 100.0, 0.8, 500000)
+
+	up := BuildDefensiveStrategy(uptrend, 100)
+	down := BuildDefensiveStrategy(downtrend, 100)
+
+	require.NotNil(t, up)
+	require.NotNil(t, down)
+	assert.Equal(t, "HOLD", up.Action)
+	assert.Equal(t, 100, up.TargetPositionPct)
+	assert.Less(t, down.TargetPositionPct, up.TargetPositionPct)
+	assert.True(t, down.Action == "REDUCE" || down.Action == "CLEAR")
+}
+
 func TestMaxDrawdown(t *testing.T) {
 	tests := []struct {
 		name     string

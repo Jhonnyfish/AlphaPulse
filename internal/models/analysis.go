@@ -233,31 +233,33 @@ type MarginAnalysis struct {
 
 // StockAnalysis is the full response for /api/analyze
 type StockAnalysis struct {
-	Code             string               `json:"code"`
-	Name             string               `json:"name"`
-	Version          string               `json:"version"`
-	Quote            Quote                `json:"quote"`
-	VolumePrice      VolumePriceAnalysis  `json:"volume_price"`
-	Valuation        ValuationAnalysis    `json:"valuation"`
-	Volatility       VolatilityAnalysis   `json:"volatility"`
-	MoneyFlow        MoneyFlowAnalysis    `json:"money_flow"`
-	Technical        TechnicalAnalysis    `json:"technical"`
-	Sector           SectorAnalysis       `json:"sector"`
-	Sentiment        SentimentAnalysis    `json:"sentiment"`
-	Fundamentals     FundamentalsAnalysis `json:"fundamentals"`
-	Northbound       NorthboundAnalysis   `json:"northbound"`
-	MarginDetail     MarginAnalysis       `json:"margin_detail"`
-	TrendAnalysis    TrendAnalysis        `json:"trend_analysis"`
-	BuyZone          *BuyZoneAnalysis     `json:"buy_zone,omitempty"`
-	TSuggestion      *TSuggestionAnalysis `json:"t_suggestion,omitempty"`
-	IntradayForecast *IntradayForecast    `json:"intraday_forecast,omitempty"`
-	PatternAnalysis  *PatternAnalysis     `json:"pattern_analysis,omitempty"`
-	ShortTermScore   *ShortTermScore      `json:"short_term_score,omitempty"`
-	Holding          *HoldingInfo         `json:"holding,omitempty"`
-	Summary          AnalysisSummary      `json:"summary"`
-	DataSources      map[string]string    `json:"data_sources"`
-	Errors           map[string]string    `json:"errors"`
-	FetchedAt        time.Time            `json:"fetched_at"`
+	Code              string               `json:"code"`
+	Name              string               `json:"name"`
+	Version           string               `json:"version"`
+	Quote             Quote                `json:"quote"`
+	VolumePrice       VolumePriceAnalysis  `json:"volume_price"`
+	Valuation         ValuationAnalysis    `json:"valuation"`
+	Volatility        VolatilityAnalysis   `json:"volatility"`
+	MoneyFlow         MoneyFlowAnalysis    `json:"money_flow"`
+	Technical         TechnicalAnalysis    `json:"technical"`
+	Sector            SectorAnalysis       `json:"sector"`
+	Sentiment         SentimentAnalysis    `json:"sentiment"`
+	Fundamentals      FundamentalsAnalysis `json:"fundamentals"`
+	Northbound        NorthboundAnalysis   `json:"northbound"`
+	MarginDetail      MarginAnalysis       `json:"margin_detail"`
+	TrendAnalysis     TrendAnalysis        `json:"trend_analysis"`
+	BuyZone           *BuyZoneAnalysis     `json:"buy_zone,omitempty"`
+	TSuggestion       *TSuggestionAnalysis `json:"t_suggestion,omitempty"`
+	IntradayForecast  *IntradayForecast    `json:"intraday_forecast,omitempty"`
+	DefensiveStrategy *DefensiveStrategy   `json:"defensive_strategy,omitempty"`
+	StrategyOptions   []StrategyOption     `json:"strategy_options,omitempty"`
+	PatternAnalysis   *PatternAnalysis     `json:"pattern_analysis,omitempty"`
+	ShortTermScore    *ShortTermScore      `json:"short_term_score,omitempty"`
+	Holding           *HoldingInfo         `json:"holding,omitempty"`
+	Summary           AnalysisSummary      `json:"summary"`
+	DataSources       map[string]string    `json:"data_sources"`
+	Errors            map[string]string    `json:"errors"`
+	FetchedAt         time.Time            `json:"fetched_at"`
 }
 
 // ---- Trading signal models ----
@@ -338,11 +340,46 @@ type IntradayForecast struct {
 	PredictedLowMedian  float64 `json:"predicted_low_median,omitempty"`
 	CurrentZone         string  `json:"current_zone"`
 	ZonePct             float64 `json:"zone_pct"`
-	Bias                string  `json:"bias,omitempty"`        // "bullish" / "bearish" / "neutral"
-	BiasReason          string  `json:"bias_reason,omitempty"` // e.g. "锤子线+放量突破"
+	Bias                string  `json:"bias,omitempty"`          // "bullish" / "bearish" / "neutral"
+	BiasReason          string  `json:"bias_reason,omitempty"`   // e.g. "锤子线+放量突破"
 	BiasStrength        float64 `json:"bias_strength,omitempty"` // sum of pattern confidences, capped at 2.5
 	SupportLevel        float64 `json:"support_level,omitempty"`
 	ResistLevel         float64 `json:"resist_level,omitempty"`
+}
+
+// DefensiveStrategy is a discipline-first intraday instruction derived from
+// the defensive strategy framework. It gives a target exposure, not order
+// prices, so the UI can discourage discretionary daily trading.
+type DefensiveStrategy struct {
+	Action              string   `json:"action"` // HOLD / REDUCE / CLEAR / WAIT
+	ActionLabel         string   `json:"action_label"`
+	RiskScore           int      `json:"risk_score"`
+	AlphaScore          int      `json:"alpha_score"`
+	RiskLevel           string   `json:"risk_level"`
+	CurrentPositionPct  int      `json:"current_position_pct"`
+	TargetPositionPct   int      `json:"target_position_pct"`
+	AllowIntradayOrders bool     `json:"allow_intraday_orders"`
+	Reason              string   `json:"reason"`
+	ExecutionTip        string   `json:"execution_tip"`
+	RiskNotes           []string `json:"risk_notes,omitempty"`
+}
+
+// StrategyOption is an alternative execution profile for the selected stock.
+// It lets the UI show multiple disciplines without turning them into intraday
+// price-level order suggestions.
+type StrategyOption struct {
+	ID                string   `json:"id"`
+	Name              string   `json:"name"`
+	Style             string   `json:"style"`
+	Action            string   `json:"action"`
+	ActionLabel       string   `json:"action_label"`
+	TargetPositionPct int      `json:"target_position_pct"`
+	MinPositionPct    int      `json:"min_position_pct"`
+	ExpectedUse       string   `json:"expected_use"`
+	Reason            string   `json:"reason"`
+	ExecutionTip      string   `json:"execution_tip"`
+	RiskNotes         []string `json:"risk_notes,omitempty"`
+	Recommended       bool     `json:"recommended"`
 }
 
 // PatternSignal represents a detected K-line, chart, or volume pattern.

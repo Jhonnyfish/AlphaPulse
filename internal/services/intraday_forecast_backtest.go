@@ -28,12 +28,12 @@ import (
 
 // IntradayForecastDay is the per-day result of a single backtest prediction.
 type IntradayForecastDay struct {
-	Date            string  `json:"date"`
-	PrevClose       float64 `json:"prev_close"`
-	PredictedHigh   float64 `json:"predicted_high"`
-	PredictedLow    float64 `json:"predicted_low"`
-	PredictedHighUp float64 `json:"predicted_high_up"`    // +1σ
-	PredictedLowDown float64 `json:"predicted_low_down"`  // -1σ
+	Date             string  `json:"date"`
+	PrevClose        float64 `json:"prev_close"`
+	PredictedHigh    float64 `json:"predicted_high"`
+	PredictedLow     float64 `json:"predicted_low"`
+	PredictedHighUp  float64 `json:"predicted_high_up"`  // +1σ
+	PredictedLowDown float64 `json:"predicted_low_down"` // -1σ
 	// P50 of historical excursion distribution — the median high/low.
 	// Used for "high-fill-rate" condition orders.
 	PredictedHighMedian float64 `json:"predicted_high_median,omitempty"`
@@ -42,8 +42,8 @@ type IntradayForecastDay struct {
 	ActualHigh          float64 `json:"actual_high"`
 	ActualLow           float64 `json:"actual_low"`
 	ActualClose         float64 `json:"actual_close"`
-	HighInRange         bool    `json:"high_in_range"`     // actual_high ≤ predicted_high
-	LowInRange          bool    `json:"low_in_range"`      // actual_low ≥ predicted_low
+	HighInRange         bool    `json:"high_in_range"` // actual_high ≤ predicted_high
+	LowInRange          bool    `json:"low_in_range"`  // actual_low ≥ predicted_low
 	BothInRange         bool    `json:"both_in_range"`
 	HighInWideRange     bool    `json:"high_in_wide_range"` // actual_high ≤ predicted_high_up
 	LowInWideRange      bool    `json:"low_in_wide_range"`  // actual_low ≥ predicted_low_down
@@ -64,9 +64,9 @@ type OrderLevelStat struct {
 	Fills              int     `json:"fills"`                // number of days the order filled
 	SampleSize         int     `json:"sample_size"`          // days considered
 	AvgFillPrice       float64 `json:"avg_fill_price"`       // avg price when filled ≈ limit price
-	AvgPnlPct          float64 `json:"avg_pnl_pct"`          // avg intraday P&L % when filled
+	AvgPnlPct          float64 `json:"avg_pnl_pct"`          // avg execution improvement % vs close when filled
 	WinRate            float64 `json:"win_rate"`             // % of filled days with positive P&L
-	CumulativePnlPct   float64 `json:"cumulative_pnl_pct"`   // geometric compounded return over the window
+	CumulativePnlPct   float64 `json:"cumulative_pnl_pct"`   // geometric compounded improvement over filled days
 }
 
 // IntradayForecastAccuracy aggregates hit-rate metrics over a backtest window.
@@ -122,7 +122,7 @@ func BacktestIntradayForecast(klines []models.KlinePoint, daysBack int) *Intrada
 	const warmup = 30
 
 	if daysBack <= 0 {
-		daysBack = 60
+		daysBack = 30
 	}
 	// Clamp the window to whatever the data actually supports rather than
 	// refusing outright — a 90-day report is strictly more useful than no
@@ -297,11 +297,11 @@ func summarizeAccuracy(details []IntradayForecastDay) *IntradayForecastAccuracy 
 	//   Sell at level L → filled if actual_high ≥ L (price reached the level)
 	//   Buy  at level L → filled if actual_low  ≤ L (price dropped to level)
 	//
-	// P&L semantics (simple, no position tracking):
-	//   Sell: P&L = (fill_price - prev_close) / prev_close
-	//         Positive = sold above yesterday's close (good).
+	// P&L semantics (execution improvement vs closing price, no position tracking):
+	//   Sell: P&L = (fill_price - actual_close) / actual_close
+	//         Positive = sold above the day's close (better than waiting).
 	//   Buy:  P&L = (actual_close - fill_price) / fill_price
-	//         Positive = bought below today's close (good).
+	//         Positive = bought below the day's close (better than waiting).
 
 	levels := []struct {
 		side               string
@@ -368,7 +368,9 @@ func summarizeAccuracy(details []IntradayForecastDay) *IntradayForecastAccuracy 
 			}
 			var pnl float64
 			if lv.side == "sell" {
-				pnl = (level - d.PrevClose) / d.PrevClose
+				if d.ActualClose > 0 {
+					pnl = (level - d.ActualClose) / d.ActualClose
+				}
 			} else {
 				if d.ActualClose > 0 {
 					pnl = (d.ActualClose - level) / level

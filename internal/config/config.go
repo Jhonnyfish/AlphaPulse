@@ -25,8 +25,28 @@ type Config struct {
 	DeepSeekModel   string
 
 	// Tushare Pro API
-	TushareToken   string
-	TushareEnabled bool
+	TushareToken       string
+	TushareBaseURL     string
+	TushareToken2      string
+	TushareBaseURL2    string
+	TushareActive      string // "1" or "2"
+	TushareEnabled     bool
+}
+
+// ActiveTushareToken returns the token for the currently active profile.
+func (c *Config) ActiveTushareToken() string {
+	if c.TushareActive == "2" && c.TushareToken2 != "" {
+		return c.TushareToken2
+	}
+	return c.TushareToken
+}
+
+// ActiveTushareBaseURL returns the base URL for the currently active profile.
+func (c *Config) ActiveTushareBaseURL() string {
+	if c.TushareActive == "2" && c.TushareBaseURL2 != "" {
+		return c.TushareBaseURL2
+	}
+	return c.TushareBaseURL
 }
 
 func Load() (*Config, error) {
@@ -62,8 +82,12 @@ func Load() (*Config, error) {
 		DeepSeekBaseURL: envOrDefault("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
 		DeepSeekModel:   envOrDefault("DEEPSEEK_MODEL", "deepseek-chat"),
 
-		TushareToken:   os.Getenv("TUSHARE_TOKEN"),
-		TushareEnabled: envOrDefault("TUSHARE_ENABLED", "true") == "true",
+		TushareToken:       os.Getenv("TUSHARE_TOKEN"),
+		TushareBaseURL:     envOrDefault("TUSHARE_BASE_URL", "https://api.tushare.pro"),
+		TushareToken2:      os.Getenv("TUSHARE_TOKEN2"),
+		TushareBaseURL2:    envOrDefault("TUSHARE_BASE_URL2", "http://47.122.118.90:8080"),
+		TushareActive:      envOrDefault("TUSHARE_ACTIVE", "1"),
+		TushareEnabled:     envOrDefault("TUSHARE_ENABLED", "true") == "true",
 	}
 
 	if cfg.DatabaseURL == "" {

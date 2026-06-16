@@ -85,7 +85,8 @@ func TestStrategyEngine_DowntrendAvoidance(t *testing.T) {
 		"strategy should not lose dramatically more than market")
 }
 
-// TestStrategyEngine_PositionSizing verifies that position sizes are 33, 66, or 100.
+// TestStrategyEngine_PositionSizing verifies that defensive position sizes stay
+// inside the supported target range.
 func TestStrategyEngine_PositionSizing(t *testing.T) {
 	klines := makeTrendKlines(120, 50.0, 0.3, 150000)
 	mock := &mockKlineFetcher{klines: klines}
@@ -96,17 +97,12 @@ func TestStrategyEngine_PositionSizing(t *testing.T) {
 	for _, tr := range result.Trades {
 		t.Logf("Trade: %s -> %s, score=%d, posPct=%.0f%%, ret=%.2f%%",
 			tr.BuyDate, tr.SellDate, tr.BuyScore, tr.PositionPct, tr.ReturnPct)
-		assert.Greater(t, tr.PositionPct, 0.0)
+		assert.GreaterOrEqual(t, tr.PositionPct, 0.0)
 		assert.LessOrEqual(t, tr.PositionPct, 100.0)
-		assert.True(t,
-			math.Abs(tr.PositionPct-33) < 1 ||
-				math.Abs(tr.PositionPct-66) < 1 ||
-				math.Abs(tr.PositionPct-100) < 1,
-			"position size should be 33, 66, or 100, got %.1f", tr.PositionPct)
 	}
 }
 
-// TestStrategyEngine_TrailingStop verifies exit via trailing stop on reversal.
+// TestStrategyEngine_TrailingStop verifies protective risk reduction on reversal.
 func TestStrategyEngine_TrailingStop(t *testing.T) {
 	klines := makeUptrendThenCrash(100, 50.0, 0.3, -3.0)
 	mock := &mockKlineFetcher{klines: klines}
@@ -117,11 +113,11 @@ func TestStrategyEngine_TrailingStop(t *testing.T) {
 	foundExit := false
 	for _, tr := range result.Trades {
 		t.Logf("Trade exit: %s, score=%d, reason=%s", tr.SellDate, tr.BuyScore, tr.SellReason)
-		if stringContains(tr.SellReason, "trailing") || stringContains(tr.SellReason, "MA20") {
+		if stringContains(tr.SellReason, "风险分") || stringContains(tr.SellReason, "强制平仓") {
 			foundExit = true
 		}
 	}
-	assert.True(t, foundExit, "should have at least one protective exit (trailing stop or MA20)")
+	assert.True(t, foundExit, "should have at least one protective risk reduction")
 	t.Logf("Crash: strategy=%.2f%%, bench=%.2f%%",
 		result.StrategyReturnPct, result.BuyHoldReturnPct)
 }
@@ -165,6 +161,25 @@ func TestStrategyEngine_MaxDrawdownNonNegative(t *testing.T) {
 	result := runStrategyBacktestOnKlines(context.Background(), mock, "000007", 30)
 	require.Empty(t, result.Error)
 	assert.GreaterOrEqual(t, result.MaxDrawdownPct, 0.0)
+}
+
+// TestStrategyEngine_ProfileSelectionAffectsResult prevents regressions where
+// the UI-selected strategy ID is ignored and every profile produces one result.
+func TestStrategyEngine_ProfileSelectionAffectsResult(t *testing.T) {
+	klines := makeUptrendThenCrash(140, 50.0, 0.35, -1.2)
+
+	conservative := runStrategyWithProfile(context.Background(), "000008", 80, klines, "conservative")
+	aggressive := runStrategyWithProfile(context.Background(), "000008", 80, klines, "aggressive")
+
+	require.Empty(t, conservative.Error)
+	require.Empty(t, aggressive.Error)
+	assert.Equal(t, "保守防守", conservative.Name)
+	assert.Equal(t, "进攻持有", aggressive.Name)
+
+	assert.NotEqual(t, conservative.StrategyReturnPct, aggressive.StrategyReturnPct,
+		"different profiles should not collapse to the same return")
+	assert.NotEqual(t, conservative.DailySignals[0].PositionPct, aggressive.DailySignals[0].PositionPct,
+		"different profiles should produce different target exposure")
 }
 
 // ──────────────────────────────────────────────

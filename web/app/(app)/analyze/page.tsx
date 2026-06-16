@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { analysisApi, searchApi } from "@/lib/api-client";
-import type { StockAnalysis, DeepAnalysisResponse, ScoreHistoryResponse, SearchSuggestion, IntradayForecastAccuracy, OrderLevelStat } from "@/lib/types";
+import type { StockAnalysis, DeepAnalysisResponse, ScoreHistoryResponse, SearchSuggestion, IntradayForecastAccuracy, TBacktestResult, EquityPoint, StockPersonality } from "@/lib/types";
 import BacktestSection from "./BacktestSection";
 import { DIM_LABELS, formatPct, formatPrice, formatVolume, formatMoney } from "@/lib/constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,10 +17,25 @@ import {
   Search, Loader2, Brain, TrendingUp, TrendingDown, BarChart3,
   ChevronDown, ChevronRight, Activity, Clock, X,
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ReferenceLine,
+  Legend,
+} from "recharts";
 
 // ---- Search history (localStorage) ----
 const HISTORY_KEY = "alphapulse_search_history";
 const HISTORY_MAX = 20;
+const DEFAULT_FORECAST_BACKTEST_DAYS = 30;
+const MIN_FORECAST_BACKTEST_DAYS = 5;
+const MAX_FORECAST_BACKTEST_DAYS = 500;
+const DEFAULT_STRATEGY_ID = "balanced";
 
 interface HistoryItem {
   code: string;
@@ -42,6 +57,14 @@ function saveHistory(code: string, name: string) {
 
 function clearHistory() {
   localStorage.removeItem(HISTORY_KEY);
+}
+
+function strategyStorageKey(code: string) {
+  return `alphapulse_strategy_choice:${code}`;
+}
+
+function errorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback;
 }
 
 export default function AnalyzePage() {
@@ -67,7 +90,19 @@ export default function AnalyzePage() {
   const [forecastAccuracyLoading, setForecastAccuracyLoading] = useState(false);
   const [forecastAccuracyError, setForecastAccuracyError] = useState("");
   const [forecastAccuracyRequested, setForecastAccuracyRequested] = useState(false);
-  const [accuracyDays, setAccuracyDays] = useState(120);
+  const [accuracyDays, setAccuracyDays] = useState(DEFAULT_FORECAST_BACKTEST_DAYS);
+  const [accuracyDaysInput, setAccuracyDaysInput] = useState(String(DEFAULT_FORECAST_BACKTEST_DAYS));
+  const accuracyDaysRef = useRef(DEFAULT_FORECAST_BACKTEST_DAYS);
+  const [selectedStrategyID, setSelectedStrategyID] = useState(DEFAULT_STRATEGY_ID);
+
+  // T-suggestion backtest (lazy-fetched on demand)
+  const [tBacktest, setTBacktest] = useState<TBacktestResult | null>(null);
+  const [tBacktestLoading, setTBacktestLoading] = useState(false);
+  const [tBacktestError, setTBacktestError] = useState("");
+  const [tBacktestDays, setTBacktestDays] = useState(60);
+  const [tBacktestDaysInput, setTBacktestDaysInput] = useState("60");
+  const [tBacktestQty, setTBacktestQty] = useState(1000);
+  const [tBacktestQtyInput, setTBacktestQtyInput] = useState("1000");
 
   // Search suggestions & search history
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
@@ -79,6 +114,25 @@ export default function AnalyzePage() {
   useEffect(() => {
     setSearchHistory(loadHistory());
   }, []);
+
+  useEffect(() => {
+    accuracyDaysRef.current = accuracyDays;
+  }, [accuracyDays]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !code) {
+      setSelectedStrategyID(DEFAULT_STRATEGY_ID);
+      return;
+    }
+    setSelectedStrategyID(localStorage.getItem(strategyStorageKey(code)) || DEFAULT_STRATEGY_ID);
+  }, [code]);
+
+  function chooseStrategy(id: string) {
+    setSelectedStrategyID(id);
+    if (typeof window !== "undefined" && code) {
+      localStorage.setItem(strategyStorageKey(code), id);
+    }
+  }
 
   // refetchAccuracy re-runs the backtest with the current date-range state.
   // Used both for the initial fetch and when the user changes the window.
@@ -94,10 +148,24 @@ export default function AnalyzePage() {
     try {
       const acc = await analysisApi.intradayForecastAccuracy(c, { days, from: from || undefined, to: to || undefined });
       setForecastAccuracy(acc);
-    } catch (e: any) {
-      setForecastAccuracyError(e?.message || "回测失败");
+    } catch (e: unknown) {
+      setForecastAccuracyError(errorMessage(e, "回测失败"));
     } finally {
       setForecastAccuracyLoading(false);
+    }
+  }, []);
+
+  // Fetch T-suggestion backtest on demand.
+  const fetchTBacktest = useCallback(async (c: string, days: number, qty: number) => {
+    setTBacktestLoading(true);
+    setTBacktestError("");
+    try {
+      const res = await analysisApi.tBacktest(c, { days, holding_qty: qty });
+      setTBacktest(res);
+    } catch (e: unknown) {
+      setTBacktestError(errorMessage(e, "T回测失败"));
+    } finally {
+      setTBacktestLoading(false);
     }
   }, []);
 
@@ -113,6 +181,9 @@ export default function AnalyzePage() {
     setForecastAccuracyError("");
     setForecastAccuracyLoading(false);
     setForecastAccuracyRequested(false);
+    setTBacktest(null);
+    setTBacktestError("");
+    setTBacktestLoading(false);
     try {
       const res = await analysisApi.analyze(c);
       setData(res);
@@ -121,14 +192,28 @@ export default function AnalyzePage() {
       analysisApi.scoreHistory(c).then(setHistory).catch(() => {});
       // Only fetch accuracy if the ticker actually has an intraday forecast.
       if (res.intraday_forecast) {
-        refetchAccuracy(c, accuracyDays, "", "");
+        refetchAccuracy(c, accuracyDaysRef.current, "", "");
       }
-    } catch (err: any) {
-      setError(err.message || "分析失败");
+    } catch (err: unknown) {
+      setError(errorMessage(err, "分析失败"));
     } finally {
       setLoading(false);
     }
-  }, [accuracyDays, refetchAccuracy]);
+  }, [refetchAccuracy]);
+
+  function normalizedAccuracyDays() {
+    const parsed = Number.parseInt(accuracyDaysInput, 10);
+    if (!Number.isFinite(parsed)) return accuracyDays;
+    return Math.max(MIN_FORECAST_BACKTEST_DAYS, Math.min(MAX_FORECAST_BACKTEST_DAYS, parsed));
+  }
+
+  function rerunForecastAccuracy() {
+    if (!code) return;
+    const nextDays = normalizedAccuracyDays();
+    setAccuracyDays(nextDays);
+    setAccuracyDaysInput(String(nextDays));
+    refetchAccuracy(code, nextDays, "", "");
+  }
 
   // Auto-analyze if code param present
   useEffect(() => {
@@ -186,8 +271,8 @@ export default function AnalyzePage() {
       const res = await analysisApi.deepAnalysis(code);
       setDeepStatus(res);
       if (res.status === "running") startPolling();
-    } catch (err: any) {
-      setDeepStatus({ ok: false, code, status: "failed", error: err.message });
+    } catch (err: unknown) {
+      setDeepStatus({ ok: false, code, status: "failed", error: errorMessage(err, "深度分析失败") });
     } finally {
       setDeepLoading(false);
     }
@@ -426,6 +511,10 @@ export default function AnalyzePage() {
                     <BarChart3 className="h-3.5 w-3.5" />
                     形态评分
                   </TabsTrigger>
+                  <TabsTrigger value="t-backtest" className="min-w-24">
+                    <Activity className="h-3.5 w-3.5" />
+                    T回测
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="t" className="mt-0">
@@ -563,6 +652,38 @@ export default function AnalyzePage() {
                           </div>
                         </div>
                       </div>
+                      <div className="flex flex-wrap items-center gap-2 rounded-md border bg-background px-3 py-2">
+                        <label htmlFor="forecast-backtest-days" className="text-xs text-muted-foreground">回测天数</label>
+                        <Input
+                          id="forecast-backtest-days"
+                          type="number"
+                          inputMode="numeric"
+                          min={MIN_FORECAST_BACKTEST_DAYS}
+                          max={MAX_FORECAST_BACKTEST_DAYS}
+                          step={1}
+                          value={accuracyDaysInput}
+                          onChange={(e) => setAccuracyDaysInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") rerunForecastAccuracy();
+                          }}
+                          className="h-7 w-24 px-2 text-xs"
+                          disabled={forecastAccuracyLoading}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2.5 text-xs"
+                          onClick={rerunForecastAccuracy}
+                          disabled={forecastAccuracyLoading}
+                        >
+                          重跑
+                        </Button>
+                        {forecastAccuracy && (
+                          <span className="text-[10px] text-muted-foreground">
+                            当前 {forecastAccuracy.days_evaluated} 个交易日
+                          </span>
+                        )}
+                      </div>
                       {forecastAccuracyRequested && (
                         <ForecastAccuracyPanel
                           accuracy={forecastAccuracy}
@@ -570,10 +691,12 @@ export default function AnalyzePage() {
                           error={forecastAccuracyError}
                         />
                       )}
-                      <OrderSuggestionPanel
-                        fc={data.intraday_forecast}
-                        accuracy={forecastAccuracy}
-                        isHolding={!!data.holding}
+                      <DefensiveStrategyPanel
+                        strategy={data.defensive_strategy}
+                        options={data.strategy_options}
+                        reliability={forecastAccuracy?.reliability}
+                        selectedID={selectedStrategyID}
+                        onStrategyChange={chooseStrategy}
                       />
                     </div>
                   ) : (
@@ -646,24 +769,180 @@ export default function AnalyzePage() {
                     )}
                   </div>
                 </TabsContent>
+                <TabsContent value="t-backtest" className="mt-0">
+                  <div className="space-y-3">
+                    {/* Controls */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="text-xs text-muted-foreground">天数</label>
+                      <Input
+                        type="number"
+                        min={5}
+                        max={500}
+                        value={tBacktestDaysInput}
+                        onChange={(e) => setTBacktestDaysInput(e.target.value)}
+                        onBlur={() => {
+                          const n = parseInt(tBacktestDaysInput);
+                          if (n >= 5 && n <= 500) setTBacktestDays(n);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            const n = parseInt(tBacktestDaysInput);
+                            if (n >= 5 && n <= 500) setTBacktestDays(n);
+                            if (code) fetchTBacktest(code, tBacktestDays, tBacktestQty);
+                          }
+                        }}
+                        className="w-16 h-7 text-xs"
+                      />
+                      <label className="text-xs text-muted-foreground">底仓</label>
+                      <Input
+                        type="number"
+                        min={100}
+                        step={100}
+                        value={tBacktestQtyInput}
+                        onChange={(e) => setTBacktestQtyInput(e.target.value)}
+                        onBlur={() => {
+                          const n = parseInt(tBacktestQtyInput);
+                          if (n >= 100) setTBacktestQty(n);
+                        }}
+                        className="w-20 h-7 text-xs"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        disabled={tBacktestLoading || !code}
+                        onClick={() => code && fetchTBacktest(code, tBacktestDays, tBacktestQty)}
+                      >
+                        {tBacktestLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : "运行"}
+                      </Button>
+                    </div>
+
+                    {tBacktestLoading && !tBacktest && (
+                      <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />回测中…
+                      </div>
+                    )}
+                    {tBacktestError && (
+                      <div className="text-xs text-destructive">{tBacktestError}</div>
+                    )}
+                    {tBacktest && (
+                      <>
+                        {/* Personality Analysis Card */}
+                        {tBacktest.personality && (
+                          <PersonalityCard p={tBacktest.personality} />
+                        )}
+
+                        {/* Summary metrics */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-xs">
+                          <div className="rounded-md bg-muted/40 p-2">
+                            <div className="text-muted-foreground">总交易</div>
+                            <div className="font-medium tabular-nums">{tBacktest.total_trades} 笔</div>
+                          </div>
+                          <div className="rounded-md bg-muted/40 p-2">
+                            <div className="text-muted-foreground">胜率</div>
+                            <div className={`font-medium tabular-nums ${tBacktest.win_rate >= 0.5 ? "text-green-600" : "text-red-600"}`}>
+                              {(tBacktest.win_rate * 100).toFixed(1)}%
+                            </div>
+                          </div>
+                          <div className="rounded-md bg-muted/40 p-2">
+                            <div className="text-muted-foreground">正T胜率</div>
+                            <div className="font-medium tabular-nums">{tBacktest.positive_t_trades > 0 ? (tBacktest.positive_t_win_rate * 100).toFixed(1) + "%" : "—"}</div>
+                          </div>
+                          <div className="rounded-md bg-muted/40 p-2">
+                            <div className="text-muted-foreground">反T胜率</div>
+                            <div className="font-medium tabular-nums">{tBacktest.reverse_t_trades > 0 ? (tBacktest.reverse_t_win_rate * 100).toFixed(1) + "%" : "—"}</div>
+                          </div>
+                          <div className="rounded-md bg-muted/40 p-2">
+                            <div className="text-muted-foreground">累积T收益</div>
+                            <div className={`font-medium tabular-nums ${tBacktest.cumulative_pct >= 0 ? "text-green-600" : "text-red-600"}`}>
+                              {(tBacktest.cumulative_pct * 100) >= 0 ? "+" : ""}{(tBacktest.cumulative_pct * 100).toFixed(2)}%
+                            </div>
+                          </div>
+                          <div className="rounded-md bg-muted/40 p-2">
+                            <div className="text-muted-foreground">T增量</div>
+                            <div className={`font-medium tabular-nums ${tBacktest.t_overlay_pct >= 0 ? "text-green-600" : "text-red-600"}`}>
+                              {(tBacktest.t_overlay_pct * 100) >= 0 ? "+" : ""}{(tBacktest.t_overlay_pct * 100).toFixed(2)}%
+                            </div>
+                          </div>
+                          <div className="rounded-md bg-muted/40 p-2">
+                            <div className="text-muted-foreground">最大回撤</div>
+                            <div className="font-medium tabular-nums text-red-600">
+                              -{(tBacktest.max_drawdown_pct * 100).toFixed(2)}%
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Equity comparison chart */}
+                        {tBacktest.equity_curve.length > 1 && (
+                          <div className="border rounded-md p-2">
+                            <div className="text-xs text-muted-foreground mb-1">收益对比（持有+T vs 纯持有）</div>
+                            <TEquityChart strategy={tBacktest.equity_curve} benchmark={tBacktest.benchmark_curve} />
+                          </div>
+                        )}
+
+                        {/* Daily trade table */}
+                        {tBacktest.details.length > 0 && (
+                          <div className="border rounded-md">
+                            <div className="px-3 py-2 bg-muted/30 border-b text-xs font-medium">
+                              每日明细（{tBacktest.details.length} 天）
+                            </div>
+                            <div className="max-h-[300px] overflow-auto">
+                              <table className="w-full text-[10px] font-mono tabular-nums">
+                                <thead className="bg-muted/60 sticky top-0 z-10">
+                                  <tr className="text-left">
+                                    <th className="px-2 py-1">日期</th>
+                                    <th className="px-2 py-1">信号</th>
+                                    <th className="px-2 py-1 text-right">入场</th>
+                                    <th className="px-2 py-1 text-right">目标</th>
+                                    <th className="px-2 py-1 text-right">止损</th>
+                                    <th className="px-2 py-1 text-right">出场</th>
+                                    <th className="px-2 py-1">原因</th>
+                                    <th className="px-2 py-1 text-right">盈亏%</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {tBacktest.details.map((d, idx) => {
+                                    const typeColor = d.signal_type === "正T" ? "text-blue-600" : d.signal_type === "反T" ? "text-amber-600" : "text-muted-foreground";
+                                    const opacity = d.executed ? "" : "opacity-50";
+                                    return (
+                                      <tr key={idx} className={`border-t border-muted/40 hover:bg-muted/20 ${opacity}`}>
+                                        <td className="px-2 py-1">{d.date.slice(5)}</td>
+                                        <td className={`px-2 py-1 font-medium ${typeColor}`}>{d.signal_type}</td>
+                                        <td className="px-2 py-1 text-right">{d.entry_price > 0 ? d.entry_price.toFixed(2) : "—"}</td>
+                                        <td className="px-2 py-1 text-right">{d.target_price > 0 ? d.target_price.toFixed(2) : "—"}</td>
+                                        <td className="px-2 py-1 text-right">{d.stop_loss > 0 ? d.stop_loss.toFixed(2) : "—"}</td>
+                                        <td className="px-2 py-1 text-right">{d.executed ? d.exit_price.toFixed(2) : "—"}</td>
+                                        <td className="px-2 py-1">{d.exit_reason === "target" ? "止盈" : d.exit_reason === "stop" ? "止损" : d.exit_reason === "close" ? "收盘" : ""}</td>
+                                        <td className={`px-2 py-1 text-right font-medium ${d.profit_pct > 0 ? "text-green-600" : d.profit_pct < 0 ? "text-red-600" : ""}`}>
+                                          {d.executed ? (d.profit_pct * 100 >= 0 ? "+" : "") + (d.profit_pct * 100).toFixed(2) + "%" : ""}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {!tBacktest && !tBacktestLoading && !tBacktestError && (
+                      <div className="text-xs text-muted-foreground py-6 text-center">
+                        设置参数后点击「运行」查看做T历史回测结果
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
               </Tabs>
             </CardContent>
           </Card>
 
-          {/* Backtest section */}
-          {forecastAccuracyRequested && (
+          {/* Strategy backtest engine */}
+          {code && (
             <BacktestSection
-              accuracy={forecastAccuracy}
-              loading={forecastAccuracyLoading}
-              error={forecastAccuracyError}
-              days={accuracyDays}
-              onDaysChange={(d) => {
-                setAccuracyDays(d);
-                if (code) refetchAccuracy(code, d, "", "");
-              }}
-              onApplyRange={() => {
-                if (code) refetchAccuracy(code, accuracyDays, "", "");
-              }}
+              code={code}
+              selectedStrategyID={selectedStrategyID}
+              onStrategyChange={chooseStrategy}
             />
           )}
 
@@ -1032,6 +1311,151 @@ function formatBiasStrength(strength: number | undefined, bias: string | undefin
   return `${tier} (${strength.toFixed(2)})`;
 }
 
+// ──────────────────────────────────────────────
+// T backtest equity chart (reuse BacktestSection CSS classes)
+// ──────────────────────────────────────────────
+const T_CHART_CSS = `
+  .bt-grid line { stroke: oklch(0.7 0 0 / 0.25); }
+  .bt-axis .recharts-cartesian-axis-tick text { fill: oklch(0.6 0 0); font-size: 10px; }
+  .bt-axis .recharts-cartesian-axis-line { stroke: oklch(0.7 0 0 / 0.3); }
+  .bt-ref line { stroke: oklch(0.55 0 0 / 0.4); stroke-dasharray: 4 4; }
+  .bt-line-strategy { stroke: oklch(0.55 0.2 250); stroke-width: 2; }
+  .bt-line-hold { stroke: oklch(0.6 0.12 60); stroke-width: 2; stroke-dasharray: 6 3; }
+  .bt-tooltip { font-size: 11px; border-radius: 6px; background: oklch(0.99 0 0); border: 1px solid oklch(0.82 0 0); color: oklch(0.2 0 0); padding: 8px 12px; }
+  .bt-legend { font-size: 11px; }
+  .bt-legend .recharts-legend-item-text { color: oklch(0.4 0 0); }
+  @media (prefers-color-scheme: dark) {
+    .bt-grid line { stroke: oklch(0.4 0 0 / 0.3); }
+    .bt-axis .recharts-cartesian-axis-tick text { fill: oklch(0.65 0 0); }
+    .bt-axis .recharts-cartesian-axis-line { stroke: oklch(0.4 0 0 / 0.3); }
+    .bt-ref line { stroke: oklch(0.55 0 0 / 0.3); }
+    .bt-line-strategy { stroke: oklch(0.7 0.18 250); }
+    .bt-line-hold { stroke: oklch(0.65 0.1 60); }
+    .bt-tooltip { background: oklch(0.22 0 0); border-color: oklch(0.35 0 0); color: oklch(0.9 0 0); }
+    .bt-legend .recharts-legend-item-text { color: oklch(0.7 0 0); }
+  }
+`;
+
+function TEquityChart({ strategy, benchmark }: { strategy: EquityPoint[]; benchmark: EquityPoint[] }) {
+  const data = strategy.map((s, i) => ({
+    date: s.date,
+    strategy: s.equity,
+    hold: benchmark[i]?.equity ?? 1,
+  }));
+  return (
+    <div style={{ width: "100%", height: 260 }}>
+      <style dangerouslySetInnerHTML={{ __html: T_CHART_CSS }} />
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 10, right: 20, bottom: 5, left: 10 }}>
+          <CartesianGrid className="bt-grid" strokeDasharray="3 3" />
+          <XAxis dataKey="date" className="bt-axis" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval="preserveStartEnd" />
+          <YAxis className="bt-axis" tick={{ fontSize: 10 }} domain={["auto", "auto"]} tickFormatter={(v: number) => v.toFixed(2)} />
+          <Tooltip
+            contentStyle={{ display: "none" }}
+            content={({ active, payload, label }) => {
+              if (!active || !payload?.length) return null;
+              const stratNav = Number(payload[0]?.value ?? 1);
+              const holdNav = Number(payload[1]?.value ?? 1);
+              const stratPnl = ((stratNav - 1) * 100).toFixed(2);
+              const holdPnl = ((holdNav - 1) * 100).toFixed(2);
+              return (
+                <div className="bt-tooltip">
+                  <div style={{ opacity: 0.6, marginBottom: 4 }}>{String(label)}</div>
+                  <div>持有+T: <strong>{stratNav.toFixed(4)}</strong> <span style={{ color: stratNav >= 1 ? "#16a34a" : "#dc2626" }}>({stratPnl >= "0" ? "+" : ""}{stratPnl}%)</span></div>
+                  <div>纯持有: <strong>{holdNav.toFixed(4)}</strong> <span style={{ color: holdNav >= 1 ? "#16a34a" : "#dc2626" }}>({holdPnl >= "0" ? "+" : ""}{holdPnl}%)</span></div>
+                </div>
+              );
+            }}
+          />
+          <ReferenceLine y={1} className="bt-ref" />
+          <Legend className="bt-legend" formatter={(value: string) => value === "strategy" ? "持有+T" : "纯持有"} />
+          <Line type="monotone" dataKey="strategy" name="strategy" className="bt-line-strategy" strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
+          <Line type="monotone" dataKey="hold" name="hold" className="bt-line-hold" strokeWidth={2} dot={false} activeDot={{ r: 3 }} strokeDasharray="6 3" />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Stock Personality Card for T-backtest
+// ──────────────────────────────────────────────
+function PersonalityCard({ p }: { p: StockPersonality }) {
+  const scoreColor =
+    p.t_suitability >= 60 ? "bg-green-500" :
+    p.t_suitability >= 35 ? "bg-yellow-500" :
+    "bg-red-500";
+  const recColor =
+    p.recommended_t === "正T" ? "text-blue-600 border-blue-300 bg-blue-50 dark:bg-blue-950 dark:border-blue-800" :
+    p.recommended_t === "反T" ? "text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950 dark:border-amber-800" :
+    p.recommended_t === "均可" ? "text-green-600 border-green-300 bg-green-50 dark:bg-green-950 dark:border-green-800" :
+    "text-red-600 border-red-300 bg-red-50 dark:bg-red-950 dark:border-red-800";
+
+  const tagColor = (tag: string) => {
+    if (tag.includes("适合做T") || tag.includes("优势") || tag.includes("稳定") || tag.includes("回归强")) return "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300";
+    if (tag.includes("不适合") || tag.includes("不稳")) return "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300";
+    if (tag.includes("高波动")) return "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300";
+    return "bg-muted text-muted-foreground";
+  };
+
+  return (
+    <div className="rounded-md border p-3 space-y-3">
+      <div className="text-xs font-medium text-muted-foreground">股性分析</div>
+
+      {/* Score bar + Recommended T */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1">
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span className="text-muted-foreground">T适应性</span>
+            <span className="font-medium tabular-nums">{Math.round(p.t_suitability)}/100</span>
+          </div>
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div className={`h-full rounded-full transition-all ${scoreColor}`} style={{ width: `${p.t_suitability}%` }} />
+          </div>
+        </div>
+        <span className={`px-2 py-1 text-xs font-medium rounded border ${recColor}`}>
+          {p.recommended_t === "不适合" ? "不建议做T" : `推荐${p.recommended_t}`}
+        </span>
+      </div>
+
+      {/* Key metrics grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs">
+        <MetricItem label="ATR" value={`${p.atr_pct.toFixed(1)}%`} />
+        <MetricItem label="T空间" value={`${p.t_space_pct.toFixed(1)}%`} />
+        <MetricItem label="趋势" value={p.trend_bias} />
+        <MetricItem label="均值回归" value={`${(p.mean_reversion_pct * 100).toFixed(0)}%`} />
+        <MetricItem label="振幅稳定" value={p.range_cv > 0 && p.range_cv < 0.5 ? "好" : p.range_cv > 0.8 ? "差" : "一般"} />
+        <MetricItem label="信号间隔" value={p.avg_signal_interval > 0 ? `${p.avg_signal_interval.toFixed(1)}天` : "—"} />
+        <MetricItem label="最佳窗口" value={p.best_signal_window} />
+        <MetricItem label="正T优势" value={p.positive_t_advantage > 0.1 ? `+${(p.positive_t_advantage * 100).toFixed(0)}%` : p.positive_t_advantage < -0.1 ? `${(p.positive_t_advantage * 100).toFixed(0)}%` : "无"} />
+      </div>
+
+      {/* Tags */}
+      {p.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {p.tags.map((tag) => (
+            <span key={tag} className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${tagColor(tag)}`}>{tag}</span>
+          ))}
+        </div>
+      )}
+
+      {/* Summary */}
+      {p.summary && (
+        <div className="text-xs text-muted-foreground border-t pt-2">{p.summary}</div>
+      )}
+    </div>
+  );
+}
+
+function MetricItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline gap-1">
+      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className="font-medium tabular-nums">{value}</span>
+    </div>
+  );
+}
+
 function EmptyTradePanel({ title, description }: { title: string; description: string }) {
   return (
     <div className="rounded-md border border-dashed bg-muted/20 p-4">
@@ -1217,197 +1641,69 @@ function ForecastAccuracyPanel({
 }
 
 // ──────────────────────────────────────────────
-// Today's order-suggestion panel
+// Defensive strategy panel
 // ──────────────────────────────────────────────
-// Maps the empirical-quantile forecast into concrete price levels with
-// fill-probability annotations and a bias-aware recommendation, so the user
-// can decide where to place today's condition orders without doing the
-// percentile math in their head.
-//
-// Fill-probability semantics:
-//   "成交概率 X%" = historically, X% of trading days saw the price reach this
-//   level intraday. So a sell limit at P83 (17% fill rate) only fills ~17%
-//   of the time, but at the top of the predicted range. A sell at P50 (50%)
-//   fills half the time at a mid-range price.
-//
-// Levels come from the backend's empirical excursion distribution:
-//   P50  → predicted_high_median / predicted_low_median  (~50% fill)
-//   P83  → predicted_high / predicted_low                (~17% fill, ceiling/floor)
-//   P95  → predicted_high_up / predicted_low_down        (~5% fill, spike)
 
-type SellLevel = { price: number; fillPct: number; tag: string; useCase: string; empFillPct?: number; empPnlPct?: number; empFills?: number; empWinRate?: number; empCumPnl?: number };
-type BuyLevel = { price: number; fillPct: number; tag: string; useCase: string; empFillPct?: number; empPnlPct?: number; empFills?: number; empWinRate?: number; empCumPnl?: number };
-
-function enrichWithStats<T extends { tag: string }>(
-  levels: T[],
-  orderStats: OrderLevelStat[] | undefined,
-  side: "sell" | "buy",
-): T[] {
-  if (!orderStats) return levels;
-  return levels.map((lv) => {
-    const stat = orderStats.find((s) => s.side === side && s.tag === lv.tag);
-    if (!stat) return lv;
-    return {
-      ...lv,
-      empFillPct: stat.empirical_fill_pct,
-      empPnlPct: stat.avg_pnl_pct,
-      empFills: stat.fills,
-      empWinRate: stat.win_rate,
-      empCumPnl: stat.cumulative_pnl_pct,
-    };
-  });
-}
-
-function buildSellLevels(fc: NonNullable<StockAnalysis["intraday_forecast"]>): SellLevel[] {
-  const levels: SellLevel[] = [];
-  if (fc.predicted_high_median && fc.predicted_high_median > 0) {
-    levels.push({
-      price: fc.predicted_high_median,
-      fillPct: 50,
-      tag: "中位",
-      useCase: "稳健成交 · 半数日子触达，价格一般",
-    });
-  }
-  if (fc.predicted_high > 0) {
-    levels.push({
-      price: fc.predicted_high,
-      fillPct: 17,
-      tag: "预测高",
-      useCase: "优质成交 · 日内冲高时成交",
-    });
-  }
-  if (fc.predicted_high_up && fc.predicted_high_up > 0) {
-    levels.push({
-      price: fc.predicted_high_up,
-      fillPct: 5,
-      tag: "上限",
-      useCase: "极端冲高 · 涨停边缘/异常波动",
-    });
-  }
-  // Sort descending by price (highest first).
-  return levels.sort((a, b) => b.price - a.price);
-}
-
-function buildBuyLevels(fc: NonNullable<StockAnalysis["intraday_forecast"]>): BuyLevel[] {
-  const levels: BuyLevel[] = [];
-  if (fc.predicted_low_median && fc.predicted_low_median > 0) {
-    levels.push({
-      price: fc.predicted_low_median,
-      fillPct: 50,
-      tag: "中位",
-      useCase: "稳健成交 · 半数日子触达，价格一般",
-    });
-  }
-  if (fc.predicted_low > 0) {
-    levels.push({
-      price: fc.predicted_low,
-      fillPct: 17,
-      tag: "预测低",
-      useCase: "优质抄底 · 日内探底时成交",
-    });
-  }
-  if (fc.predicted_low_down && fc.predicted_low_down > 0) {
-    levels.push({
-      price: fc.predicted_low_down,
-      fillPct: 5,
-      tag: "下限",
-      useCase: "暴跌接刀 · 异常下探/利空",
-    });
-  }
-  // Sort ascending by price (lowest first).
-  return levels.sort((a, b) => a.price - b.price);
-}
-
-function biasRecommendation(
-  bias: string | undefined,
-  biasStrength: number | undefined,
-  zonePct: number,
-  reliability: "high_confidence" | "moderate" | "low_confidence" | undefined,
-  isHolding: boolean,
-): { primary: string; secondary?: string; tone: "info" | "warn" | "danger" } {
-  const strong = (biasStrength ?? 0) >= 1.0;
-  const inUpper = zonePct >= 70;
-  const inLower = zonePct <= 30;
-  const lowRel = reliability === "low_confidence";
-
-  if (lowRel) {
-    return {
-      primary: "历史命中率偏低，不建议基于此预测单独挂条件单。",
-      secondary: "若需交易请结合其他信号（形态评分、买卖区间、趋势），并严格设止损。",
-      tone: "danger",
-    };
-  }
-
-  if (isHolding) {
-    if (bias === "bullish" || inUpper) {
-      const reason = inUpper ? "价格已进入预测高位区" : "形态偏多";
-      return {
-        primary: `${reason}，优先挂卖。建议 50% 仓位挂「预测高」，50% 挂「上限」等冲高。`,
-        secondary: strong ? "偏向强烈，可适当加大挂单比例。" : undefined,
-        tone: "info",
-      };
-    }
-    if (bias === "bearish") {
-      return {
-        primary: "形态偏空，建议挂卖但价格不宜过高。建议挂「中位」或「预测高」先锁住成交。",
-        secondary: "若不想立即减仓，至少设止损在「下限」下方。",
-        tone: "warn",
-      };
-    }
-    return {
-      primary: "无明显偏向，建议分批挂卖：中位 + 预测高 各 50%。",
-      tone: "info",
-    };
-  }
-
-  // Not holding
-  if (bias === "bullish") {
-    if (inLower) {
-      return {
-        primary: "形态偏多且价格在预测低位区，是入场点。可挂「预测低」买入，止损「下限」下方。",
-        tone: "info",
-      };
-    }
-    return {
-      primary: "形态偏多但价格已离开低位区。可挂「预测低」或「中位」等回踩，止损「下限」下方。",
-      tone: "info",
-    };
-  }
-  if (bias === "bearish") {
-    return {
-      primary: "形态偏空，不建议新仓买入。若必须建仓，挂「下限」接刀且严格止损。",
-      tone: "warn",
-    };
-  }
-  return {
-    primary: "无明显偏向，可挂「预测低」试单，止损「下限」下方 1%。",
-    tone: "info",
-  };
-}
-
-function OrderSuggestionPanel({
-  fc,
-  accuracy,
-  isHolding,
+function DefensiveStrategyPanel({
+  strategy,
+  options,
+  reliability,
+  selectedID,
+  onStrategyChange,
 }: {
-  fc: NonNullable<StockAnalysis["intraday_forecast"]>;
-  accuracy: IntradayForecastAccuracy | null;
-  isHolding: boolean;
+  strategy: StockAnalysis["defensive_strategy"];
+  options: StockAnalysis["strategy_options"];
+  reliability: IntradayForecastAccuracy["reliability"] | undefined;
+  selectedID: string;
+  onStrategyChange: (id: string) => void;
 }) {
   const [open, setOpen] = useState(true);
-  const rawSells = buildSellLevels(fc);
-  const rawBuys = buildBuyLevels(fc);
-  // Enrich with empirical stats from the backtest.
-  const sells = enrichWithStats(rawSells, accuracy?.order_stats, "sell");
-  const buys = enrichWithStats(rawBuys, accuracy?.order_stats, "buy");
-  const reliability = accuracy?.reliability;
-  const rec = biasRecommendation(fc.bias, fc.bias_strength, fc.zone_pct, reliability, isHolding);
 
-  const toneClasses: Record<typeof rec.tone, string> = {
-    info: "border-sky-300/60 bg-sky-50 dark:border-sky-800/60 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200",
+  if (!strategy) {
+    return (
+      <div className="mt-3 rounded-md border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
+        防守策略暂不可用：K线数据不足，今日不生成日内操作建议。
+      </div>
+    );
+  }
+
+  const selectedOption =
+    options?.find((opt) => opt.id === selectedID) ||
+    options?.find((opt) => opt.recommended) ||
+    null;
+  const active = selectedOption
+    ? {
+        action: selectedOption.action,
+        action_label: selectedOption.action_label,
+        target_position_pct: selectedOption.target_position_pct,
+        reason: selectedOption.reason,
+        execution_tip: selectedOption.execution_tip,
+        risk_notes: selectedOption.risk_notes,
+      }
+    : strategy;
+
+  function chooseStrategy(id: string) {
+    onStrategyChange(id);
+  }
+
+  const tone = active.action === "CLEAR" || active.action === "REDUCE"
+    ? "warn"
+    : active.action === "HOLD" || active.action === "RESTORE" || active.action === "BUILD"
+      ? "ok"
+      : "neutral";
+  const toneClasses: Record<typeof tone, string> = {
+    ok: "border-emerald-300/60 bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200",
     warn: "border-amber-300/60 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200",
-    danger: "border-rose-300/60 bg-rose-50 dark:border-rose-800/60 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200",
+    neutral: "border-sky-300/60 bg-sky-50 dark:border-sky-800/60 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200",
   };
+  const reliabilityText = reliability === "high_confidence"
+    ? "预测可信度高"
+    : reliability === "moderate"
+      ? "预测可信度中等"
+      : reliability === "low_confidence"
+        ? "预测可信度低"
+        : "预测回测未完成";
+  const targetWidth = Math.max(2, Math.min(100, active.target_position_pct));
 
   return (
     <div className="mt-3 rounded-md border bg-background">
@@ -1418,150 +1714,104 @@ function OrderSuggestionPanel({
       >
         <div className="flex items-center gap-2">
           {open ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
-          <span className="text-xs font-medium">今日挂单参考</span>
-          <span className="text-[10px] text-muted-foreground">· 6 档价位 + 历史回测</span>
+          <span className="text-xs font-medium">今日防守策略</span>
+          <Badge variant="outline" className="text-[10px]">{active.action_label}</Badge>
+          <span className="text-[10px] text-muted-foreground">· 替代日内挂单建议</span>
         </div>
         <span className="text-[10px] text-muted-foreground">点击{open ? "收起" : "展开"}</span>
       </button>
 
       {open && (
         <div className="space-y-3 border-t px-3 py-3">
-          {/* Bias-aware recommendation banner */}
-          <div className={`rounded-md border p-2 text-[11px] leading-relaxed ${toneClasses[rec.tone]}`}>
-            <div className="font-medium">{rec.primary}</div>
-            {rec.secondary && <div className="mt-0.5 opacity-90">{rec.secondary}</div>}
+          <div className={`rounded-md border p-2 text-[11px] leading-relaxed ${toneClasses[tone]}`}>
+            <div className="flex items-center gap-2">
+              {selectedOption && <Badge variant="secondary" className="text-[10px]">{selectedOption.name}</Badge>}
+              <div className="font-medium">{active.reason}</div>
+            </div>
+            <div className="mt-0.5 opacity-90">{active.execution_tip}</div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Sell levels */}
-            <div className="rounded-md border bg-background">
-              <div className="flex items-center justify-between border-b px-2 py-1.5">
-                <span className="text-[11px] font-medium">卖出挂单</span>
-                <span className="text-[10px] text-muted-foreground">高 → 低</span>
-              </div>
-              <div className="divide-y">
-                {sells.map((lv, i) => {
-                  const fillBar = Math.min(100, lv.fillPct * 2);
-                  const empPct = lv.empFillPct !== undefined ? (lv.empFillPct * 100).toFixed(0) : null;
-                  const pnlPct = lv.empPnlPct !== undefined ? (lv.empPnlPct * 100).toFixed(2) : null;
-                  const pnlPos = lv.empPnlPct !== undefined && lv.empPnlPct > 0;
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 rounded-md bg-muted/40 p-2">
+            <TMetric l="风险分" v={`${strategy.risk_score} · ${strategy.risk_level}`} />
+            <TMetric l="评分" v={`${strategy.alpha_score}`} />
+            <TMetric l="当前仓位" v={`${strategy.current_position_pct}%`} />
+            <TMetric l="目标仓位" v={`${active.target_position_pct}%`} />
+          </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between text-[10px] text-muted-foreground">
+              <span>目标仓位</span>
+              <span className="font-mono tabular-nums">{active.target_position_pct}%</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                className={`h-full rounded-full ${active.target_position_pct >= 70 ? "bg-emerald-500" : active.target_position_pct >= 50 ? "bg-amber-500" : "bg-rose-500"}`}
+                style={{ width: `${targetWidth}%` }}
+              />
+            </div>
+          </div>
+
+          {active.risk_notes && active.risk_notes.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {active.risk_notes.map((note) => (
+                <Badge key={note} variant="secondary" className="text-[10px]">
+                  {note}
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          {options && options.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] font-medium text-muted-foreground">可选策略</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {options.map((opt) => {
+                  const width = Math.max(2, Math.min(100, opt.target_position_pct));
+                  const isRiskOff = opt.action === "CLEAR" || opt.action === "REDUCE";
                   return (
-                    <div key={`s-${i}`} className="px-2 py-2">
-                      <div className="flex items-baseline justify-between">
-                        <span className="font-mono text-base tabular-nums">{lv.price.toFixed(2)}</span>
-                        <span className="text-[10px] text-muted-foreground">{lv.tag}</span>
-                      </div>
-                      <div className="mt-1 flex items-center gap-2">
-                        <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
-                          <div className="h-full rounded-full bg-primary" style={{ width: `${fillBar}%` }} />
-                        </div>
-                        <span className="text-[10px] font-mono tabular-nums text-right" style={{ minWidth: "5.5rem" }}>
-                          理论 {lv.fillPct}%
-                          {empPct !== null && <span className="text-muted-foreground ml-1">实际 {empPct}%</span>}
+                    <div
+                      key={opt.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => chooseStrategy(opt.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") chooseStrategy(opt.id);
+                      }}
+                      className={`rounded-md border p-2 text-left transition-colors hover:border-primary/60 ${
+                        opt.id === selectedOption?.id ? "border-primary bg-primary/5" : "bg-background"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium">{opt.name}</span>
+                        <Badge variant={opt.id === selectedOption?.id ? "default" : "outline"} className="text-[10px]">
+                          {opt.id === selectedOption?.id ? "当前" : opt.style}
+                        </Badge>
+                        <span className={`ml-auto text-[10px] font-mono tabular-nums ${isRiskOff ? "text-amber-700 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-300"}`}>
+                          {opt.action_label}
                         </span>
                       </div>
-                      <div className="mt-0.5 text-[10px] text-muted-foreground">{lv.useCase}</div>
-                      {(pnlPct !== null || lv.empCumPnl !== undefined) && (
-                        <div className="mt-1 grid grid-cols-3 gap-1 text-[10px] rounded bg-muted/40 px-1.5 py-1">
-                          <div>
-                            <div className="text-muted-foreground">成交日</div>
-                            <div className={pnlPos ? "text-emerald-700 dark:text-emerald-300 font-mono tabular-nums" : "text-rose-700 dark:text-rose-300 font-mono tabular-nums"}>
-                              {pnlPct !== null ? `${pnlPos ? "+" : ""}${pnlPct}%` : "—"}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-muted-foreground">胜率</div>
-                            <div className="font-mono tabular-nums">
-                              {lv.empWinRate !== undefined ? `${(lv.empWinRate * 100).toFixed(0)}%` : "—"}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-muted-foreground">累计</div>
-                            <div className={(lv.empCumPnl ?? 0) >= 0 ? "text-emerald-700 dark:text-emerald-300 font-mono tabular-nums" : "text-rose-700 dark:text-rose-300 font-mono tabular-nums"}>
-                              {lv.empCumPnl !== undefined
-                                ? `${lv.empCumPnl >= 0 ? "+" : ""}${(lv.empCumPnl * 100).toFixed(2)}%`
-                                : "—"}
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className={`h-full rounded-full ${opt.target_position_pct >= 70 ? "bg-emerald-500" : opt.target_position_pct >= 40 ? "bg-amber-500" : "bg-rose-500"}`}
+                          style={{ width: `${width}%` }}
+                        />
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
+                        <span>{opt.expected_use}</span>
+                        <span className="font-mono tabular-nums">{opt.target_position_pct}%</span>
+                      </div>
                     </div>
                   );
                 })}
               </div>
             </div>
+          )}
 
-            {/* Buy levels */}
-            <div className="rounded-md border bg-background">
-              <div className="flex items-center justify-between border-b px-2 py-1.5">
-                <span className="text-[11px] font-medium">买入挂单</span>
-                <span className="text-[10px] text-muted-foreground">低 → 高</span>
-              </div>
-              <div className="divide-y">
-                {buys.map((lv, i) => {
-                  const fillBar = Math.min(100, lv.fillPct * 2);
-                  const empPct = lv.empFillPct !== undefined ? (lv.empFillPct * 100).toFixed(0) : null;
-                  const pnlPct = lv.empPnlPct !== undefined ? (lv.empPnlPct * 100).toFixed(2) : null;
-                  const pnlPos = lv.empPnlPct !== undefined && lv.empPnlPct > 0;
-                  const stopLoss = lv.tag === "预测低" && fc.predicted_low_down && fc.predicted_low_down > 0
-                    ? (fc.predicted_low_down * 0.99).toFixed(2)
-                    : null;
-                  return (
-                    <div key={`b-${i}`} className="px-2 py-2">
-                      <div className="flex items-baseline justify-between">
-                        <span className="font-mono text-base tabular-nums">{lv.price.toFixed(2)}</span>
-                        <span className="text-[10px] text-muted-foreground">{lv.tag}</span>
-                      </div>
-                      <div className="mt-1 flex items-center gap-2">
-                        <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
-                          <div className="h-full rounded-full bg-primary" style={{ width: `${fillBar}%` }} />
-                        </div>
-                        <span className="text-[10px] font-mono tabular-nums text-right" style={{ minWidth: "5.5rem" }}>
-                          理论 {lv.fillPct}%
-                          {empPct !== null && <span className="text-muted-foreground ml-1">实际 {empPct}%</span>}
-                        </span>
-                      </div>
-                      <div className="mt-0.5 text-[10px] text-muted-foreground">
-                        {lv.useCase}
-                        {stopLoss && (
-                          <span className="ml-1 text-rose-700 dark:text-rose-300">· 止损 {stopLoss}</span>
-                        )}
-                      </div>
-                      {(pnlPct !== null || lv.empCumPnl !== undefined) && (
-                        <div className="mt-1 grid grid-cols-3 gap-1 text-[10px] rounded bg-muted/40 px-1.5 py-1">
-                          <div>
-                            <div className="text-muted-foreground">成交日</div>
-                            <div className={pnlPos ? "text-emerald-700 dark:text-emerald-300 font-mono tabular-nums" : "text-rose-700 dark:text-rose-300 font-mono tabular-nums"}>
-                              {pnlPct !== null ? `${pnlPos ? "+" : ""}${pnlPct}%` : "—"}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-muted-foreground">胜率</div>
-                            <div className="font-mono tabular-nums">
-                              {lv.empWinRate !== undefined ? `${(lv.empWinRate * 100).toFixed(0)}%` : "—"}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-muted-foreground">累计</div>
-                            <div className={(lv.empCumPnl ?? 0) >= 0 ? "text-emerald-700 dark:text-emerald-300 font-mono tabular-nums" : "text-rose-700 dark:text-rose-300 font-mono tabular-nums"}>
-                              {lv.empCumPnl !== undefined
-                                ? `${lv.empCumPnl >= 0 ? "+" : ""}${(lv.empCumPnl * 100).toFixed(2)}%`
-                                : "—"}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div className="text-[10px] text-muted-foreground leading-relaxed">
-            理论 = 分位数构建概率；实际 = 近期回测中真实触达比例。
-            「成交日」= 触达日的平均相对盈亏（卖出对比昨收，买入对比今收），正值代表挂单价比不挂单更好。
-            预测每日盘前更新，盘中不要重算；任何挂单都建议设止损。
+          <div className="rounded-md border border-dashed bg-muted/20 px-2 py-2 text-[10px] leading-relaxed text-muted-foreground">
+            此卡片只输出策略仓位，不输出预测高/低挂单价。{reliabilityText}仅用于判断预测信息质量，不覆盖防守仓位规则。
+            {active.action === "CLEAR" || active.action === "REDUCE" || active.action === "BUILD" || active.action === "RESTORE"
+              ? " 当前动作由风险阈值触发，执行后当天不再反向操作。"
+              : " 当前不触发日内交易，避免因盘中波动临时加减仓。"}
           </div>
         </div>
       )}

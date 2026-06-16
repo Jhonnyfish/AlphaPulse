@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import type { IntradayForecastAccuracy, IntradayForecastDay } from "@/lib/types";
+import { useState, useCallback, useEffect } from "react";
+import type { StrategyResult, EquityPoint, StrategyTrade } from "@/lib/types";
+import { strategyApi } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -19,417 +21,7 @@ import {
 } from "recharts";
 
 // ──────────────────────────────────────────────
-// Strategy definitions
-// ──────────────────────────────────────────────
-// Each strategy is a buy→sell round trip with optional bias filter.
-// biasFilter controls WHEN to attempt buying:
-//   "none"  — trade every day regardless of bias
-//   "bull"  — only buy when bias contains "多" (bullish)
-//   "strong"— only buy when bias contains "多" AND bias_strength > 1.0
-//
-// A "买入持有" (buy-and-hold) baseline is always shown for comparison.
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-type DayRec = any;
-
-interface Strategy {
-  id: string;
-  label: string;
-  desc: string;
-  buyLevelFn: (d: DayRec) => number;
-  sellLevelFn: (d: DayRec) => number;
-  biasFilter: "none" | "bull" | "strong";
-  /** Force-sell at actual_close when bias turns bearish while holding */
-  bearExit: boolean;
-}
-
-const STRATEGIES: Strategy[] = [
-  {
-    id: "classic",
-    label: "经典",
-    desc: "买P17→卖P83，无视偏向",
-    buyLevelFn: (d) => d.predicted_low,
-    sellLevelFn: (d) => d.predicted_high,
-    biasFilter: "none",
-    bearExit: false,
-  },
-  {
-    id: "bull-only",
-    label: "看多才买",
-    desc: "偏多时买P17→卖P83",
-    buyLevelFn: (d) => d.predicted_low,
-    sellLevelFn: (d) => d.predicted_high,
-    biasFilter: "bull",
-    bearExit: false,
-  },
-  {
-    id: "bull-bear-exit",
-    label: "看多买+看空卖",
-    desc: "偏多买P17，偏空强制卖出",
-    buyLevelFn: (d) => d.predicted_low,
-    sellLevelFn: (d) => d.predicted_high,
-    biasFilter: "bull",
-    bearExit: true,
-  },
-  {
-    id: "strong-signal",
-    label: "强信号",
-    desc: "偏向强>1.0才买P17→卖P83",
-    buyLevelFn: (d) => d.predicted_low,
-    sellLevelFn: (d) => d.predicted_high,
-    biasFilter: "strong",
-    bearExit: false,
-  },
-  {
-    id: "conservative",
-    label: "保守",
-    desc: "偏多买P5→卖P50，偏空卖出",
-    buyLevelFn: (d) => d.predicted_low_down,
-    sellLevelFn: (d) => d.predicted_high_median || 0,
-    biasFilter: "bull",
-    bearExit: true,
-  },
-  {
-    id: "scalp",
-    label: "快进快出",
-    desc: "偏多买P50→卖P50(高位)",
-    buyLevelFn: (d) => d.predicted_low_median || 0,
-    sellLevelFn: (d) => d.predicted_high_median || 0,
-    biasFilter: "bull",
-    bearExit: false,
-  },
-];
-
-const DAY_PRESETS = [30, 60, 120, 250];
-
-// ──────────────────────────────────────────────
-// Helpers
-// ──────────────────────────────────────────────
-
-function isBullish(d: DayRec): boolean {
-  return (d.bias || "").includes("多");
-}
-function isBearish(d: DayRec): boolean {
-  return (d.bias || "").includes("空");
-}
-function isStrongBias(d: DayRec): boolean {
-  return isBullish(d) && (d.bias_strength || 0) > 1.0;
-}
-
-function shouldBuy(d: DayRec, filter: Strategy["biasFilter"]): boolean {
-  if (filter === "none") return true;
-  if (filter === "bull") return isBullish(d);
-  if (filter === "strong") return isStrongBias(d);
-  return false;
-}
-
-// ──────────────────────────────────────────────
-// Simulation
-// ──────────────────────────────────────────────
-
-interface SimRow {
-  date: string;
-  prevClose: number;
-  buyLevel: number;
-  sellLevel: number;
-  actualHigh: number;
-  actualLow: number;
-  actualClose: number;
-  bias: string;
-  biasStrength: number;
-  action: "buy" | "sell" | "bear-exit" | "hold" | "skip" | "cash";
-  tradePrice: number;
-  holding: boolean;
-  buyPrice: number;
-  nav: number;
-  dailyPnl: number;
-}
-
-function simulate(
-  details: IntradayForecastDay[],
-  strategy: Strategy,
-): SimRow[] {
-  const sorted = [...details].sort((a, b) => a.date.localeCompare(b.date));
-  let holding = false;
-  let buyPrice = 0;
-  let nav = 1.0;
-
-  return sorted.map((d) => {
-    const buyLevel = strategy.buyLevelFn(d);
-    const sellLevel = strategy.sellLevelFn(d);
-    let action: SimRow["action"] = "cash";
-    let tradePrice = 0;
-    let realizedPnl = 0;
-
-    if (holding) {
-      // ── Bear exit: force sell at actual_close when bias turns bearish ──
-      if (strategy.bearExit && isBearish(d) && d.actual_close > 0) {
-        action = "bear-exit";
-        tradePrice = d.actual_close;
-        realizedPnl = (d.actual_close - buyPrice) / buyPrice;
-        nav *= (1 + realizedPnl);
-        holding = false;
-        buyPrice = 0;
-      }
-      // ── Normal sell: check if price reached sell level ──
-      else if (sellLevel > 0 && d.actual_high >= sellLevel) {
-        action = "sell";
-        tradePrice = sellLevel;
-        realizedPnl = (sellLevel - buyPrice) / buyPrice;
-        nav *= (1 + realizedPnl);
-        holding = false;
-        buyPrice = 0;
-      } else {
-        action = "hold";
-      }
-    } else {
-      // ── Buy: only if bias filter passes ──
-      if (!shouldBuy(d, strategy.biasFilter)) {
-        action = "skip"; // bias filter says no
-      } else if (buyLevel > 0 && d.actual_low <= buyLevel) {
-        action = "buy";
-        tradePrice = buyLevel;
-        holding = true;
-        buyPrice = buyLevel;
-      } else {
-        action = "cash";
-      }
-    }
-
-    const prevNav = nav;
-    let currentNav = nav;
-    if (holding && buyPrice > 0) {
-      currentNav = nav * (d.actual_close / buyPrice);
-    }
-
-    return {
-      date: d.date,
-      prevClose: d.prev_close,
-      buyLevel,
-      sellLevel,
-      actualHigh: d.actual_high,
-      actualLow: d.actual_low,
-      actualClose: d.actual_close,
-      bias: d.bias || "",
-      biasStrength: d.bias_strength || 0,
-      action,
-      tradePrice,
-      holding,
-      buyPrice,
-      nav: round4(currentNav),
-      dailyPnl: round4((currentNav - prevNav) / prevNav * 100),
-    };
-  });
-}
-
-/** Buy-and-hold baseline: buy at first day's prev_close, hold to end. */
-function simulateBuyHold(details: IntradayForecastDay[]): SimRow[] {
-  const sorted = [...details].sort((a, b) => a.date.localeCompare(b.date));
-  if (sorted.length === 0) return [];
-  const buyPrice = sorted[0].prev_close;
-  let nav = 1.0;
-
-  return sorted.map((d) => {
-    const prevNav = nav;
-    nav = d.actual_close / buyPrice;
-    return {
-      date: d.date,
-      prevClose: d.prev_close,
-      buyLevel: buyPrice,
-      sellLevel: 0,
-      actualHigh: d.actual_high,
-      actualLow: d.actual_low,
-      actualClose: d.actual_close,
-      bias: d.bias || "",
-      biasStrength: d.bias_strength || 0,
-      action: "hold" as const,
-      tradePrice: 0,
-      holding: true,
-      buyPrice,
-      nav: round4(nav),
-      dailyPnl: round4((nav - prevNav) / prevNav * 100),
-    };
-  });
-}
-
-// ──────────────────────────────────────────────
-// BacktestSection
-// ──────────────────────────────────────────────
-
-interface BacktestSectionProps {
-  accuracy: IntradayForecastAccuracy | null;
-  loading: boolean;
-  error: string;
-  days: number;
-  onDaysChange: (d: number) => void;
-  onApplyRange: () => void;
-}
-
-export default function BacktestSection({
-  accuracy,
-  loading,
-  error,
-  days,
-  onDaysChange,
-}: BacktestSectionProps) {
-  const [open, setOpen] = useState(false);
-  const [strategyIdx, setStrategyIdx] = useState(1); // default: 看多才买
-
-  const strategy = STRATEGIES[strategyIdx];
-  const details = accuracy?.details ?? [];
-
-  // Run simulation
-  const simRows = useMemo(
-    () => (details.length ? simulate(details, strategy) : []),
-    [details, strategy],
-  );
-  const holdRows = useMemo(
-    () => (details.length ? simulateBuyHold(details) : []),
-    [details],
-  );
-
-  // Chart data: strategy NAV + buy-and-hold NAV
-  const chartData = useMemo(() => {
-    if (!simRows.length) return [];
-    return simRows.map((r, i) => ({
-      date: r.date,
-      nav: r.nav,
-      hold: holdRows[i]?.nav ?? 1,
-    }));
-  }, [simRows, holdRows]);
-
-  // Summary
-  const finalNav = chartData.length > 0 ? chartData[chartData.length - 1].nav : 1;
-  const holdNav = chartData.length > 0 ? chartData[chartData.length - 1].hold : 1;
-  const totalReturn = finalNav - 1;
-  const holdReturn = holdNav - 1;
-  const sells = simRows.filter((r) => r.action === "sell" || r.action === "bear-exit");
-  const wins = sells.filter((r) => r.dailyPnl > 0);
-  const winRate = sells.length > 0 ? wins.length / sells.length : 0;
-  const beatsHold = totalReturn > holdReturn;
-
-  return (
-    <Card>
-      <CardHeader
-        className="cursor-pointer select-none py-3 px-4"
-        onClick={() => setOpen((o) => !o)}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {open
-              ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-            <CardTitle className="text-sm font-semibold">策略回测</CardTitle>
-            {accuracy && (
-              <>
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] border-0 ${
-                    totalReturn >= 0
-                      ? "text-emerald-700 dark:text-emerald-300"
-                      : "text-rose-700 dark:text-rose-300"
-                  }`}
-                >
-                  {totalReturn >= 0 ? "+" : ""}{(totalReturn * 100).toFixed(2)}%
-                </Badge>
-                <span className="text-[10px] text-muted-foreground">
-                  {sells.length} 笔 · 胜率 {(winRate * 100).toFixed(0)}%
-                </span>
-                <span className={`text-[10px] ${beatsHold ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                  {beatsHold ? "↑" : "↓"} vs 持有 {(holdReturn >= 0 ? "+" : "") + (holdReturn * 100).toFixed(2)}%
-                </span>
-              </>
-            )}
-          </div>
-          <span className="text-[10px] text-muted-foreground">
-            {accuracy?.days_evaluated ?? 0} 交易日
-          </span>
-        </div>
-      </CardHeader>
-
-      {open && (
-        <CardContent className="pt-0 px-4 pb-4 space-y-4">
-          {loading && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground py-4 justify-center">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              正在回测…
-            </div>
-          )}
-          {error && (
-            <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              {error}
-            </div>
-          )}
-
-          {!loading && accuracy && (
-            <>
-              {/* Day range */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground">回测天数</span>
-                {DAY_PRESETS.map((d) => (
-                  <Button
-                    key={d}
-                    variant={days === d ? "default" : "outline"}
-                    size="sm"
-                    className="h-7 text-xs px-2.5"
-                    onClick={() => onDaysChange(d)}
-                  >
-                    {d} 天
-                  </Button>
-                ))}
-                {accuracy.days_evaluated < days && (
-                  <span className="text-[10px] text-amber-600 dark:text-amber-400">
-                    实际可用 {accuracy.days_evaluated} 天
-                  </span>
-                )}
-              </div>
-
-              {/* Strategy selector */}
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="text-xs text-muted-foreground">策略</span>
-                <select
-                  value={strategyIdx}
-                  onChange={(e) => setStrategyIdx(Number(e.target.value))}
-                  className="text-xs px-3 py-1.5 rounded-md border border-input bg-background"
-                >
-                  {STRATEGIES.map((s, i) => (
-                    <option key={s.id} value={i}>
-                      {s.label} — {s.desc}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-[10px] text-muted-foreground">
-                  {strategy.biasFilter === "none" ? "无偏向过滤"
-                    : strategy.biasFilter === "bull" ? "仅偏多日买入"
-                    : "强信号(>1.0)才买"}
-                  {strategy.bearExit ? " · 偏空强制卖出" : ""}
-                </span>
-              </div>
-
-              {/* Net value chart with buy-and-hold baseline */}
-              {chartData.length > 0 && (
-                <div className="rounded-md border p-3">
-                  <div className="mb-2 text-xs text-muted-foreground font-medium">
-                    净值曲线对比
-                  </div>
-                  <NetValueChart data={chartData} />
-                </div>
-              )}
-
-              {/* Daily details table */}
-              {simRows.length > 0 && (
-                <DailyDetailsTable rows={simRows} strategy={strategy} />
-              )}
-            </>
-          )}
-        </CardContent>
-      )}
-    </Card>
-  );
-}
-
-// ──────────────────────────────────────────────
-// Net value chart
+// Chart CSS (works in both light & dark)
 // ──────────────────────────────────────────────
 
 const CHART_CSS = `
@@ -454,13 +46,283 @@ const CHART_CSS = `
   }
 `;
 
+// ──────────────────────────────────────────────
+// BacktestSection
+// ──────────────────────────────────────────────
+
+const DEFAULT_BACKTEST_DAYS = 30;
+const MIN_BACKTEST_DAYS = 5;
+const MAX_BACKTEST_DAYS = 500;
+const DEFAULT_STRATEGY_ID = "balanced";
+const STRATEGY_OPTIONS = [
+  { id: "conservative", label: "保守防守" },
+  { id: "balanced", label: "均衡持有" },
+  { id: "aggressive", label: "进攻持有" },
+  { id: "rebound", label: "反弹恢复" },
+  { id: "exit_weak", label: "弱势退出" },
+];
+
+function strategyLabel(id: string) {
+  return STRATEGY_OPTIONS.find((opt) => opt.id === id)?.label || "均衡持有";
+}
+
+interface BacktestSectionProps {
+  code: string;
+  selectedStrategyID?: string;
+  onStrategyChange?: (id: string) => void;
+}
+
+export default function BacktestSection({
+  code,
+  selectedStrategyID = DEFAULT_STRATEGY_ID,
+  onStrategyChange,
+}: BacktestSectionProps) {
+  const [open, setOpen] = useState(false);
+  const [days, setDays] = useState(DEFAULT_BACKTEST_DAYS);
+  const [daysInput, setDaysInput] = useState(String(DEFAULT_BACKTEST_DAYS));
+  const [result, setResult] = useState<StrategyResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const strategyID = selectedStrategyID || DEFAULT_STRATEGY_ID;
+
+  useEffect(() => {
+    setResult(null);
+    setError("");
+  }, [code]);
+
+  const fetchBacktest = useCallback(async (d: number, selectedStrategy = strategyID) => {
+    if (!code) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await strategyApi.backtest(code, d, selectedStrategy);
+      if (res.error) {
+        setError(res.error);
+        setResult(null);
+      } else {
+        setResult(res);
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "回测失败");
+      setResult(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [code, strategyID]);
+
+  useEffect(() => {
+    if (open && result && !loading) {
+      fetchBacktest(days, strategyID);
+    }
+  }, [strategyID]);
+
+  function normalizedDays() {
+    const parsed = Number.parseInt(daysInput, 10);
+    if (!Number.isFinite(parsed)) return days;
+    return Math.max(MIN_BACKTEST_DAYS, Math.min(MAX_BACKTEST_DAYS, parsed));
+  }
+
+  function runWithInputDays() {
+    const nextDays = normalizedDays();
+    setDays(nextDays);
+    setDaysInput(String(nextDays));
+    fetchBacktest(nextDays, strategyID);
+  }
+
+  function chooseStrategy(nextStrategy: string) {
+    onStrategyChange?.(nextStrategy);
+    if (result && !loading) {
+      fetchBacktest(days, nextStrategy);
+    }
+  }
+
+  // Trigger fetch when opening
+  function handleToggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && !result && !loading) {
+      fetchBacktest(days, strategyID);
+    }
+  }
+
+  const beatsHold = (result?.strategy_return_pct ?? 0) > (result?.buy_hold_return_pct ?? 0);
+
+  return (
+    <Card>
+      <CardHeader
+        className="cursor-pointer select-none py-3 px-4"
+        onClick={handleToggle}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {open
+              ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+            <CardTitle className="text-sm font-semibold">策略回测</CardTitle>
+            {result && !result.error && (
+              <>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] border-0 ${
+                    result.strategy_return_pct >= 0
+                      ? "text-emerald-700 dark:text-emerald-300"
+                      : "text-rose-700 dark:text-rose-300"
+                  }`}
+                >
+                  {result.strategy_return_pct >= 0 ? "+" : ""}{result.strategy_return_pct.toFixed(2)}%
+                </Badge>
+                <span className={`text-[10px] ${beatsHold ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                  {beatsHold ? "↑" : "↓"} vs 持有 {result.buy_hold_return_pct >= 0 ? "+" : ""}{result.buy_hold_return_pct.toFixed(2)}%
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {result.total_trades} 笔 · 胜率 {result.win_rate.toFixed(0)}%
+                </span>
+              </>
+            )}
+          </div>
+          <span className="text-[10px] text-muted-foreground">
+            {result?.days ?? days} 天 · {strategyLabel(strategyID)} · 夏普 {result?.sharpe_ratio.toFixed(2) ?? "—"}
+          </span>
+        </div>
+      </CardHeader>
+
+      {open && (
+        <CardContent className="pt-0 px-4 pb-4 space-y-4">
+          {/* Day range */}
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="strategy-backtest-days" className="text-xs text-muted-foreground">回测天数</label>
+            <Input
+              id="strategy-backtest-days"
+              type="number"
+              inputMode="numeric"
+              min={MIN_BACKTEST_DAYS}
+              max={MAX_BACKTEST_DAYS}
+              step={1}
+              value={daysInput}
+              onChange={(e) => setDaysInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") runWithInputDays();
+              }}
+              className="h-7 w-24 px-2 text-xs"
+              disabled={loading}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5 text-xs"
+              onClick={runWithInputDays}
+              disabled={loading}
+            >
+              运行
+            </Button>
+            <label htmlFor="strategy-backtest-profile" className="ml-1 text-xs text-muted-foreground">策略</label>
+            <select
+              id="strategy-backtest-profile"
+              value={strategyID}
+              onChange={(e) => chooseStrategy(e.target.value)}
+              disabled={loading}
+              className="h-7 rounded-md border bg-background px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {STRATEGY_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {loading && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground py-8 justify-center">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              正在运行策略回测引擎…
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {error}
+            </div>
+          )}
+
+          {!loading && result && !result.error && (
+            <>
+              {/* Summary cards */}
+              <SummaryBar result={result} />
+
+              {/* Equity chart */}
+              {result.equity_curve.length > 0 && (
+                <div className="rounded-md border p-3">
+                  <div className="mb-2 text-xs text-muted-foreground font-medium">
+                    净值曲线对比（策略 vs 买入持有）
+                  </div>
+                  <EquityChart
+                    strategy={result.equity_curve}
+                    benchmark={result.benchmark_curve}
+                  />
+                </div>
+              )}
+
+              {/* Trade history */}
+              {result.trades.length > 0 && (
+                <TradeTable trades={result.trades} />
+              )}
+
+              {/* Daily signals */}
+              {result.daily_signals && result.daily_signals.length > 0 && (
+                <SignalTable signals={result.daily_signals} />
+              )}
+            </>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Summary bar
+// ──────────────────────────────────────────────
+
+function SummaryBar({ result }: { result: StrategyResult }) {
+  const items = [
+    { label: "策略收益", value: `${result.strategy_return_pct >= 0 ? "+" : ""}${result.strategy_return_pct.toFixed(2)}%`, positive: result.strategy_return_pct >= 0 },
+    { label: "持有收益", value: `${result.buy_hold_return_pct >= 0 ? "+" : ""}${result.buy_hold_return_pct.toFixed(2)}%`, positive: result.buy_hold_return_pct >= 0 },
+    { label: "夏普比率", value: result.sharpe_ratio.toFixed(2), positive: result.sharpe_ratio > 1 },
+    { label: "最大回撤", value: `-${result.max_drawdown_pct.toFixed(2)}%`, positive: false },
+    { label: "胜率", value: `${result.win_rate.toFixed(0)}%`, positive: result.win_rate > 50 },
+    { label: "信号效率", value: `${result.signal_efficiency.toFixed(0)}%`, positive: true },
+    { label: "均持仓", value: `${result.avg_holding_days.toFixed(1)}天`, positive: true },
+  ];
+
+  return (
+    <div className="grid grid-cols-4 md:grid-cols-7 gap-x-3 gap-y-1 rounded-md bg-muted/40 p-2 text-center">
+      {items.map((it) => (
+        <div key={it.label}>
+          <div className="text-[10px] text-muted-foreground">{it.label}</div>
+          <div className={`text-xs font-mono font-medium ${it.positive ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}`}>
+            {it.value}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Equity chart
+// ──────────────────────────────────────────────
+
 interface ChartPoint {
   date: string;
-  nav: number;
+  strategy: number;
   hold: number;
 }
 
-function NetValueChart({ data }: { data: ChartPoint[] }) {
+function EquityChart({ strategy, benchmark }: { strategy: EquityPoint[]; benchmark: EquityPoint[] }) {
+  const data: ChartPoint[] = strategy.map((s, i) => ({
+    date: s.date,
+    strategy: s.equity,
+    hold: benchmark[i]?.equity ?? 1,
+  }));
+
   return (
     <div style={{ width: "100%", height: 300 }}>
       <style dangerouslySetInnerHTML={{ __html: CHART_CSS }} />
@@ -484,22 +346,22 @@ function NetValueChart({ data }: { data: ChartPoint[] }) {
             contentStyle={{ display: "none" }}
             content={({ active, payload, label }) => {
               if (!active || !payload?.length) return null;
-              const nav = Number(payload[0]?.value ?? 1).toFixed(4);
-              const hold = Number(payload[1]?.value ?? 1).toFixed(4);
-              const pnl = ((Number(payload[0]?.value ?? 1) - 1) * 100).toFixed(2);
-              const holdPnl = ((Number(payload[1]?.value ?? 1) - 1) * 100).toFixed(2);
+              const stratNav = Number(payload[0]?.value ?? 1);
+              const holdNav = Number(payload[1]?.value ?? 1);
+              const stratPnl = ((stratNav - 1) * 100).toFixed(2);
+              const holdPnl = ((holdNav - 1) * 100).toFixed(2);
               return (
                 <div className="bt-tooltip">
                   <div style={{ opacity: 0.6, marginBottom: 4 }}>{String(label)}</div>
-                  <div>策略净值: <strong>{nav}</strong> <span style={{ color: Number(pnl) >= 0 ? "#16a34a" : "#dc2626" }}>({Number(pnl) >= 0 ? "+" : ""}{pnl}%)</span></div>
-                  <div>持有净值: <strong>{hold}</strong> <span style={{ color: Number(holdPnl) >= 0 ? "#16a34a" : "#dc2626" }}>({Number(holdPnl) >= 0 ? "+" : ""}{holdPnl}%)</span></div>
+                  <div>策略: <strong>{stratNav.toFixed(4)}</strong> <span style={{ color: stratNav >= 1 ? "#16a34a" : "#dc2626" }}>({stratPnl >= "0" ? "+" : ""}{stratPnl}%)</span></div>
+                  <div>持有: <strong>{holdNav.toFixed(4)}</strong> <span style={{ color: holdNav >= 1 ? "#16a34a" : "#dc2626" }}>({holdPnl >= "0" ? "+" : ""}{holdPnl}%)</span></div>
                 </div>
               );
             }}
           />
           <ReferenceLine y={1} className="bt-ref" />
-          <Legend className="bt-legend" formatter={(value: string) => value === "nav" ? "策略" : "买入持有"} />
-          <Line type="monotone" dataKey="nav" name="nav" className="bt-line-strategy" strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
+          <Legend className="bt-legend" formatter={(value: string) => value === "strategy" ? "策略" : "买入持有"} />
+          <Line type="monotone" dataKey="strategy" name="strategy" className="bt-line-strategy" strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
           <Line type="monotone" dataKey="hold" name="hold" className="bt-line-hold" strokeWidth={2} dot={false} activeDot={{ r: 3 }} strokeDasharray="6 3" />
         </LineChart>
       </ResponsiveContainer>
@@ -508,104 +370,45 @@ function NetValueChart({ data }: { data: ChartPoint[] }) {
 }
 
 // ──────────────────────────────────────────────
-// Daily details table
+// Trade history table
 // ──────────────────────────────────────────────
 
-function DailyDetailsTable({
-  rows,
-  strategy,
-}: {
-  rows: SimRow[];
-  strategy: Strategy;
-}) {
-  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
-  const sorted = sortDir === "desc" ? [...rows].reverse() : rows;
-  const sells = rows.filter((r) => r.action === "sell" || r.action === "bear-exit");
-  const wins = sells.filter((r) => r.dailyPnl > 0);
-
-  const actionLabel = (a: SimRow["action"]) => {
-    switch (a) {
-      case "buy": return "买入";
-      case "sell": return "卖出";
-      case "bear-exit": return "空平";
-      case "hold": return "持仓";
-      case "skip": return "跳过";
-      default: return "空仓";
-    }
-  };
-
-  const actionColor = (a: SimRow["action"]) => {
-    switch (a) {
-      case "buy": return "text-blue-600 dark:text-blue-400";
-      case "sell": return "text-amber-600 dark:text-amber-400";
-      case "bear-exit": return "text-rose-600 dark:text-rose-400 font-medium";
-      case "hold": return "text-emerald-600 dark:text-emerald-400";
-      case "skip": return "text-muted-foreground/50";
-      default: return "text-muted-foreground";
-    }
-  };
-
+function TradeTable({ trades }: { trades: StrategyTrade[] }) {
   return (
     <div className="border rounded-md">
-      <div className="flex flex-wrap items-center gap-3 px-3 py-2 bg-muted/30 border-b text-[10px]">
-        <span className="text-muted-foreground">
-          交易 <span className="font-mono">{sells.length}</span> 笔
-        </span>
-        <span className="text-muted-foreground">
-          胜率 <span className="font-mono">{sells.length > 0 ? ((wins.length / sells.length) * 100).toFixed(0) : 0}%</span>
-        </span>
-        {sells.length > 0 && (
-          <span className={wins.length >= sells.length - wins.length ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}>
-            盈 <span className="font-mono">{wins.length}</span> / 亏 <span className="font-mono">{sells.length - wins.length}</span>
-          </span>
-        )}
+      <div className="px-3 py-2 bg-muted/30 border-b text-xs font-medium">
+        交易记录（{trades.length} 笔）
       </div>
-      <div className="max-h-[400px] overflow-auto">
+      <div className="max-h-[300px] overflow-auto">
         <table className="w-full text-[10px] font-mono tabular-nums">
           <thead className="bg-muted/60 sticky top-0 z-10">
             <tr className="text-left">
-              <th className="px-2 py-1 cursor-pointer select-none" onClick={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}>
-                日期 {sortDir === "desc" ? "↓" : "↑"}
-              </th>
-              <th className="px-2 py-1 text-right">昨收</th>
+              <th className="px-2 py-1">ID</th>
+              <th className="px-2 py-1">买入日</th>
               <th className="px-2 py-1 text-right">买价</th>
+              <th className="px-2 py-1 text-center">评分</th>
+              <th className="px-2 py-1 text-center">仓位</th>
+              <th className="px-2 py-1">卖出日</th>
               <th className="px-2 py-1 text-right">卖价</th>
-              <th className="px-2 py-1 text-center">偏向</th>
-              <th className="px-2 py-1 text-center">操作</th>
-              <th className="px-2 py-1 text-right">成本</th>
-              <th className="px-2 py-1 text-right">净值</th>
+              <th className="px-2 py-1">卖出原因</th>
+              <th className="px-2 py-1 text-right">天数</th>
               <th className="px-2 py-1 text-right">收益</th>
             </tr>
           </thead>
           <tbody>
-            {sorted.map((r) => (
-              <tr key={r.date} className={`border-t hover:bg-muted/30 ${r.action === "cash" || r.action === "skip" ? "opacity-40" : ""}`}>
-                <td className="px-2 py-1">{r.date}</td>
-                <td className="px-2 py-1 text-right">{r.prevClose.toFixed(2)}</td>
-                <td className="px-2 py-1 text-right">{r.buyLevel > 0 ? r.buyLevel.toFixed(2) : "—"}</td>
-                <td className="px-2 py-1 text-right">{r.sellLevel > 0 ? r.sellLevel.toFixed(2) : "—"}</td>
-                <td className="px-2 py-1 text-center">
-                  <span className={
-                    r.bias.includes("多") ? "text-emerald-600 dark:text-emerald-400" :
-                    r.bias.includes("空") ? "text-rose-600 dark:text-rose-400" :
-                    "text-muted-foreground"
-                  }>
-                    {r.bias || "—"}
-                  </span>
-                </td>
-                <td className={`px-2 py-1 text-center ${actionColor(r.action)}`}>{actionLabel(r.action)}</td>
-                <td className="px-2 py-1 text-right">{r.holding && r.buyPrice > 0 ? r.buyPrice.toFixed(2) : "—"}</td>
-                <td className={`px-2 py-1 text-right font-medium ${r.nav >= 1 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                  {r.nav.toFixed(4)}
-                </td>
-                <td className={`px-2 py-1 text-right ${
-                  r.action === "sell" || r.action === "bear-exit"
-                    ? r.dailyPnl > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-                    : "text-muted-foreground"
-                }`}>
-                  {(r.action === "sell" || r.action === "bear-exit")
-                    ? `${r.dailyPnl >= 0 ? "+" : ""}${r.dailyPnl.toFixed(2)}%`
-                    : "—"}
+            {trades.map((t) => (
+              <tr key={t.trade_id} className="border-t hover:bg-muted/30">
+                <td className="px-2 py-1">{t.trade_id}</td>
+                <td className="px-2 py-1">{t.buy_date}</td>
+                <td className="px-2 py-1 text-right">{t.buy_price.toFixed(2)}</td>
+                <td className="px-2 py-1 text-center">{t.buy_score}</td>
+                <td className="px-2 py-1 text-center">{t.position_pct}%</td>
+                <td className="px-2 py-1">{t.sell_date}</td>
+                <td className="px-2 py-1 text-right">{t.sell_price.toFixed(2)}</td>
+                <td className="px-2 py-1 text-muted-foreground">{t.sell_reason}</td>
+                <td className="px-2 py-1 text-right">{t.holding_days}</td>
+                <td className={`px-2 py-1 text-right font-medium ${t.return_pct >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                  {t.return_pct >= 0 ? "+" : ""}{t.return_pct.toFixed(2)}%
                 </td>
               </tr>
             ))}
@@ -617,9 +420,59 @@ function DailyDetailsTable({
 }
 
 // ──────────────────────────────────────────────
-// Helpers
+// Daily signal table
 // ──────────────────────────────────────────────
 
-function round4(n: number): number {
-  return Math.round(n * 10000) / 10000;
+function SignalTable({ signals }: { signals: StrategyResult["daily_signals"] }) {
+  const [showAll, setShowAll] = useState(false);
+  const list = signals ?? [];
+  const display = showAll ? list : list.slice(-30);
+
+  const actionColor = (a: string) => {
+    if (a === "BUY") return "text-blue-600 dark:text-blue-400 font-medium";
+    if (a === "SELL") return "text-amber-600 dark:text-amber-400 font-medium";
+    return "text-muted-foreground";
+  };
+
+  return (
+    <div className="border rounded-md">
+      <div className="px-3 py-2 bg-muted/30 border-b text-xs font-medium">
+        每日信号（近 {list.length} 天）
+      </div>
+      <div className="max-h-[300px] overflow-auto">
+        <table className="w-full text-[10px] font-mono tabular-nums">
+          <thead className="bg-muted/60 sticky top-0 z-10">
+            <tr className="text-left">
+              <th className="px-2 py-1">日期</th>
+              <th className="px-2 py-1 text-right">价格</th>
+              <th className="px-2 py-1 text-center">评分</th>
+              <th className="px-2 py-1 text-center">操作</th>
+              <th className="px-2 py-1 text-center">仓位</th>
+              <th className="px-2 py-1">原因</th>
+            </tr>
+          </thead>
+          <tbody>
+            {display.map((s) => (
+              <tr key={s.date} className={`border-t hover:bg-muted/30 ${s.action === "HOLD" ? "opacity-50" : ""}`}>
+                <td className="px-2 py-1">{s.date}</td>
+                <td className="px-2 py-1 text-right">{s.price.toFixed(2)}</td>
+                <td className="px-2 py-1 text-center">{s.score}</td>
+                <td className={`px-2 py-1 text-center ${actionColor(s.action)}`}>{s.action}</td>
+                <td className="px-2 py-1 text-center">{s.position_pct}%</td>
+                <td className="px-2 py-1 text-muted-foreground">{s.reason}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {list.length > 30 && (
+        <button
+          className="w-full py-1.5 text-[10px] text-muted-foreground hover:text-foreground border-t"
+          onClick={() => setShowAll(!showAll)}
+        >
+          {showAll ? "收起" : `显示全部 ${list.length} 天`}
+        </button>
+      )}
+    </div>
+  );
 }

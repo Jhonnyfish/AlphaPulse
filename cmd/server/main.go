@@ -19,8 +19,8 @@ import (
 	"alphapulse/internal/services"
 
 	"github.com/gin-gonic/gin"
-	ginSwagger "github.com/swaggo/gin-swagger"
 	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 
 	_ "alphapulse/docs" // swagger generated docs
 )
@@ -95,6 +95,7 @@ func main() {
 	portfolioHandler := handlers.NewPortfolioHandler(tencentService, eastMoneyService, db, logger.L())
 	tradingJournalHandler := handlers.NewTradingJournalHandler(db)
 	strategiesHandler := handlers.NewStrategiesHandler(db)
+	strategyBacktestHandler := handlers.NewStrategyBacktestHandler(eastMoneyService)
 	customAlertsHandler := handlers.NewCustomAlertsHandler(db, tencentService)
 	stockNotesHandler := handlers.NewStockNotesHandler(db)
 	fundFlowHandler := handlers.NewFundFlowHandler(logger.L())
@@ -112,13 +113,13 @@ func main() {
 	deepAnalysisHandler := handlers.NewDeepAnalysisHandler()
 	syncHandler := handlers.NewSyncHandler(db, cfg, logger.L(), nil, eastMoneyService, marketHandler.CacheStats())
 	watchlistHandler.SetAlpha300(alpha300Cache)
-		watchlistHandler.SetOnChange(watchlistAnalysisHandler.InvalidateRankingCache)
-		watchlistHandler.SetOnChange(patternScannerHandler.InvalidateCache)
+	watchlistHandler.SetOnChange(watchlistAnalysisHandler.InvalidateRankingCache)
+	watchlistHandler.SetOnChange(patternScannerHandler.InvalidateCache)
 
 	// Initialize Tushare data source (primary) if enabled
 	var tushareDB *services.TushareDB
-	if cfg.TushareEnabled && cfg.TushareToken != "" {
-		tushareSvc := services.NewTushareService(cfg.TushareToken, cfg.HTTPTimeout)
+	if cfg.TushareEnabled && cfg.ActiveTushareToken() != "" {
+		tushareSvc := services.NewTushareService(cfg.ActiveTushareToken(), cfg.ActiveTushareBaseURL(), cfg.HTTPTimeout)
 		tushareDB = services.NewTushareDB(db, logger.L())
 		tushareSync := services.NewTushareSync(tushareSvc, eastMoneyService, db, logger.L())
 
@@ -129,8 +130,8 @@ func main() {
 		fundFlowHandler.SetTushareDB(tushareDB)
 		watchlistAnalysisHandler.SetTushareDB(tushareDB)
 		portfolioHandler.SetTushareDB(tushareDB)
+		strategyBacktestHandler.SetTushareDB(tushareDB)
 		deepAnalysisHandler.SetTushareService(tushareSvc)
-
 
 		// Initial sync if tables are empty
 		if !tushareDB.HasData(context.Background()) {
@@ -237,6 +238,7 @@ func main() {
 	analyzeGroup.Use(authMiddleware)
 	analyzeGroup.GET("", analyzeHandler.Analyze)
 	analyzeGroup.GET("/intraday-forecast-accuracy", analyzeHandler.IntradayForecastAccuracy)
+	analyzeGroup.GET("/t-backtest", analyzeHandler.TBacktest)
 
 	trendGroup := api.Group("")
 	trendGroup.Use(authMiddleware)
@@ -276,6 +278,9 @@ func main() {
 	strategiesGroup.DELETE("/:id", strategiesHandler.Delete)
 	strategiesGroup.POST("/:id/activate", strategiesHandler.Activate)
 	strategiesGroup.POST("/:id/deactivate", strategiesHandler.Deactivate)
+
+	// Strategy backtest engine (score-based)
+	api.GET("/strategy/backtest", authMiddleware, strategyBacktestHandler.Backtest)
 
 	customAlertsGroup := api.Group("/custom-alerts")
 	customAlertsGroup.Use(authMiddleware)
@@ -387,60 +392,60 @@ func main() {
 		log.Println("[scheduler] generating daily report...")
 		reportsHandler.GenerateDailyReportAuto()
 	})
-		// Tushare daily sync at 18:00 (data stable by this time)
-		if tushareDB != nil {
-			scheduler.AddDailyJob("tushare-daily-sync", 21, 0, func() {
-				log.Println("[scheduler] tushare daily sync...")
-				syncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-				defer cancel()
-				tushareSvc := services.NewTushareService(cfg.TushareToken, cfg.HTTPTimeout)
-				ts := services.NewTushareSync(tushareSvc, eastMoneyService, db, logger.L())
-				ts.RunDaily(syncCtx)
-			})
-			// Retry at 20:00 in case Tushare data wasn't ready at 18:00
-			scheduler.AddDailyJob("tushare-daily-retry", 23, 0, func() {
-				log.Println("[scheduler] tushare daily retry (in case 21:00 missed data)...")
-				syncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-				defer cancel()
-				tushareSvc := services.NewTushareService(cfg.TushareToken, cfg.HTTPTimeout)
-				ts := services.NewTushareSync(tushareSvc, eastMoneyService, db, logger.L())
-				ts.RunDaily(syncCtx)
-			})
-		}
-		// Pre-fetch watchlist news at 18:10 so ranking reads from DB
-		scheduler.AddDailyJob("watchlist-news-sync", 21, 10, func() {
-			log.Println("[scheduler] syncing watchlist news to DB...")
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	// Tushare daily sync at 18:00 (data stable by this time)
+	if tushareDB != nil {
+		scheduler.AddDailyJob("tushare-daily-sync", 21, 0, func() {
+			log.Println("[scheduler] tushare daily sync...")
+			syncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
-			rows, err := db.Query(ctx, `SELECT code FROM watchlist`)
-			if err != nil {
-				log.Printf("[scheduler] watchlist query failed: %v", err)
-				return
-			}
-			defer rows.Close()
-			var codes []string
-			for rows.Next() {
-				var code string
-				if rows.Scan(&code) == nil {
-					codes = append(codes, code)
-				}
-			}
-			for _, code := range codes {
-				codeCtx, codeCancel := context.WithTimeout(ctx, 15*time.Second)
-				if _, err := newsService.GetStockNews(codeCtx, code, 10); err != nil {
-					log.Printf("[scheduler] news sync failed for %s: %v", code, err)
-				}
-				if _, err := newsService.GetStockAnnouncements(codeCtx, code, 10); err != nil {
-					log.Printf("[scheduler] announcements sync failed for %s: %v", code, err)
-				}
-				codeCancel()
-			}
-			log.Printf("[scheduler] watchlist news sync done for %d stocks", len(codes))
+			tushareSvc := services.NewTushareService(cfg.ActiveTushareToken(), cfg.ActiveTushareBaseURL(), cfg.HTTPTimeout)
+			ts := services.NewTushareSync(tushareSvc, eastMoneyService, db, logger.L())
+			ts.RunDaily(syncCtx)
 		})
-		// Pre-compute ranking at 18:15 so users see results instantly
-		scheduler.AddDailyJob("ranking-precompute", 21, 15, func() {
-			watchlistAnalysisHandler.PreComputeRanking()
+		// Retry at 20:00 in case Tushare data wasn't ready at 18:00
+		scheduler.AddDailyJob("tushare-daily-retry", 23, 0, func() {
+			log.Println("[scheduler] tushare daily retry (in case 21:00 missed data)...")
+			syncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			tushareSvc := services.NewTushareService(cfg.ActiveTushareToken(), cfg.ActiveTushareBaseURL(), cfg.HTTPTimeout)
+			ts := services.NewTushareSync(tushareSvc, eastMoneyService, db, logger.L())
+			ts.RunDaily(syncCtx)
 		})
+	}
+	// Pre-fetch watchlist news at 18:10 so ranking reads from DB
+	scheduler.AddDailyJob("watchlist-news-sync", 21, 10, func() {
+		log.Println("[scheduler] syncing watchlist news to DB...")
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer cancel()
+		rows, err := db.Query(ctx, `SELECT code FROM watchlist`)
+		if err != nil {
+			log.Printf("[scheduler] watchlist query failed: %v", err)
+			return
+		}
+		defer rows.Close()
+		var codes []string
+		for rows.Next() {
+			var code string
+			if rows.Scan(&code) == nil {
+				codes = append(codes, code)
+			}
+		}
+		for _, code := range codes {
+			codeCtx, codeCancel := context.WithTimeout(ctx, 15*time.Second)
+			if _, err := newsService.GetStockNews(codeCtx, code, 10); err != nil {
+				log.Printf("[scheduler] news sync failed for %s: %v", code, err)
+			}
+			if _, err := newsService.GetStockAnnouncements(codeCtx, code, 10); err != nil {
+				log.Printf("[scheduler] announcements sync failed for %s: %v", code, err)
+			}
+			codeCancel()
+		}
+		log.Printf("[scheduler] watchlist news sync done for %d stocks", len(codes))
+	})
+	// Pre-compute ranking at 18:15 so users see results instantly
+	scheduler.AddDailyJob("ranking-precompute", 21, 15, func() {
+		watchlistAnalysisHandler.PreComputeRanking()
+	})
 	scheduler.AddDailyJob("news-cleanup", 3, 0, func() {
 		log.Println("[scheduler] cleaning up old news data...")
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -494,7 +499,7 @@ func main() {
 			log.Println("[startup] checking for missing trade dates...")
 			syncCtx, syncCancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer syncCancel()
-			tushareSvc := services.NewTushareService(cfg.TushareToken, cfg.HTTPTimeout)
+			tushareSvc := services.NewTushareService(cfg.ActiveTushareToken(), cfg.ActiveTushareBaseURL(), cfg.HTTPTimeout)
 			ts := services.NewTushareSync(tushareSvc, eastMoneyService, db, logger.L())
 			ts.RunDaily(syncCtx)
 

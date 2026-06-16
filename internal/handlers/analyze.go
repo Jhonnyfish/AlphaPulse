@@ -355,6 +355,8 @@ func (h *AnalyzeHandler) analyzeSingleWithMode(ctx context.Context, code string,
 		analysis.PatternAnalysis,
 		analysis.IntradayForecast,
 	)
+	analysis.DefensiveStrategy = services.BuildDefensiveStrategy(klines, holdingQty)
+	analysis.StrategyOptions = services.BuildStrategyOptions(klines, holdingQty)
 
 	// Record score history (best-effort)
 	if h.scoreHistory != nil {
@@ -712,9 +714,9 @@ func containsSubstring(s, substr string) bool {
 
 // IntradayForecastAccuracyResponse wraps the backtest result with metadata.
 type IntradayForecastAccuracyResponse struct {
-	OK       bool                              `json:"ok"`
-	Code     string                            `json:"code"`
-	Days     int                               `json:"days"`
+	OK       bool                               `json:"ok"`
+	Code     string                             `json:"code"`
+	Days     int                                `json:"days"`
 	Accuracy *services.IntradayForecastAccuracy `json:"accuracy"`
 }
 
@@ -726,7 +728,7 @@ type IntradayForecastAccuracyResponse struct {
 // @Tags         analyze
 // @Produce      json
 // @Param        code  query   string  true   "股票代码"
-// @Param        days  query   int     false  "回测交易日数（默认 120，最大 250）"  default(120)
+// @Param        days  query   int     false  "回测交易日数（默认 30，最大 500）"  default(30)
 // @Success      200   {object}  IntradayForecastAccuracyResponse
 // @Router       /analyze/intraday-forecast-accuracy [get]
 func (h *AnalyzeHandler) IntradayForecastAccuracy(c *gin.Context) {
@@ -736,7 +738,7 @@ func (h *AnalyzeHandler) IntradayForecastAccuracy(c *gin.Context) {
 		return
 	}
 
-	days := 120
+	days := 30
 	if d := strings.TrimSpace(c.Query("days")); d != "" {
 		if n, err := strconv.Atoi(d); err == nil && n > 0 {
 			days = n
@@ -781,6 +783,90 @@ func (h *AnalyzeHandler) IntradayForecastAccuracy(c *gin.Context) {
 		Code:     code,
 		Days:     days,
 		Accuracy: acc,
+	})
+}
+
+// TBacktestResponse wraps the T-suggestion backtest result with metadata.
+type TBacktestResponse struct {
+	OK     bool                    `json:"ok"`
+	Code   string                  `json:"code"`
+	Days   int                     `json:"days"`
+	Result *services.TBacktestResult `json:"result"`
+	Error  string                  `json:"error,omitempty"`
+}
+
+// TBacktest runs a historical backtest for the T+0 suggestion strategy.
+//
+// @Summary      做T回测
+// @Description  对最近 N 个交易日逐日回放 AnalyzeTSuggestion，模拟执行做T交易，输出成功率/回报率/收益曲线
+// @Tags         analyze
+// @Produce      json
+// @Param        code         query   string  true   "股票代码"
+// @Param        days         query   int     false  "回测交易日数（默认 60，最大 500）"  default(60)
+// @Param        holding_qty  query   int     false  "模拟底仓数量（默认 1000）"  default(1000)
+// @Param        holding_cost query   number  false  "模拟持仓成本（默认 0，自动使用20日均价）"
+// @Success      200   {object}  TBacktestResponse
+// @Router       /analyze/t-backtest [get]
+func (h *AnalyzeHandler) TBacktest(c *gin.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			h.logger.Error("TBacktest panic", zap.Any("recover", r))
+			c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": fmt.Sprintf("internal error: %v", r)})
+		}
+	}()
+
+	code := strings.TrimSpace(c.Query("code"))
+	if code == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "missing code"})
+		return
+	}
+
+	days := 60
+	if d := strings.TrimSpace(c.Query("days")); d != "" {
+		if n, err := strconv.Atoi(d); err == nil && n > 0 {
+			days = n
+		}
+	}
+	if days > 500 {
+		days = 500
+	}
+
+	holdingQty := 1000
+	if q := strings.TrimSpace(c.Query("holding_qty")); q != "" {
+		if n, err := strconv.Atoi(q); err == nil && n > 0 {
+			holdingQty = n
+		}
+	}
+
+	var holdingCost float64
+	if cs := strings.TrimSpace(c.Query("holding_cost")); cs != "" {
+		if v, err := strconv.ParseFloat(cs, 64); err == nil && v > 0 {
+			holdingCost = v
+		}
+	}
+
+	// Fetch klines with headroom for warmup
+	klines, err := h.fetchKlinesN(c.Request.Context(), code, days+60)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+
+	result := services.BacktestTSuggestion(klines, days, holdingQty, holdingCost)
+	if result == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"ok":    false,
+			"error": "insufficient history for T backtest (need > 30 bars)",
+		})
+		return
+	}
+
+	result.Code = code
+	c.JSON(http.StatusOK, TBacktestResponse{
+		OK:     true,
+		Code:   code,
+		Days:   result.DaysEval,
+		Result: result,
 	})
 }
 

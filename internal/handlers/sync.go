@@ -89,7 +89,7 @@ func (h *SyncHandler) SetScheduler(s *services.Scheduler) {
 // ApplySchedulerConfig reads DB config and updates the scheduler accordingly.
 // Called once on startup after the scheduler is created.
 func (h *SyncHandler) ApplySchedulerConfig(ctx context.Context) {
-	if h.scheduler == nil || h.cfg.TushareToken == "" {
+	if h.scheduler == nil || h.cfg.ActiveTushareToken() == "" {
 		return
 	}
 	h.applySchedulerChanges(ctx)
@@ -109,7 +109,7 @@ func (h *SyncHandler) TriggerSync(c *gin.Context) {
 	}
 	h.mu.RUnlock()
 
-	if h.cfg.TushareToken == "" {
+	if h.cfg.ActiveTushareToken() == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"ok":    false,
 			"error": "Tushare not configured (no token)",
@@ -168,7 +168,7 @@ func (h *SyncHandler) TriggerBackfill(c *gin.Context) {
 	}
 	h.mu.RUnlock()
 
-	if h.cfg.TushareToken == "" {
+	if h.cfg.ActiveTushareToken() == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Tushare not configured"})
 		return
 	}
@@ -198,7 +198,7 @@ func (h *SyncHandler) runBackfill(months int) {
 	endDate := time.Now().Format("20060102")
 	startDate := time.Now().AddDate(0, -months, 0).Format("20060102")
 
-	tushareSvc := services.NewTushareService(h.cfg.TushareToken, h.cfg.HTTPTimeout)
+	tushareSvc := services.NewTushareService(h.cfg.ActiveTushareToken(), h.cfg.ActiveTushareBaseURL(), h.cfg.HTTPTimeout)
 	ts := services.NewTushareSync(tushareSvc, h.eastMoneySvc, h.db, h.log)
 	if err := ts.RunBackfill(ctx, startDate, endDate); err != nil {
 		h.log.Error("backfill failed", zap.Error(err))
@@ -234,7 +234,7 @@ func (h *SyncHandler) BackfillStock(c *gin.Context) {
 		req.Months = 6
 	}
 
-	if h.cfg.TushareToken == "" {
+	if h.cfg.ActiveTushareToken() == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Tushare not configured"})
 		return
 	}
@@ -242,7 +242,7 @@ func (h *SyncHandler) BackfillStock(c *gin.Context) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		tushareSvc := services.NewTushareService(h.cfg.TushareToken, h.cfg.HTTPTimeout)
+		tushareSvc := services.NewTushareService(h.cfg.ActiveTushareToken(), h.cfg.ActiveTushareBaseURL(), h.cfg.HTTPTimeout)
 		ts := services.NewTushareSync(tushareSvc, h.eastMoneySvc, h.db, h.log)
 		inserted, err := ts.BackfillStockKlines(ctx, req.Code, req.Months)
 		if err != nil {
@@ -380,7 +380,7 @@ func (h *SyncHandler) applySchedulerChanges(ctx context.Context) {
 		return func() {
 			syncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
-			tushareSvc := services.NewTushareService(h.cfg.TushareToken, h.cfg.HTTPTimeout)
+			tushareSvc := services.NewTushareService(h.cfg.ActiveTushareToken(), h.cfg.ActiveTushareBaseURL(), h.cfg.HTTPTimeout)
 			ts := services.NewTushareSync(tushareSvc, h.eastMoneySvc, h.db, h.log)
 			ts.RunDaily(syncCtx)
 		}
@@ -411,7 +411,7 @@ func (h *SyncHandler) runSync() {
 		// Test override
 		h.tushareSyncFn(ctx)
 	} else {
-		tushareSvc := services.NewTushareService(h.cfg.TushareToken, h.cfg.HTTPTimeout)
+		tushareSvc := services.NewTushareService(h.cfg.ActiveTushareToken(), h.cfg.ActiveTushareBaseURL(), h.cfg.HTTPTimeout)
 		ts := services.NewTushareSync(tushareSvc, h.eastMoneySvc, h.db, h.log)
 		ts.RunDaily(ctx)
 	}

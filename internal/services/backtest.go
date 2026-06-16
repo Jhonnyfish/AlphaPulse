@@ -30,6 +30,140 @@ type BacktestResult struct {
 	Error        string          `json:"error,omitempty"`
 }
 
+// RiskFromKlines computes a 0-100 downside risk score from recent kline data.
+// Higher scores mean a stronger case for reducing exposure.
+func RiskFromKlines(klines []models.KlinePoint) (int, map[string]interface{}) {
+	closes := make([]float64, 0, len(klines))
+	highs := make([]float64, 0, len(klines))
+	lows := make([]float64, 0, len(klines))
+	volumes := make([]float64, 0, len(klines))
+	for _, k := range klines {
+		if k.Close > 0 {
+			closes = append(closes, k.Close)
+			highs = append(highs, k.High)
+			lows = append(lows, k.Low)
+			volumes = append(volumes, k.Volume)
+		}
+	}
+	if len(closes) < 20 {
+		return 50, map[string]interface{}{"error": "数据不足"}
+	}
+
+	last := closes[len(closes)-1]
+	prev := closes[len(closes)-2]
+	ma5 := MovingAverage(closes, 5)
+	ma20 := MovingAverage(closes, 20)
+	ma60 := 0.0
+	if len(closes) >= 60 {
+		ma60 = MovingAverage(closes, 60)
+	}
+	rsi := CalculateRSI(closes, 14)
+
+	high20 := highs[len(highs)-20]
+	low20 := lows[len(lows)-20]
+	rangeSum := 0.0
+	for i := len(highs) - 20; i < len(highs); i++ {
+		if highs[i] > high20 {
+			high20 = highs[i]
+		}
+		if lows[i] < low20 {
+			low20 = lows[i]
+		}
+		rangeSum += highs[i] - lows[i]
+	}
+	drawdownPct := 0.0
+	if high20 > 0 {
+		drawdownPct = (high20 - last) / high20 * 100
+	}
+	atrPct := 0.0
+	if last > 0 {
+		atrPct = rangeSum / 20 / last * 100
+	}
+
+	mom5Pct := 0.0
+	if len(closes) >= 6 && closes[len(closes)-6] > 0 {
+		mom5Pct = (last/closes[len(closes)-6] - 1) * 100
+	}
+
+	avgVol5 := 0.0
+	for _, v := range volumes[len(volumes)-5:] {
+		avgVol5 += v
+	}
+	avgVol5 /= 5
+	volRatio := 0.0
+	if avgVol5 > 0 {
+		volRatio = volumes[len(volumes)-1] / avgVol5
+	}
+
+	risk := 10.0
+	breakMA20 := ma20 > 0 && last < ma20
+	deepBreakMA20 := ma20 > 0 && last < ma20*0.97
+	shortTrendWeak := ma5 > 0 && ma20 > 0 && ma5 < ma20
+	longTrendWeak := ma20 > 0 && ma60 > 0 && ma20 < ma60
+	volumeSelloff := last < prev && volRatio >= 1.4
+
+	if breakMA20 {
+		risk += 12
+	}
+	if deepBreakMA20 {
+		risk += 12
+	}
+	if shortTrendWeak {
+		risk += 10
+	}
+	if longTrendWeak {
+		risk += 15
+	}
+	if drawdownPct >= 5 {
+		risk += 10
+	}
+	if drawdownPct >= 10 {
+		risk += 12
+	}
+	if mom5Pct <= -3 {
+		risk += 10
+	}
+	if mom5Pct <= -6 {
+		risk += 12
+	}
+	if volumeSelloff {
+		risk += 12
+	}
+	if atrPct >= 5 {
+		risk += 8
+	}
+	if rsi > 0 && rsi < 35 {
+		risk += 8
+	}
+	if rsi >= 80 {
+		risk += 6
+	}
+	if last > ma20 && ma20 > ma60 && mom5Pct > 0 {
+		risk -= 8
+	}
+
+	if risk < 0 {
+		risk = 0
+	}
+	if risk > 100 {
+		risk = 100
+	}
+
+	dims := map[string]interface{}{
+		"break_ma20":       breakMA20,
+		"deep_break_ma20":  deepBreakMA20,
+		"short_trend_weak": shortTrendWeak,
+		"long_trend_weak":  longTrendWeak,
+		"volume_selloff":   volumeSelloff,
+		"drawdown_pct":     math.Round(drawdownPct*100) / 100,
+		"momentum_5d_pct":  math.Round(mom5Pct*100) / 100,
+		"atr_pct":          math.Round(atrPct*100) / 100,
+		"vol_ratio":        math.Round(volRatio*100) / 100,
+		"rsi":              math.Round(rsi*100) / 100,
+	}
+	return int(math.Round(risk)), dims
+}
+
 // ScoreFromKlines computes a simplified 8-dimension score from kline data only.
 // Base score = 50, adjusted by 8 technical dimensions.
 func ScoreFromKlines(klines []models.KlinePoint) (int, map[string]interface{}) {
@@ -147,8 +281,8 @@ func RunBacktest(ctx context.Context, eastMoney *EastMoneyService, code string, 
 	klines, err := eastMoney.FetchKline(ctx, code, needCount)
 	if err != nil {
 		return BacktestResult{
-			Code: code,
-			Days: days,
+			Code:  code,
+			Days:  days,
 			Error: err.Error(),
 		}
 	}

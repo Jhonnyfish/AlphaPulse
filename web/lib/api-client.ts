@@ -51,6 +51,8 @@ import type {
   SyncConfig,
   PortfolioPosition,
   PortfolioPositionEnriched,
+  StrategyResult,
+  TBacktestResult,
 } from "./types";
 
 export const authApi = {
@@ -135,7 +137,7 @@ export const analysisApi = {
     code: string,
     opts: { days?: number; from?: string; to?: string } = {},
   ): Promise<IntradayForecastAccuracy> => {
-    const days = opts.days ?? 120;
+    const days = opts.days ?? 30;
     const params = new URLSearchParams({
       code,
       days: String(days),
@@ -155,6 +157,23 @@ export const analysisApi = {
       throw new Error(wrapped.error || "回测数据不可用");
     }
     return wrapped.accuracy;
+  },
+  tBacktest: async (
+    code: string,
+    opts: { days?: number; holding_qty?: number } = {},
+  ): Promise<TBacktestResult> => {
+    const params = new URLSearchParams({ code });
+    if (opts.days) params.set("days", String(opts.days));
+    if (opts.holding_qty) params.set("holding_qty", String(opts.holding_qty));
+    const wrapped = await apiFetch<{
+      ok: boolean;
+      result: TBacktestResult | null;
+      error?: string;
+    }>(`/analyze/t-backtest?${params.toString()}`);
+    if (!wrapped.ok || !wrapped.result) {
+      throw new Error(wrapped.error || "T回测数据不可用");
+    }
+    return wrapped.result;
   },
 };
 
@@ -204,4 +223,16 @@ export const watchlistApi = {
     apiFetch<{ ok: boolean; added: number }>("/watchlist/sync", {
       method: "POST",
     }),
+};
+
+// ---- Strategy Backtest Engine ----
+export const strategyApi = {
+  backtest: (code: string, days: number = 30, strategy: string = "balanced") => {
+    const params = new URLSearchParams({
+      code,
+      days: String(days),
+      strategy,
+    });
+    return apiFetch<StrategyResult>(`/strategy/backtest?${params.toString()}`);
+  },
 };

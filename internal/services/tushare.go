@@ -44,9 +44,10 @@ type Row map[string]interface{}
 
 // TushareService is an HTTP client for the Tushare Pro API.
 type TushareService struct {
-	token  string
-	client *http.Client
-	logger *zap.Logger
+	token    string
+	baseURL  string
+	client   *http.Client
+	logger   *zap.Logger
 
 	// Simple rate limiter: track last request time
 	mu         sync.Mutex
@@ -55,9 +56,13 @@ type TushareService struct {
 }
 
 // NewTushareService creates a new TushareService.
-func NewTushareService(token string, timeout time.Duration) *TushareService {
+func NewTushareService(token, baseURL string, timeout time.Duration) *TushareService {
+	if baseURL == "" {
+		baseURL = "https://api.tushare.pro"
+	}
 	return &TushareService{
 		token:       token,
+		baseURL:     baseURL,
 		client:      &http.Client{Timeout: timeout},
 		logger:      logger.L(),
 		minInterval: 200 * time.Millisecond, // max ~5 req/s
@@ -128,7 +133,7 @@ func (s *TushareService) Query(ctx context.Context, apiName string, params map[s
 }
 
 func (s *TushareService) doRequest(ctx context.Context, body []byte) (*TushareResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tushareBaseURL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.baseURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
