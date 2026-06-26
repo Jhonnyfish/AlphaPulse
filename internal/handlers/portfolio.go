@@ -41,15 +41,27 @@ func (h *PortfolioHandler) SetTushareDB(db *services.TushareDB) {
 	h.tushareDB = db
 }
 
-// fetchQuote tries TushareDB first, falls back to Tencent.
+// fetchQuote returns a live quote: Tencent (real-time, intraday during trading
+// hours) first, falling back to TushareDB (end-of-day close) when Tencent is
+// unavailable. The order matters — TushareDB only holds the last synced daily
+// close, so preferring it would freeze the portfolio "current price" at the
+// previous trading day and it would never refresh during the session.
 func (h *PortfolioHandler) fetchQuote(ctx context.Context, code string) (models.Quote, error) {
-	if h.tushareDB != nil {
-		quote, err := h.tushareDB.FetchQuoteFromDB(ctx, code)
-		if err == nil && quote.Price > 0 {
+	if h.tencent != nil {
+		if quote, err := h.tencent.FetchQuote(ctx, code); err == nil && quote.Price > 0 {
 			return quote, nil
+		} else if err != nil {
+			h.logger.Warn("tencent quote failed, falling back", zap.String("code", code), zap.Error(err))
 		}
 	}
-	return h.tencent.FetchQuote(ctx, code)
+	if h.tushareDB != nil {
+		if quote, err := h.tushareDB.FetchQuoteFromDB(ctx, code); err == nil && quote.Price > 0 {
+			return quote, nil
+		} else if err != nil {
+			h.logger.Warn("tushare quote failed", zap.String("code", code), zap.Error(err))
+		}
+	}
+	return models.Quote{}, fmt.Errorf("quote not available for %s", code)
 }
 
 // fetchKlines tries TushareDB first, falls back to EastMoney.

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
-  Briefcase, Plus, Trash2, Loader2, Search, X,
+  Briefcase, Plus, Trash2, Loader2, Search, X, Pencil, Check,
 } from "lucide-react";
 
 export default function PortfolioPage() {
@@ -28,6 +28,12 @@ export default function PortfolioPage() {
   const [formNotes, setFormNotes] = useState("");
   const [adding, setAdding] = useState(false);
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
+
+  // Edit form state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editCost, setEditCost] = useState("");
+  const [editQty, setEditQty] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const fetchPositions = useCallback(async () => {
     setLoading(true);
@@ -95,6 +101,37 @@ export default function PortfolioPage() {
       fetchPositions();
     } catch (err) {
       setError(err instanceof Error ? err.message : "删除失败");
+    }
+  };
+
+  const startEdit = (pos: PortfolioPositionEnriched) => {
+    setEditingId(pos.id);
+    setEditCost(String(pos.cost_price));
+    setEditQty(String(pos.quantity));
+    setError("");
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditCost("");
+    setEditQty("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId || !editCost || !editQty) return;
+    setSaving(true);
+    setError("");
+    try {
+      await portfolioApi.update(editingId, {
+        cost_price: parseFloat(editCost),
+        quantity: parseInt(editQty),
+      });
+      setEditingId(null);
+      fetchPositions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -267,6 +304,9 @@ export default function PortfolioPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
+            {error && (
+              <div className="mb-3 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</div>
+            )}
             <div className="space-y-3">
               {positions.map((pos) => (
                 <div
@@ -279,49 +319,107 @@ export default function PortfolioPage() {
                     <div className="text-xs text-muted-foreground font-mono">{pos.code}</div>
                   </div>
 
-                  <div className="flex-1 grid grid-cols-5 gap-4 text-center">
-                    <div>
-                      <div className="text-xs text-muted-foreground">持仓</div>
-                      <div className="text-sm font-mono">{pos.quantity.toLocaleString()}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground">成本</div>
-                      <div className="text-sm font-mono">{pos.cost_price.toFixed(2)}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground">现价</div>
-                      <div className="text-sm font-mono">{pos.current_price.toFixed(2)}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground">市值</div>
-                      <div className="text-sm font-mono">
-                        {pos.market_value >= 10000
-                          ? `${(pos.market_value / 10000).toFixed(2)}万`
-                          : pos.market_value.toFixed(2)}
+                  {pos.id === editingId ? (
+                    <div className="flex-1 grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label className="text-xs">成本价</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={editCost}
+                          onChange={(e) => setEditCost(e.target.value)}
+                          placeholder="48.50"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">持仓数量（股）</Label>
+                        <Input
+                          type="number"
+                          step="100"
+                          value={editQty}
+                          onChange={(e) => setEditQty(e.target.value)}
+                          placeholder="300"
+                        />
                       </div>
                     </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground">盈亏</div>
-                      <div className={`text-sm font-semibold font-mono ${pos.pnl >= 0 ? "text-green-500" : "text-red-500"}`}>
-                        {pos.pnl >= 0 ? "+" : ""}{pos.pnl.toFixed(0)}
-                        <Badge
-                          variant="outline"
-                          className={`ml-1 text-[10px] ${pos.pnl >= 0 ? "text-green-500 border-green-500/30" : "text-red-500 border-red-500/30"}`}
-                        >
-                          {pos.pnl >= 0 ? "+" : ""}{pos.pnl_pct.toFixed(2)}%
-                        </Badge>
+                  ) : (
+                    <div className="flex-1 grid grid-cols-5 gap-4 text-center">
+                      <div>
+                        <div className="text-xs text-muted-foreground">持仓</div>
+                        <div className="text-sm font-mono">{pos.quantity.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">成本</div>
+                        <div className="text-sm font-mono">{pos.cost_price.toFixed(2)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">现价</div>
+                        <div className="text-sm font-mono">{pos.current_price.toFixed(2)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">市值</div>
+                        <div className="text-sm font-mono">
+                          {pos.market_value >= 10000
+                            ? `${(pos.market_value / 10000).toFixed(2)}万`
+                            : pos.market_value.toFixed(2)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">盈亏</div>
+                        <div className={`text-sm font-semibold font-mono ${pos.pnl >= 0 ? "text-green-500" : "text-red-500"}`}>
+                          {pos.pnl >= 0 ? "+" : ""}{pos.pnl.toFixed(0)}
+                          <Badge
+                            variant="outline"
+                            className={`ml-1 text-[10px] ${pos.pnl >= 0 ? "text-green-500 border-green-500/30" : "text-red-500 border-red-500/30"}`}
+                          >
+                            {pos.pnl >= 0 ? "+" : ""}{pos.pnl_pct.toFixed(2)}%
+                          </Badge>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-red-500 shrink-0"
-                    onClick={() => handleDelete(pos.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {pos.id === editingId ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-green-500 hover:text-green-500"
+                        onClick={handleSaveEdit}
+                        disabled={saving || !editCost || !editQty}
+                      >
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                        onClick={cancelEdit}
+                        disabled={saving}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-primary"
+                        onClick={() => startEdit(pos)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-red-500"
+                        onClick={() => handleDelete(pos.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
